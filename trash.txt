@@ -1,0 +1,15 @@
+1WFd6Z5QjGBDRZCmJuyY6ZupaNQT0yW6LJZZ_Yz-hhsk
+Version 4 on Nov 23, 2025, 10:03 AM
+Deployment ID
+AKfycbzvUqJe0zCAzODhFACQBCHX9nYA4PNYe_YrRILrp1RN2m_8YZfNTVXwynexK9e41oZ0pQ
+Web app
+URL
+https://script.google.com/macros/s/AKfycbzvUqJe0zCAzODhFACQBCHX9nYA4PNYe_YrRILrp1RN2m_8YZfNTVXwynexK9e41oZ0pQ/exec
+
+
+Dear Louis,
+
+You're invited to Gideon Christmas Banquet 2025!
+
+YES → http://localhost:3000/?name=Louis+Okosun&phone=2348033334444&email=louis%40gmail.com
+NO  → https://your-site.com/?name=Louis+Okosun&phone=2348033334444&email=louis%40gmail.com
