@@ -10,7 +10,7 @@ const GideonBanquetRSVP = () => {
   const [partySize, setPartySize] = useState(0);
 
   // Google Apps Script Web App URL - CHANGE THIS LATER
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwc_6Szg0pMXMp21O0Xq2E6GvR0JJXDszMZ-cgrLgns/dev";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwc_6Szg0pMXMp21O0Xq2E6GvR0JJXDszMZ-cgrLgns/devhttps://script.google.com/macros/s/AKfycbzvUqJe0zCAzODhFACQBCHX9nYA4PNYe_YrRILrp1RN2m_8YZfNTVXwynexK9e41oZ0pQ/exec";
 
   useEffect(() => {
   const params = new URLSearchParams(window.location.search);
