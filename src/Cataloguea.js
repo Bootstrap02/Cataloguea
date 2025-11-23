@@ -9,8 +9,27 @@ const GideonBanquetRSVP = () => {
   const [partySize, setPartySize] = useState(0);
 
   // Google Apps Script Web App URL - CHANGE THIS LATER
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwc_6Szg0pMXMp21O0Xq2E6GvR0JJXDszMZ-cgrLgns/devhttps://script.google.com/macros/s/AKfycbzvUqJe0zCAzODhFACQBCHX9nYA4PNYe_YrRILrp1RN2m_8YZfNTVXwynexK9e41oZ0pQ/exec";
+  // 1. FIX THE URL (use the one that already worked!)
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzMd0u-nOcSMFi5jipbPjRmLCHv8xfkPjYfPX0DX6D4gFtYQgK5aFjTG6ban6oYBRj4w/exec";
 
+// 2. REPLACE THE ENTIRE submitRSVP function with this:
+const submitRSVP = async (rsvp, size = 0) => {
+  const payload = {
+    Name: guestName,
+    Phone: guestPhone,
+    Email: guestEmail,
+    RSVP: rsvp,
+    People: size
+  };
+
+  await fetch(GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain'  // This is the magic fix
+    },
+    body: JSON.stringify(payload)
+  });
+};
   useEffect(() => {
   const params = new URLSearchParams(window.location.search);
 
@@ -23,27 +42,7 @@ const GideonBanquetRSVP = () => {
   setGuestEmail(email);  // make sure you have this state
 }, []);
 
- const submitRSVP = async (rsvp, size = 0) => {
-    const payload = {
-      Name: guestName,
-      Phone: guestPhone,
-      Email: guestEmail,
-      RSVP: rsvp,
-      People: size
-    };
-
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      console.log("Sent:", payload);
-    } catch (err) {
-      console.log("Still sent (no-cors):", payload);
-    }
-  };
+ 
 const handleYes = () => setStep('count');
   const handleNo = () => { submitRSVP('NO', 0); setStep('thankYou'); };
   const confirmAttendance = (size) => {
