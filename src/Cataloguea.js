@@ -92,7 +92,7 @@ const GideonBanquetRSVP = () => {
     setStep('thankYou');
   };
 
-  return (
+         return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-red-950 via-red-900 to-black text-white overflow-hidden relative">
         <div className="absolute inset-0 opacity-10">
@@ -101,7 +101,7 @@ const GideonBanquetRSVP = () => {
           }}></div>
         </div>
 
-        {/* HERO - UNTOUCHED */}
+        {/* HERO */}
         <div className="relative h-96 md:h-[500px] bg-cover bg-center" 
              style={{ backgroundImage: "url('https://images.unsplash.com/photo-1518568814502-977fab39b018?ixlib=rb-4.0.3&auto=format&fit=crop&q=80')" }}>
           <div className="absolute inset-0 bg-gradient-to-t from-red-950 via-red-950/70 to-transparent"></div>
@@ -120,13 +120,13 @@ const GideonBanquetRSVP = () => {
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.5 }}
             className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl overflow-hidden border border-gold-200">
 
-            {/* HEADER CARD - UNTOUCHED */}
+            {/* HEADER CARD */}
             <div className="bg-gradient-to-r from-red-800 to-red-900 p-8 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-gold-300">You Are Cordially Invited</h2>
               <p className="text-xl text-gold-100 mt-3">Thursday, December 11th, 2025 • 6:30 PM - 8:30 PM</p>
             </div>
 
-            {/* INFO CARDS - UNTOUCHED */}
+            {/* INFO CARDS */}
             <div className="grid md:grid-cols-3 gap-8 p-10 bg-white text-gray-800">
               <div className="text-center">
                 <div className="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">Calendar</div>
@@ -145,7 +145,7 @@ const GideonBanquetRSVP = () => {
               </div>
             </div>
 
-            {/* WELCOME: YES OR NO */}
+            {/* WELCOME */}
             {step === 'welcome' && (
               <div className="p-10 bg-gradient-to-b from-gray-50 to-white">
                 <h3 className="text-3xl font-bold text-center text-gray-800 mb-8">
@@ -173,7 +173,8 @@ const GideonBanquetRSVP = () => {
                 </div>
               </div>
             )}
-            {/* FANCY FORM — ONLY SHOWS AFTER YES — FIXED TEXT VISIBILITY */}
+
+            {/* FORM – ONLY AFTER YES */}
             {step === 'form' && (
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
@@ -235,7 +236,7 @@ const GideonBanquetRSVP = () => {
               </motion.div>
             )}
 
-            {/* COUNT & THANK YOU - UNTOUCHED */}
+            {/* COUNT */}
             {step === 'count' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-10 bg-green-50">
                 <h3 className="text-3xl font-bold text-center text-green-800 mb-8">Wonderful! We're delighted!</h3>
@@ -253,6 +254,7 @@ const GideonBanquetRSVP = () => {
               </motion.div>
             )}
 
+            {/* THANK YOU */}
             {step === 'thankYou' && (
               <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 className="p-16 bg-gradient-to-b from-green-600 to-green-800 text-center">
@@ -271,7 +273,7 @@ const GideonBanquetRSVP = () => {
             )}
           </motion.div>
 
-          {/* FOOTER - UNTOUCHED */}
+          {/* FOOTER */}
           <div className="text-center mt-12 text-gold-300">
             <p className="text-md"><strong>For inquiries: </strong>
               <a href="tel:+12818962198" className="underline">+1 (281) 896-2198</a> || 
