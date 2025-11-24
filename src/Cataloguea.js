@@ -33,8 +33,6 @@ const GideonBanquetRSVP = () => {
     }
 
     setHasResponded(true);
-    localStorage.setItem('gideonRsvpDone', 'true');
-    clearInterval(reminderInterval.current);
   };
 
   const handleYes = () => setStep('form');
