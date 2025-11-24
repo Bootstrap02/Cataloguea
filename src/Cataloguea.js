@@ -12,19 +12,19 @@ const GideonBanquetRSVP = () => {
   const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzMd0u-nOcSMFi5jipbPjRmLCHv8xfkPjYfPX0DX6D4gFtYQgK5aFjTG6ban6oYBRj4w/exec";
   const reminderInterval = useRef(null);
 
-  // Notification permission
+   // Notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
 
-     Check if already responded
+    // Check if already responded
     const responded = localStorage.getItem('gideonRsvpDone');
     if (responded) {
       setHasResponded(true);
       setStep('thankYou');
     }
-  }, []);
+  }, []);   // ← SEMICOLON HERE
 
   // Reminder only on welcome
   useEffect(() => {
@@ -34,7 +34,7 @@ const GideonBanquetRSVP = () => {
       reminderInterval.current = setInterval(() => {
         if (Notification.permission === "granted") {
           new Notification("Gideon Banquet Reminder", {
-            body: "You never told us if you're coming on December 11th!Click here to RSVP ASAP!",
+            body: "You never RSVP for December 11th banquet o! Click make you answer!",
             icon: "https://res.cloudinary.com/dtthdh8tb/image/upload/v1763979437/IMG-20251124-WA0002_dfcsbv.jpg",
             tag: "rsvp-reminder"
           });
@@ -48,7 +48,7 @@ const GideonBanquetRSVP = () => {
     }
 
     return () => clearInterval(reminderInterval.current);
-  }, [hasResponded, step]);
+  }, [hasResponded, step]);   // ← ALSO ADD SEMICOLON HERE (safety)
 
   const submitRSVP = async (rsvp, size = 0) => {
     const payload = {
