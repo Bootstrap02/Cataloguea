@@ -1,4 +1,4 @@
-import React, { useState, use Effect, useRef} from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { motion } from 'framer-motion';
 
 const GideonBanquetRSVP = () => {
