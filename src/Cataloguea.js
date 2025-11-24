@@ -18,7 +18,7 @@ const GideonBanquetRSVP = () => {
       Notification.requestPermission();
     }
 
-    // Check if already responded
+     Check if already responded
     const responded = localStorage.getItem('gideonRsvpDone');
     if (responded) {
       setHasResponded(true);
@@ -173,8 +173,7 @@ const GideonBanquetRSVP = () => {
                 </div>
               </div>
             )}
-
-            {/* FANCY FORM — ONLY SHOWS AFTER YES */}
+            {/* FANCY FORM — ONLY SHOWS AFTER YES — FIXED TEXT VISIBILITY */}
             {step === 'form' && (
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
@@ -194,7 +193,7 @@ const GideonBanquetRSVP = () => {
                       type="text"
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
-                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl transition-all"
+                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl transition-all text-gray-800 placeholder-gray-400 bg-white"
                       placeholder="e.g. Louis Okosun"
                     />
                   </div>
@@ -206,7 +205,7 @@ const GideonBanquetRSVP = () => {
                       type="tel"
                       value={guestPhone}
                       onChange={(e) => setGuestPhone(e.target.value)}
-                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl"
+                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl transition-all text-gray-800 placeholder-gray-400 bg-white"
                       placeholder="+1 (281) 896-2198"
                     />
                   </div>
@@ -218,7 +217,7 @@ const GideonBanquetRSVP = () => {
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
-                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl"
+                      className="w-full px-6 py-5 text-lg rounded-2xl border-4 border-gold-400 focus:border-gold-600 outline-none shadow-xl transition-all text-gray-800 placeholder-gray-400 bg-white"
                       placeholder="louis@gmail.com"
                     />
                     <p className="text-sm text-gray-600 mt-2">Phone or Email required (at least one)</p>
@@ -230,7 +229,7 @@ const GideonBanquetRSVP = () => {
                     type="submit"
                     className="w-full py-6 bg-gradient-to-r from-green-600 to-green-700 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-green-500/50 transition-all"
                   >
-                    Continue →
+                    Continue
                   </motion.button>
                 </form>
               </motion.div>
