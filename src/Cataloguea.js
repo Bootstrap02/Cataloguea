@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, use Effect, useRef} from 'react';
 import { motion } from 'framer-motion';
 
 const GideonBanquetRSVP = () => {
@@ -7,7 +7,7 @@ const GideonBanquetRSVP = () => {
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('No email provided');
   const [partySize, setPartySize] = useState(0);
-
+  const [hasResponded, setHasResponded] = useState(false); // ← NEW: track if person don answer
   // Google Apps Script Web App URL - CHANGE THIS LATER
   // 1. FIX THE URL (use the one that already worked!)
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzMd0u-nOcSMFi5jipbPjRmLCHv8xfkPjYfPX0DX6D4gFtYQgK5aFjTG6ban6oYBRj4w/exec";
@@ -30,6 +30,13 @@ const submitRSVP = async (rsvp, size = 0) => {
     body: JSON.stringify(payload)
   });
 };
+  const reminderInterval = useRef(null);
+
+  // Request notification permission when page loads
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
   useEffect(() => {
   const params = new URLSearchParams(window.location.search);
 
@@ -41,7 +48,44 @@ const submitRSVP = async (rsvp, size = 0) => {
   setGuestPhone(phone.replace(/\D/g, ''));  // remove all non-digits
   setGuestEmail(email);  // make sure you have this state
 }, []);
+// Check if person don already respond before (from localStorage)
+    const responded = localStorage.getItem('gideonRsvpDone');
+    if (responded) {
+      setHasResponded(true);
+      setStep('thankYou');
+    }
+  }, []);
+  // Start 30-minute reminder if person never respond
+  useEffect(() => {
+    if (hasResponded || step !== 'welcome') return;
 
+    const startReminder = () => {
+      reminderInterval.current = setInterval(() => {
+        if (Notification.permission === "granted") {
+          new Notification("Gideon Banquet Reminder 🎄", {
+            body: `Hello ${guestName.split(' ')[0]}! You never told us if you're coming on December 11th!\nClick here to RSVP ASAP!`,
+            icon: "https://res.cloudinary.com/dtthdh8tb/image/upload/v1763979437/IMG-20251124-WA0002_dfcsbv.jpg, // optional: add small Gideon logo", 
+            tag: "rsvp-reminder", // prevent duplicate
+          });
+        }
+      }, 30 * 60 * 1000); // every 30 minutes
+    };
+
+    if (Notification.permission === "granted") {
+      startReminder();
+    } else if (Notification.permission !== "denied") {
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") startReminder();
+      });
+    }
+
+    return () => clearInterval(reminderInterval.current);
+  }, [hasResponded, step, guestName]);
+  // Mark as responded — reminder go STOP forever
+    setHasResponded(true);
+    localStorage.setItem('gideonRsvpDone', 'true');
+    clearInterval(reminderInterval.current);
+  };
  
 const handleYes = () => setStep('count');
   const handleNo = () => { submitRSVP('NO', 0); setStep('thankYou'); };
@@ -57,7 +101,7 @@ const handleYes = () => setStep('count');
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23FFD700' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:https://res.cloudinary.com/dtthdh8tb/image/upload/v1763979437/thegideoneventspace2-1_glrgcm.jpg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23FFD700' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
           }}></div>
         </div>
 
@@ -85,7 +129,7 @@ const handleYes = () => setStep('count');
           >
             <div className="bg-gradient-to-r from-red-800 to-red-900 p-8 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-gold-300">You Are Cordially Invited</h2>
-              <p className="text-xl text-gold-100 mt-3">Thursday, December 11th, 2025 • 6:00 PM</p>
+              <p className="text-xl text-gold-100 mt-3">Thursday, December 11th, 2025 • 6:30 PM - 8:30 PM</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8 p-10 bg-white text-gray-800">
@@ -94,7 +138,7 @@ const handleYes = () => setStep('count');
                   <span className="text-4xl">Calendar</span>
                 </div>
                 <h3 className="font-bold text-xl text-red-800">Date & Time</h3>
-                <p className="mt-2">Thursday<br/>11th December 2025<br/>6:00 PM</p>
+                <p className="mt-2">Thursday<br/>11th December 2025<br/>6:30 PM - 8:30 PM</p>
               </div>
 
               <div className="text-center">
@@ -102,7 +146,7 @@ const handleYes = () => setStep('count');
                   <span className="text-4xl">Location</span>
                 </div>
                 <h3 className="font-bold text-xl text-red-800">Venue</h3>
-                <p className="mt-2 font-medium">[Venue Name]<br/>[Full Address Here]<br/>[City, State]</p>
+                <p className="mt-2 font-medium"> First Baptist Church, (Event Hall) <br/>350 US-96 BUS, Silsbee<br/>TX 77656</p>
               </div>
 
               <div className="text-center">
@@ -129,8 +173,7 @@ const handleYes = () => setStep('count');
                     whileTap={{ scale: 0.95 }}
                     onClick={handleYes}
                     className="w-full sm:w-auto px-12 py-6 bg-gradient-to-r from-green-600 to-green-700 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
-                  >
-                    YES, I'll be there!
+                           YES, I'll be there!
                   </motion.button>
 
                   <motion.button
@@ -202,7 +245,13 @@ const handleYes = () => setStep('count');
 
           {/* Footer */}
           <div className="text-center mt-12 text-gold-300">
-            <p className="text-lg">For inquiries: <a href="tel:+1234567890" className="underline">+1 (234) 567-890</a></p>
+            <p className="text-md"><strong>For inquiries: </strong>
+            <a href="tel:+12818962198" className="underline">+1 (281) 896-2198</a>,
+            <a href="tel:+14096584837" className="underline">+1 (409) 658-4837</a>,
+            <a href="tel:+14094892683" className="underline">+1 (409) 489-2683</a>, 
+            <a href="tel:+14093502767" className="underline">+1 (409) 350-2767</a>
+            </p>
+            <p className="text-lg">Email us @: gideonshardinsouthjasspercamp@gmail.com</p>
             <p className="mt-4 text-3xl font-bold text-gold-400">The Gideons International</p>
             <p className="text-sm mt-2 opacity-80">Placing God’s Word. Changing Lives.</p>
           </div>
