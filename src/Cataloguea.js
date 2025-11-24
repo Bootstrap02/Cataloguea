@@ -34,7 +34,7 @@ const GideonBanquetRSVP = () => {
       reminderInterval.current = setInterval(() => {
         if (Notification.permission === "granted") {
           new Notification("Gideon Banquet Reminder", {
-            body: "You never RSVP for December 11th banquet o! Click make you answer!",
+            body: "You never told us if you're coming on December 11th!Click here to RSVP ASAP!",
             icon: "https://res.cloudinary.com/dtthdh8tb/image/upload/v1763979437/IMG-20251124-WA0002_dfcsbv.jpg",
             tag: "rsvp-reminder"
           });
@@ -275,9 +275,9 @@ const GideonBanquetRSVP = () => {
           {/* FOOTER - UNTOUCHED */}
           <div className="text-center mt-12 text-gold-300">
             <p className="text-md"><strong>For inquiries: </strong>
-              <a href="tel:+12818962198" className="underline">+1 (281) 896-2198</a>,
-              <a href="tel:+14096584837" className="underline">+1 (409) 658-4837</a>,
-              <a href="tel:+14094892683" className="underline">+1 (409) 489-2683</a>, 
+              <a href="tel:+12818962198" className="underline">+1 (281) 896-2198</a> || 
+              <a href="tel:+14096584837" className="underline">+1 (409) 658-4837</a> || 
+              <a href="tel:+14094892683" className="underline">+1 (409) 489-2683</a> || 
               <a href="tel:+14093502767" className="underline">+1 (409) 350-2767</a>
             </p>
             <p className="text-lg">Email us @: gideonshardinsouthjasspercamp@gmail.com</p>
