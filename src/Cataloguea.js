@@ -281,7 +281,7 @@ const GideonBanquetRSVP = () => {
               <a href="tel:+14094892683" className="underline">+1 (409) 489-2683</a> || 
               <a href="tel:+14093502767" className="underline">+1 (409) 350-2767</a>
             </p>
-            <p className="text-lg">Email us @: gideonshardinsouthjasspercamp@gmail.com</p>
+            <p className="text-md"><strong>Email us @:</strong> gideonshardinsouthjasspercamp@gmail.com</p>
             <p className="mt-4 text-3xl font-bold text-gold-400">The Gideons International</p>
             <p className="text-sm mt-2 opacity-80">Placing God’s Word. Changing Lives.</p>
           </div>
