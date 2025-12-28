@@ -17,6 +17,9 @@
 //     awayAmount: 0,
 //   });
 
+//   // ordered ladder (CRITICAL)
+//   const [orderedStakes, setOrderedStakes] = useState([]);
+
 //   // deficit
 //   const [deficit, setDeficit] = useState(0);
 
@@ -27,8 +30,8 @@
 //   useEffect(() => {
 //     const saved = localStorage.getItem("virtual-epl-session");
 //     if (saved) {
-//       const { deficit: savedDeficit } = JSON.parse(saved);
-//       setDeficit(savedDeficit);
+//       const { deficit } = JSON.parse(saved);
+//       setDeficit(deficit);
 //     }
 //   }, []);
 
@@ -48,13 +51,11 @@
 //       return;
 //     }
 
-//     // base & winner
+//     // base stake
 //     const base = Math.round(10000 / (found.winner - 1));
 //     const winnerAmount = Math.round(base + deficit);
-//     console.log(deficit)
-//     console.log(base)
 
-//     // odds map
+//     // odds lookup
 //     const oddsMap = {
 //       H: found.win,
 //       D: found.draw,
@@ -67,10 +68,14 @@
 //     let drawAmount = 0;
 //     let awayAmount = 0;
 
+//     const ladder = [];
+
 //     // FOLLOW CODE ORDER (NO SORTING)
 //     for (const step of found.code) {
 //       const odd = oddsMap[step];
 //       const stake = Math.round(runningTotal / (odd - 1));
+
+//       ladder.push({ step, stake });
 
 //       if (step === "H") homeAmount = stake;
 //       if (step === "D") drawAmount = stake;
@@ -80,6 +85,7 @@
 //     }
 
 //     setFixture(found);
+//     setOrderedStakes(ladder);
 //     setAmounts({
 //       winnerAmount,
 //       homeAmount,
@@ -88,37 +94,34 @@
 //     });
 //   };
 
-//   /* ---------------- DEFICIT HANDLERS ---------------- */
+//   /* ---------------- DEFICIT RESOLUTION ---------------- */
+//   const resolveResult = (step) => {
+//     if (!fixture) return;
+
+//     const index = orderedStakes.findIndex(
+//       (s) => s.step === step
+//     );
+
+//     const newDeficit = orderedStakes
+//       .slice(index + 1)
+//       .reduce((sum, s) => sum + s.stake, 0);
+
+//     setDeficit(newDeficit);
+//     clearForNext();
+//   };
+
+//   /* ---------------- CLEAR ---------------- */
 //   const clearForNext = () => {
 //     setInputA("");
 //     setInputB("");
 //     setFixture(null);
+//     setOrderedStakes([]);
 //     setAmounts({
 //       winnerAmount: 0,
 //       homeAmount: 0,
 //       drawAmount: 0,
 //       awayAmount: 0,
 //     });
-//   };
-
-//   const handleHomeWin = () => {
-//     const bigGbese = Math.round(
-//       amounts.drawAmount + amounts.awayAmount
-//     );
-//     console.log(bigGbese)
-//     setDeficit(bigGbese);
-//     clearForNext();
-//   };
-
-//   const handleDrawWin = () => {
-//     setDeficit(amounts.awayAmount);
-//     console.log(amounts.awayAmount);
-//     clearForNext();
-//   };
-
-//   const handleAwayWin = () => {
-//     setDeficit(0);
-//     clearForNext();
 //   };
 
 //   /* ---------------- SAVE ---------------- */
@@ -173,7 +176,7 @@
 //           </div>
 
 //           <button
-//             onClick={handleHomeWin}
+//             onClick={() => resolveResult("H")}
 //             disabled={!fixture}
 //             className="py-6 rounded-2xl bg-green-600 text-white text-center shadow-xl disabled:opacity-40"
 //           >
@@ -184,7 +187,7 @@
 //           </button>
 
 //           <button
-//             onClick={handleDrawWin}
+//             onClick={() => resolveResult("D")}
 //             disabled={!fixture}
 //             className="py-6 rounded-2xl bg-gray-500 text-white text-center shadow-xl disabled:opacity-40"
 //           >
@@ -195,7 +198,7 @@
 //           </button>
 
 //           <button
-//             onClick={handleAwayWin}
+//             onClick={() => resolveResult("A")}
 //             disabled={!fixture}
 //             className="py-6 rounded-2xl bg-red-600 text-white text-center shadow-xl disabled:opacity-40"
 //           >
@@ -250,15 +253,21 @@
 import React, { useState, useEffect } from "react";
 import { odds } from "./Scores";
 
+/* ---------------- UTILS ---------------- */
+const sanitizeTeam = (value) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z]/g, ""); // remove spaces & symbols
+
 const Homepage = () => {
-  // inputs
+  /* ---------------- INPUTS ---------------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
 
-  // fixture
+  /* ---------------- FIXTURE ---------------- */
   const [fixture, setFixture] = useState(null);
 
-  // calculated stakes
+  /* ---------------- STAKES ---------------- */
   const [amounts, setAmounts] = useState({
     winnerAmount: 0,
     homeAmount: 0,
@@ -266,21 +275,18 @@ const Homepage = () => {
     awayAmount: 0,
   });
 
-  // ordered ladder (CRITICAL)
+  /* ---------------- ORDERED LADDER ---------------- */
   const [orderedStakes, setOrderedStakes] = useState([]);
 
-  // deficit
+  /* ---------------- DEFICIT ---------------- */
   const [deficit, setDeficit] = useState(0);
 
-  const teamA = inputA || "liv";
-  const teamB = inputB || "liv";
-
-  /* ---------------- LOAD SAVED SESSION ---------------- */
+  /* ---------------- LOAD SESSION ---------------- */
   useEffect(() => {
     const saved = localStorage.getItem("virtual-epl-session");
     if (saved) {
       const { deficit } = JSON.parse(saved);
-      setDeficit(deficit);
+      setDeficit(deficit || 0);
     }
   }, []);
 
@@ -288,8 +294,8 @@ const Homepage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const home = teamA.toLowerCase();
-    const away = teamB.toLowerCase();
+    const home = sanitizeTeam(inputA) || "liv";
+    const away = sanitizeTeam(inputB) || "liv";
 
     const found = odds.find(
       (o) => o.home === home && o.away === away
@@ -300,11 +306,9 @@ const Homepage = () => {
       return;
     }
 
-    // base stake
     const base = Math.round(10000 / (found.winner - 1));
     const winnerAmount = Math.round(base + deficit);
 
-    // odds lookup
     const oddsMap = {
       H: found.win,
       D: found.draw,
@@ -319,7 +323,6 @@ const Homepage = () => {
 
     const ladder = [];
 
-    // FOLLOW CODE ORDER (NO SORTING)
     for (const step of found.code) {
       const odd = oddsMap[step];
       const stake = Math.round(runningTotal / (odd - 1));
@@ -343,7 +346,7 @@ const Homepage = () => {
     });
   };
 
-  /* ---------------- DEFICIT RESOLUTION ---------------- */
+  /* ---------------- RESOLVE RESULT ---------------- */
   const resolveResult = (step) => {
     if (!fixture) return;
 
@@ -381,6 +384,9 @@ const Homepage = () => {
     );
     alert("Session saved");
   };
+
+  const teamA = sanitizeTeam(inputA) || "liv";
+  const teamB = sanitizeTeam(inputB) || "liv";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
@@ -464,7 +470,7 @@ const Homepage = () => {
           <div className="flex justify-center gap-4 items-center">
             <input
               value={inputA}
-              onChange={(e) => setInputA(e.target.value.toLowerCase())}
+              onChange={(e) => setInputA(sanitizeTeam(e.target.value))}
               placeholder="liv"
               className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
             />
@@ -473,7 +479,7 @@ const Homepage = () => {
 
             <input
               value={inputB}
-              onChange={(e) => setInputB(e.target.value.toLowerCase())}
+              onChange={(e) => setInputB(sanitizeTeam(e.target.value))}
               placeholder="liv"
               className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
             />
