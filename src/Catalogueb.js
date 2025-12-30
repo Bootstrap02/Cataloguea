@@ -342,7 +342,7 @@ const Homepage = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       saveBase(baseRef.current);
-    }, 10000); // ⏱ 10 seconds (change to 600000 later)
+    }, 60000); // ⏱ 10 seconds (change to 600000 later)
 
     return () => clearInterval(interval);
   }, []);
