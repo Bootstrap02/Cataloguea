@@ -148,7 +148,7 @@ const Homepage = () => {
     setBaseStake(10000);
     setDeficit(0);
     clearForNext();
-    await saveBase(300000);
+    await saveBase(10000);
   };
 
   /* ---------------- CLEAR ---------------- */
