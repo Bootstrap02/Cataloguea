@@ -94,7 +94,7 @@ export const odds = [
     id: "livbou06",
     home: "liv",
     away: "bou",
-    winner: 943,
+    winner: 94.3,
     win: 1.37,
     draw: 4.88,
     lose: 8.63,
