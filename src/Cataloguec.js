@@ -3,8 +3,7 @@ import axios from "axios";
 import { odds } from "./Scores";
 
 /* ---------------- UTILS ---------------- */
-const sanitizeTeam = (value) =>
-  value.toLowerCase().replace(/[^a-z]/g, "");
+const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 
 /* ---------------- API ---------------- */
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
@@ -17,9 +16,16 @@ const Homepage = () => {
   /* ---------------- FIXTURE ---------------- */
   const [fixture, setFixture] = useState(null);
 
-  /* ---------------- BASE & DEFICIT ---------------- */
+  /* ---------------- BASE ---------------- */
   const [baseStake, setBaseStake] = useState(10000);
-  const [deficit, setDeficit] = useState(0);
+
+  /* 🔒 REF HOLDS LATEST BASE (CRITICAL FIX) */
+  const baseRef = useRef(baseStake);
+
+  /* ---------------- DEFICITS ---------------- */
+  const [deficitH, setDeficitH] = useState(0);
+  const [deficitD, setDeficitD] = useState(0);
+  const [deficitA, setDeficitA] = useState(0);
 
   /* ---------------- STAKES ---------------- */
   const [amounts, setAmounts] = useState({
@@ -29,40 +35,78 @@ const Homepage = () => {
     awayAmount: 0,
   });
 
-  const [orderedStakes, setOrderedStakes] = useState([]);
+  /* ---------------- KEEP REF IN SYNC ---------------- */
+  useEffect(() => {
+    baseRef.current = baseStake;
+  }, [baseStake]);
 
-  const autosaveRef = useRef(null);
+  /* ---------------- LOAD DEFICITS ---------------- */
+  useEffect(() => {
+    const saved = localStorage.getItem("bet_deficits");
+    if (saved) {
+      const { H, D, A } = JSON.parse(saved);
+      setDeficitH(H || 0);
+      setDeficitD(D || 0);
+      setDeficitA(A || 0);
+    }
+  }, []);
 
-  /* ---------------- LOAD BASE (RELOAD BUTTON USES SAME LOGIC) ---------------- */
+  /* ---------------- SAVE DEFICITS ---------------- */
+  const saveDeficits = () => {
+    localStorage.setItem(
+      "bet_deficits",
+      JSON.stringify({ H: deficitH, D: deficitD, A: deficitA })
+    );
+  };
+
+  /* ---------------- LOAD BASE (RELOAD BUTTON) ---------------- */
   const fetchBase = async () => {
     try {
       const res = await axios.get(API_BASE);
-      if (res.data?.base !== undefined) {
+      if (typeof res.data?.base === "number") {
         setBaseStake(res.data.base);
-        console.log(res.data.base)
       }
     } catch (err) {
-      console.error("Failed to fetch base:", err);
+      console.error("❌ Failed to fetch base:", err.message);
     }
   };
 
   /* ---------------- SAVE BASE ---------------- */
-  const saveBase = async (value = baseStake) => {
+  const saveBase = async (value) => {
     try {
       await axios.put(API_BASE, { base: value });
+      console.log("✅ Autosaved base:", value);
     } catch (err) {
-      console.error("Auto/Manual save failed:", err);
+      console.error("❌ Autosave failed:", err.message);
     }
   };
 
-  /* ---------------- AUTOSAVE EVERY 10 MINUTES ---------------- */
+  /* ---------------- AUTOSAVE EVERY 5 MINUTES ---------------- */
   useEffect(() => {
-    autosaveRef.current = setInterval(() => {
-      saveBase();
-    }, 600000);
+    const interval = setInterval(() => {
+      saveBase(baseRef.current);
+      saveDeficits();
+    }, 300000);
+    return () => clearInterval(interval);
+  }, []);
 
-    return () => clearInterval(autosaveRef.current);
-  }, [baseStake]);
+  /* ---------------- HANDLE SAVE ---------------- */
+  const handleSave = async () => {
+    await saveBase(baseStake);
+    saveDeficits();
+  };
+
+  /* ---------------- HANDLE RELOAD ---------------- */
+  const handleReload = async () => {
+    await fetchBase();
+    const saved = localStorage.getItem("bet_deficits");
+    if (saved) {
+      const { H, D, A } = JSON.parse(saved);
+      setDeficitH(H || 0);
+      setDeficitD(D || 0);
+      setDeficitA(A || 0);
+    }
+  };
 
   /* ---------------- SUBMIT (NEW GAME) ---------------- */
   const handleSubmit = (e) => {
@@ -80,74 +124,81 @@ const Homepage = () => {
       return;
     }
 
-    /* ✅ ABSORB DEFICIT HERE */
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-
-    /* -------- FIRST STAKE -------- */
-    const winnerAmount = Math.round(
-      newBase / (found.winner - 1)
+    /* -------- FIRST STAKE (6-0 / WINNER) -------- */
+    let winnerAmount = Math.round(
+      baseStake / (found.winner - 1)
     );
+    winnerAmount = Math.max(winnerAmount, 10);
 
-    const oddsMap = {
-      H: found.win,
-      D: found.draw,
-      A: found.lose,
-    };
+    const oddItems = [
+      { key: "H", odd: found.win, deficit: deficitH, setDeficit: setDeficitH },
+      { key: "D", odd: found.draw, deficit: deficitD, setDeficit: setDeficitD },
+      { key: "A", odd: found.lose, deficit: deficitA, setDeficit: setDeficitA },
+    ];
 
-    let runningTotal = winnerAmount;
-    const ladder = [];
+    oddItems.sort((a, b) => b.odd - a.odd); // Largest odd first
 
-    let homeAmount = 0;
-    let drawAmount = 0;
-    let awayAmount = 0;
+    const percentages = [0.45, 0.35, 0.20];
+    const newAmounts = { winnerAmount };
 
-    for (const step of found.code) {
-      const odd = oddsMap[step];
-      const stake = Math.round(runningTotal / (odd - 1));
+    for (let i = 0; i < 3; i++) {
+      const item = oddItems[i];
+      const target = Math.round(winnerAmount * percentages[i]);
+      const newDef = item.deficit + target;
+      item.setDeficit(newDef);
 
-      ladder.push({ step, stake });
+      let stake = Math.round(
+        newDef / (item.odd - 1)
+      );
+      stake = Math.max(stake, 10);
 
-      if (step === "H") homeAmount = stake;
-      if (step === "D") drawAmount = stake;
-      if (step === "A") awayAmount = stake;
-
-      runningTotal += stake;
+      if (item.key === "H") newAmounts.homeAmount = stake;
+      if (item.key === "D") newAmounts.drawAmount = stake;
+      if (item.key === "A") newAmounts.awayAmount = stake;
     }
 
+    setAmounts(newAmounts);
     setFixture(found);
-    setOrderedStakes(ladder);
-    setAmounts({
-      winnerAmount,
-      homeAmount,
-      drawAmount,
-      awayAmount,
-    });
   };
 
   /* ---------------- RESOLVE RESULT ---------------- */
   const resolveResult = (step) => {
     if (!fixture) return;
 
-    const index = orderedStakes.findIndex(
-      (s) => s.step === step
-    );
+    const keyToSetDef = {
+      H: setDeficitH,
+      D: setDeficitD,
+      A: setDeficitA,
+    };
+    const keyToAmount = {
+      H: amounts.homeAmount,
+      D: amounts.drawAmount,
+      A: amounts.awayAmount,
+    };
 
-    const newDeficit = orderedStakes
-      .slice(index + 1)
-      .reduce((sum, s) => sum + s.stake, 0);
+    // Winner resets deficit
+    keyToSetDef[step](0);
 
-    setDeficit(newDeficit);
+    // Losers add their stake
+    const allKeys = ["H", "D", "A"];
+    const losers = allKeys.filter((k) => k !== step);
+    losers.forEach((k) => {
+      const added = keyToAmount[k];
+      keyToSetDef[k]((prev) => prev + added);
+    });
+
     clearForNext();
   };
 
   /* ---------------- 6–0 WIN ---------------- */
-  const handleJackpot = () => {
+  const handleJackpot = async () => {
+    setDeficitH(0);
+    setDeficitD(0);
+    setDeficitA(0);
+    saveDeficits();
     setBaseStake(10000);
-    setDeficit(0);
     clearForNext();
-    saveBase(10000);
+    await saveBase(10000);
   };
 
   /* ---------------- CLEAR ---------------- */
@@ -155,7 +206,6 @@ const Homepage = () => {
     setInputA("");
     setInputB("");
     setFixture(null);
-    setOrderedStakes([]);
     setAmounts({
       winnerAmount: 0,
       homeAmount: 0,
@@ -169,17 +219,16 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
-
       {/* SAVE / RELOAD */}
       <div className="absolute top-5 right-5 flex rounded-full overflow-hidden shadow-xl">
         <button
-          onClick={() => saveBase()}
+          onClick={handleSave}
           className="px-5 py-2 bg-green-600 font-bold"
         >
           💾 Save
         </button>
         <button
-          onClick={fetchBase}
+          onClick={handleReload}
           className="px-5 py-2 bg-red-600 font-bold"
         >
           🔄 Reload
@@ -195,12 +244,11 @@ const Homepage = () => {
 
       {/* CARD */}
       <div className="max-w-3xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
-
-        {/* BIG RESULT BUTTONS */}
+        {/* RESULT BUTTONS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <button
             onClick={handleJackpot}
-            className="py-6 rounded-2xl bg-yellow-400 text-black text-center"
+            className="py-6 rounded-2xl bg-yellow-400 text-black"
           >
             <div className="text-4xl font-extrabold">6–0</div>
             <div>({amounts.winnerAmount})</div>
@@ -220,7 +268,7 @@ const Homepage = () => {
             disabled={!fixture}
             className="py-6 rounded-2xl bg-gray-500 text-white"
           >
-            <div className="text-4xl font-extrabold">draw</div>
+            <div className="text-4xl font-extrabold">DRAW</div>
             <div>({amounts.drawAmount})</div>
           </button>
 
@@ -251,7 +299,6 @@ const Homepage = () => {
               className="w-28 px-4 py-2 border-2 rounded-xl text-center"
             />
           </div>
-
           <button
             type="submit"
             className="px-8 py-3 bg-red-600 text-white font-extrabold rounded-full"
@@ -260,13 +307,19 @@ const Homepage = () => {
           </button>
         </form>
 
-        {/* BASE & DEFICIT */}
+        {/* BASE & DEFICITS */}
         <div className="mt-6 text-center font-mono">
           <div>
             Base Amount: <strong>{baseStake}</strong>
           </div>
           <div className="text-red-600 font-extrabold">
-            Current Deficit: {deficit}
+            Deficit Home ({teamA}): {deficitH}
+          </div>
+          <div className="text-red-600 font-extrabold">
+            Deficit Draw: {deficitD}
+          </div>
+          <div className="text-red-600 font-extrabold">
+            Deficit Away ({teamB}): {deficitA}
           </div>
         </div>
       </div>

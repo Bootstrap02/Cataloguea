@@ -121,8 +121,7 @@ const Homepage = () => {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(saveAll, 300000);
-    return () => clearInterval(interval);
+    
   }, []);
 
   /* ---------------- GO FOR INPUT ---------------- */
@@ -231,29 +230,9 @@ const Homepage = () => {
 
     const newDeficit = orderedStakes.slice(index + 1).reduce((sum, s) => sum + s.stake, 0);
     setDeficit(newDeficit);
-    saveAll();
   };
 
-//   /* ---------------- SPECIAL WIN — only zero individual + clear bad ---------------- */
-// const handleSpecialWinA = (type) => {
-//   if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
-
-//   const recovered = pendingSpecialStakes[type];
-
-//   // First win path: clear the main bad deficit
-//   setBadGamesDeficit(0);
-//   setSmallTeamImpact(true);
-
-//   // Clear this special's individual deficit
-//   setSpecialDeficits((prev) => ({ ...prev, [type]: 0 }));
-
-//   // Clear pending
-//   setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
-
-//   // Reduce total by what this win recovered
-//   setTotalSmallDeficits((prev) => Math.max(0, prev - recovered));
-// };
-// In handleSpecialWinA (first win path)
+//   /* ---------------- SPECIAL
 const handleSpecialWinA = (type) => {
   if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
 
@@ -293,71 +272,6 @@ const handleSpecialWinB = (type) => {
   setBadGameShadow(0);
 };  
 /* ---------------- GO TO NEXT GAME — CALCULATE TOTAL HERE ---------------- */
-//   const handleNextGame = async () => {
-//   if (fixture) {
-//     const finalBase = baseStake + deficit;
-//     setBaseStake(finalBase);
-//     setDeficit(0);
-//   }
-
-//   // Special handling when badGamesDeficit is already cleared (≤ 0)
-//   if (smallTeamImpact) {
-//     // Reset ALL individual special deficits to 0
-//     setSpecialDeficits({
-//       oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-//       ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-//     });
-
-//     // Your requested logic
-//     if(baseStake > 10100){
-//     setBadGamesDeficit(totalSmallDeficits + 100);
-//     setBadGameShadow(0);
-//     // Subtract 100 from base stake
-//     setBaseStake((prev) => prev - 100);
-//     }else{
-//       const residue = baseStake - 10000
-//       setBadGamesDeficit(totalSmallDeficits + residue);
-//       setBadGameShadow(0);
-//     // Subtract 100 from base stake
-//     setBaseStake((prev) => prev - residue);
-//     }
-//   }
-//     // Normal case: add any remaining pending stakes to individual deficits
-//     if (isSmallTeamMatch) {
-//       let addedTotal = 0;
-
-//       specialKeys.forEach((key) => {
-//         if (pendingSpecialStakes[key] > 0) {
-//           const added = pendingSpecialStakes[key];
-//           setSpecialDeficits((prev) => ({ ...prev, [key]: prev[key] + added }));
-//           addedTotal += added;
-//         }
-//       });
-
-//       // Recalculate totalSmallDeficits
-//       setTotalSmallDeficits((prevTotal) => {
-//         const newTotal = prevTotal + addedTotal;
-//         console.log("Next game — total recalculated:", newTotal);
-//         return newTotal;
-//       });
-//     }
-  
-
-//   // Always clean up pending stakes, fixture, UI, etc.
-//   setPendingSpecialStakes({
-//     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-//     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-//   });
-
-//   setFixture(null);
-//   setOrderedStakes([]);
-//   setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-//   setIsSmallTeamMatch(false);
-//   setInputA("");
-//   setInputB("");
-
-//   await saveAll();
-// };
 const handleNextGame = async () => {
   if (!fixture) return;
 
@@ -444,7 +358,9 @@ const teamA = sanitizeTeam(inputA) || "HOME";
   const teamB = sanitizeTeam(inputB) || "AWAY";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
+    <div>
+              {/* Mobile Screen */}
+      <div className="max-lg:hidden min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
       <div className="text-center mb-10">
        <div className="flex items-center justify-center gap-6 flex-wrap">
     <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
@@ -595,6 +511,158 @@ const teamA = sanitizeTeam(inputA) || "HOME";
         </div>
       </div>
     </div>
+
+        {/* Mobile Screen */}
+<div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4 flex flex-col">
+  {/* Header - very compact */}
+  <div className="text-center mb-3">
+    <div className="flex items-center justify-center gap-3 flex-wrap">
+      <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL</h1>
+
+      <button
+        onClick={fetchAll}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium text-xs rounded-xl shadow transition active:scale-95 border border-red-500/30 disabled:opacity-50"
+      >
+        Reload Data
+      </button>
+    </div>
+
+    <p className="text-red-400 text-xs mt-1">
+      {fixture
+        ? isSmallTeamMatch
+          ? "SMALL — 6-0 + SPECIALS"
+          : "NORMAL MATCH"
+        : "Ready"}
+    </p>
+  </div>
+
+  {/* Outcome Buttons - smaller + 3 columns on mobile */}
+  <div className="mb-4 flex-grow">
+    {isSmallTeamMatch ? (
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={handleJackpot}
+          disabled={!fixture}
+          className="py-3 px-2 rounded-xl bg-yellow-500 text-black font-bold text-xs hover:bg-yellow-400 transition active:scale-95"
+        >
+          6–0<br />
+          <span className="text-[10px]">({amounts.winnerAmount || "–"})</span>
+        </button>
+
+        {specialKeys.map((key) => (
+          <button
+            key={key}
+            onClick={() => !smallTeamImpact ? handleSpecialWinA(key) : handleSpecialWinB(key)}
+            disabled={!fixture || pendingSpecialStakes[key] === 0}
+            className="py-3 px-2 rounded-xl bg-blue-700 text-white font-bold text-xs hover:bg-blue-600 transition active:scale-95"
+          >
+            {specialLabels[key]}<br />
+            <span className="text-[10px]">({pendingSpecialStakes[key] || "–"})</span>
+          </button>
+        ))}
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={handleJackpot}
+          disabled={!fixture}
+          className="py-4 px-3 rounded-xl bg-yellow-500 text-black font-bold text-sm hover:bg-yellow-400 transition active:scale-95"
+        >
+          6–0<br />
+          <span className="text-xs">({amounts.winnerAmount || "–"})</span>
+        </button>
+
+        <button
+          onClick={() => handleMainResult("H")}
+          disabled={!fixture}
+          className="py-4 px-3 rounded-xl bg-green-700 text-white font-bold text-sm hover:bg-green-600 transition active:scale-95"
+        >
+          {teamA}<br />
+          <span className="text-xs">({amounts.homeAmount || "–"})</span>
+        </button>
+
+        <button
+          onClick={() => handleMainResult("D")}
+          disabled={!fixture}
+          className="py-4 px-3 rounded-xl bg-gray-600 text-white font-bold text-sm hover:bg-gray-500 transition active:scale-95 col-span-2"
+        >
+          DRAW<br />
+          <span className="text-xs">({amounts.drawAmount || "–"})</span>
+        </button>
+
+        <button
+          onClick={() => handleMainResult("A")}
+          disabled={!fixture}
+          className="py-4 px-3 rounded-xl bg-red-700 text-white font-bold text-sm hover:bg-red-600 transition active:scale-95"
+        >
+          {teamB}<br />
+          <span className="text-xs">({amounts.awayAmount || "–"})</span>
+        </button>
+      </div>
+    )}
+  </div>
+
+  {/* Inputs + Buttons - stacked, compact */}
+  <div className="mb-4 space-y-3">
+    <div className="flex items-center justify-center gap-2">
+      <input
+        value={inputA}
+        onChange={(e) => setInputA(e.target.value)}
+        placeholder="Home"
+        className="flex-1 px-3 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+      />
+      <span className="font-black text-lg text-red-500">VS</span>
+      <input
+        value={inputB}
+        onChange={(e) => setInputB(e.target.value)}
+        placeholder="Away"
+        className="flex-1 px-3 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+      />
+    </div>
+
+    <div className="flex gap-2">
+      <button
+        onClick={handleLoadGame}
+        className="flex-1 py-3 bg-red-700 hover:bg-red-600 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm"
+      >
+        LOAD
+      </button>
+      <button
+        onClick={handleNextGame}
+        className="flex-1 py-3 bg-green-700 hover:bg-green-600 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm"
+      >
+        NEXT
+      </button>
+    </div>
+  </div>
+
+  {/* States - compact, 3 columns, small text */}
+  <div className="flex-grow overflow-hidden bg-black/20 rounded-xl p-3 text-xs grid grid-cols-3 gap-2">
+    <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
+    <div>Def: <strong className="text-red-400">{deficit}</strong></div>
+    <div>Bad: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
+
+    <div>Shadow: <strong className="text-orange-400">{badGameShadow}</strong></div>
+    <div>Total: <strong className="text-purple-400">{totalSmallDeficits}</strong></div>
+    <div></div>
+
+    {/* Individual defs - even smaller */}
+    <div className="col-span-3 grid grid-cols-5 gap-1 text-[10px] text-center">
+      <div>1X: {specialDeficits.oneX}</div>
+      <div>2X: {specialDeficits.twoX}</div>
+      <div>X2: {specialDeficits.x2}</div>
+      <div>0G: {specialDeficits.zeroGoals}</div>
+      <div>6G: {specialDeficits.sixGoals}</div>
+      <div>HT12: {specialDeficits.ht12}</div>
+      <div>HT21: {specialDeficits.ht21}</div>
+      <div>HT30: {specialDeficits.ht30}</div>
+      <div>FT40: {specialDeficits.ft40}</div>
+      <div>FT41: {specialDeficits.ft41}</div>
+    </div>
+  </div>
+</div>
+    </div>
+    
   );
 };
 
