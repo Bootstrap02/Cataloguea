@@ -170,7 +170,6 @@ const Homepage = () => {
 
     if (type === "winner") {
       console.log("Jackpot!!");
-      saveAll();
       return;
     }
 
