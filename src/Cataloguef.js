@@ -234,27 +234,70 @@ const Homepage = () => {
 
   };
   /* ---------------- NEXT GAME ---------------- */
+  // const handleNextGame = async () => {
+  //   if (!fixture) return;
+
+  //   // Small 75 → Big
+  //   setBigDeficit((prev) => prev + 75);
+
+  //   // Reset all stakes
+  //   setPendingStakes({
+  //     winnerAmount: 0,
+  //     oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
+  //     x1: 0, ht11: 0, ft11: 0, o45: 0,
+  //     winGG: 0, htGG: 0, fourGoals: 0,
+  //   });
+
+  //   setFixture(null);
+  //   setInputA("");
+  //   setInputB("");
+  //   setPressedWins(new Set());
+
+  //   await saveAll();
+  // };
   const handleNextGame = async () => {
-    if (!fixture) return;
+  if (!fixture) return;
 
-    // Small 75 → Big
-    setBigDeficit((prev) => prev + 75);
+  let newBig = bigDeficit;
+  let newMedium = mediumDeficit;
+  let newSmall = smallDeficit;
 
-    // Reset all stakes
-    setPendingStakes({
-      winnerAmount: 0,
-      oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
-      x1: 0, ht11: 0, ft11: 0, o45: 0,
-      winGG: 0, htGG: 0, fourGoals: 0,
-    });
+  /* ---------------- SHIFT LOGIC ---------------- */
 
-    setFixture(null);
-    setInputA("");
-    setInputB("");
-    setPressedWins(new Set());
+  // Move from SMALL → BIG
+  while (newSmall >= 1000) {
+    newSmall -= 1000;
+    newBig += 1000;
+  }
 
-    await saveAll();
-  };
+  // Move from MEDIUM → BIG
+  while (newMedium >= 1000) {
+    newMedium -= 1000;
+    newBig += 1000;
+  }
+
+  /* ---------------- APPLY UPDATED VALUES ---------------- */
+
+  setSmallDeficit(newSmall);
+  setMediumDeficit(newMedium);
+  setBigDeficit(newBig + 75); // keep your existing +75 logic
+
+  /* ---------------- RESET GAME ---------------- */
+
+  setPendingStakes({
+    winnerAmount: 0,
+    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
+    x1: 0, ht11: 0, ft11: 0, o45: 0,
+    winGG: 0, htGG: 0, fourGoals: 0,
+  });
+
+  setFixture(null);
+  setInputA("");
+  setInputB("");
+  setPressedWins(new Set());
+
+  await saveAll();
+};
 
   const isButtonPressed = (key) => pressedWins.has(key);
   const isGameLoaded = !!fixture;
