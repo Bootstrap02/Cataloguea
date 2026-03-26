@@ -538,57 +538,57 @@ export const smallOdds = [
 // ];
 
 export const odds = [
-  { id: "chenew", home: "che", away: "new", winner: 327, zeroGoal: 15, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.3, sixGoals: 17.3 },
-  { id: "chebre", home: "che", away: "bre", winner: 327, zeroGoal: 15, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.3, sixGoals: 17.3 },
-  { id: "chears", home: "che", away: "ars", winner: 327, zeroGoal: 15, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.3, sixGoals: 17.3 },
+  { id: "chenew", home: "che", away: "new", winner: 327, zeroGoal: 15, oneGoal: 6.07, twoGoals: 3.92, threeGoals: 4.8, fourGoals: 5.07, fiveGoals: 9.1, sixGoals: 17.3 },
+  { id: "chebre", home: "che", away: "bre", winner: 327, zeroGoal: 15, oneGoal: 6.07, twoGoals: 3.92, threeGoals: 4.8, fourGoals: 5.07, fiveGoals: 9.1, sixGoals: 17.3 },
+  { id: "chears", home: "che", away: "ars", winner: 327, zeroGoal: 15, oneGoal: 6.07, twoGoals: 3.92, threeGoals: 4.8, fourGoals: 5.07, fiveGoals: 9.1, sixGoals: 17.3 },
 
-  { id: "whuche", home: "whu", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.7, sixGoals: 20.1 },
-  { id: "fulche", home: "ful", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.7, sixGoals: 20.1 },
-  { id: "notche", home: "not", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.7, sixGoals: 20.1 },
+  { id: "whuche", home: "whu", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 5.35, twoGoals: 4.02, threeGoals: 3.38, fourGoals: 5.46, fiveGoals: 9.26, sixGoals: 20.1 },
+  { id: "fulche", home: "ful", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 5.35, twoGoals: 4.02, threeGoals: 3.38, fourGoals: 5.46, fiveGoals: 9.26, sixGoals: 20.1 },
+  { id: "notche", home: "not", away: "che", winner: 416, zeroGoal: 16.7, oneGoal: 5.35, twoGoals: 4.02, threeGoals: 3.38, fourGoals: 5.46, fiveGoals: 9.26, sixGoals: 20.1 },
 
-  { id: "mncche", home: "mnc", away: "che", winner: 847, zeroGoal: 13, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 14.5, sixGoals: 23.7 },
-  { id: "wolche", home: "wol", away: "che", winner: 847, zeroGoal: 13, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 14.5, sixGoals: 23.7 },
+  { id: "mncche", home: "mnc", away: "che", winner: 847, zeroGoal: 13, oneGoal: 4.98, twoGoals: 3.84, threeGoals: 3.97, fourGoals: 5.9, fiveGoals: 10.6, sixGoals: 23.7 },
+  { id: "wolche", home: "wol", away: "che", winner: 847, zeroGoal: 13, oneGoal: 4.98, twoGoals: 3.84, threeGoals: 3.97, fourGoals: 5.9, fiveGoals: 10.6, sixGoals: 23.7 },
 
-  { id: "chewol", home: "che", away: "wol", winner: 229, zeroGoal: 16, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.25, sixGoals: 17.2 },
-  { id: "chemnc", home: "che", away: "mnc", winner: 229, zeroGoal: 16, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.25, sixGoals: 17.2 },
+  { id: "chewol", home: "che", away: "wol", winner: 229, zeroGoal: 16, oneGoal: 6.06, twoGoals: 3.97, threeGoals: 4, fourGoals: 5.08, fiveGoals: 8.9, sixGoals: 17.2 },
+  { id: "chemnc", home: "che", away: "mnc", winner: 229, zeroGoal: 16, oneGoal: 6.06, twoGoals: 3.97, threeGoals: 4, fourGoals: 5.08, fiveGoals: 8.9, sixGoals: 17.2 },
 
-  { id: "mnuche", home: "mnu", away: "che", winner: 560, zeroGoal: 14.8, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 13.25, sixGoals: 21.2 },
-  { id: "burche", home: "bur", away: "che", winner: 560, zeroGoal: 14.8, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 13.25, sixGoals: 21.2 },
+  { id: "mnuche", home: "mnu", away: "che", winner: 560, zeroGoal: 14.8, oneGoal: 5.21, twoGoals: 3.88, threeGoals: 3.97, fourGoals: 5.54, fiveGoals: 10, sixGoals: 21.2 },
+  { id: "burche", home: "bur", away: "che", winner: 560, zeroGoal: 14.8, oneGoal: 5.21, twoGoals: 3.88, threeGoals: 3.97, fourGoals: 5.54, fiveGoals: 10, sixGoals: 21.2 },
 
-  { id: "leeche", home: "lee", away: "che", winner: 262, zeroGoal: 18, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.2, sixGoals: 17.1 },
-  { id: "eveche", home: "eve", away: "che", winner: 262, zeroGoal: 18, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.2, sixGoals: 17.1 },
-  { id: "sunche", home: "sun", away: "che", winner: 262, zeroGoal: 18, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.2, sixGoals: 17.1 },
+  { id: "leeche", home: "lee", away: "che", winner: 262, zeroGoal: 18, oneGoal: 5.86, twoGoals: 4.21, threeGoals: 3.83, fourGoals: 5.17, fiveGoals: 8.34, sixGoals: 17.1 },
+  { id: "eveche", home: "eve", away: "che", winner: 262, zeroGoal: 18, oneGoal: 5.86, twoGoals: 4.21, threeGoals: 3.83, fourGoals: 5.17, fiveGoals: 8.34, sixGoals: 17.1 },
+  { id: "sunche", home: "sun", away: "che", winner: 262, zeroGoal: 18, oneGoal: 5.86, twoGoals: 4.21, threeGoals: 3.83, fourGoals: 5.17, fiveGoals: 8.34, sixGoals: 17.1 },
 
-  { id: "bhache", home: "bha", away: "che", winner: 262, zeroGoal: 18, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.2, sixGoals: 17.1 },
-  { id: "cryche", home: "cry", away: "che", winner: 262, zeroGoal: 18, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.2, sixGoals: 17.1 },
+  { id: "bhache", home: "bha", away: "che", winner: 262, zeroGoal: 18, oneGoal: 5.86, twoGoals: 4.21, threeGoals: 3.83, fourGoals: 5.17, fiveGoals: 8.34, sixGoals: 17.1 },
+  { id: "cryche", home: "cry", away: "che", winner: 262, zeroGoal: 18, oneGoal: 5.86, twoGoals: 4.21, threeGoals: 3.83, fourGoals: 5.17, fiveGoals: 8.34, sixGoals: 17.1 },
 
-  { id: "astche", home: "ast", away: "che", winner: 1226, zeroGoal: 13.8, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.9, sixGoals: 20.5 },
-  { id: "livche", home: "liv", away: "che", winner: 1226, zeroGoal: 13.8, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.9, sixGoals: 20.5 },
+  { id: "astche", home: "ast", away: "che", winner: 1226, zeroGoal: 13.8, oneGoal: 5.44, twoGoals: 3.86, threeGoals: 4.04, fourGoals: 5.42, fiveGoals: 10, sixGoals: 20.5 },
+  { id: "livche", home: "liv", away: "che", winner: 1226, zeroGoal: 13.8, oneGoal: 5.44, twoGoals: 3.86, threeGoals: 4.04, fourGoals: 5.42, fiveGoals: 10, sixGoals: 20.5 },
 
-  { id: "chebur", home: "che", away: "bur", winner: 144, zeroGoal: 16, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 10.2, sixGoals: 15.1 },
-  { id: "chemnu", home: "che", away: "mnu", winner: 144, zeroGoal: 16, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 10.2, sixGoals: 15.1 },
+  { id: "chebur", home: "che", away: "bur", winner: 144, zeroGoal: 16, oneGoal: 6.63, twoGoals: 4.21, threeGoals: 3.97, fourGoals: 4.93, fiveGoals: 8.01, sixGoals: 15.1 },
+  { id: "chemnu", home: "che", away: "mnu", winner: 144, zeroGoal: 16, oneGoal: 6.63, twoGoals: 4.21, threeGoals: 3.97, fourGoals: 4.93, fiveGoals: 8.01, sixGoals: 15.1},
 
-  { id: "breche", home: "bre", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 13.65, sixGoals: 22 },
-  { id: "newche", home: "new", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 13.65, sixGoals: 22 },
-  { id: "arsche", home: "ars", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 13.65, sixGoals: 22 },
+  { id: "breche", home: "bre", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 5.16, twoGoals: 3.88, threeGoals: 4.02, fourGoals: 5.66, fiveGoals: 10.3, sixGoals: 22 },
+  { id: "newche", home: "new", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 5.16, twoGoals: 3.88, threeGoals: 4.02, fourGoals: 5.66, fiveGoals: 10.3, sixGoals: 22 },
+  { id: "arsche", home: "ars", away: "che", winner: 1140, zeroGoal: 12.9, oneGoal: 5.16, twoGoals: 3.88, threeGoals: 4.02, fourGoals: 5.66, fiveGoals: 10.3, sixGoals: 22 },
 
-  { id: "cheast", home: "che", away: "ast", winner: 568, zeroGoal: 11.1, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.15, sixGoals: 19 },
-  { id: "cheliv", home: "che", away: "liv", winner: 568, zeroGoal: 11.1, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 12.15, sixGoals: 19 },
+  { id: "cheast", home: "che", away: "ast", winner: 568, zeroGoal: 11.1, oneGoal: 5.97, twoGoals: 3.84, threeGoals: 4.26, fourGoals: 5.26, fiveGoals: 10, sixGoals: 19 },
+  { id: "cheliv", home: "che", away: "liv", winner: 568, zeroGoal: 11.1, oneGoal: 5.97, twoGoals: 3.84, threeGoals: 4.26, fourGoals: 5.26, fiveGoals: 10, sixGoals: 19 },
 
-  { id: "chelee", home: "che", away: "lee", winner: 66.1, zeroGoal: 17.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.15, sixGoals: 13 },
-  { id: "chebha", home: "che", away: "bha", winner: 66.1, zeroGoal: 17.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.15, sixGoals: 13 },
-  { id: "chesun", home: "che", away: "sun", winner: 66.1, zeroGoal: 17.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.15, sixGoals: 13 },
+  { id: "chelee", home: "che", away: "lee", winner: 66.1, zeroGoal: 17.7, oneGoal: 7.29, twoGoals: 4.5, threeGoals: 3.94, fourGoals: 4.78, fiveGoals: 7.14, sixGoals: 13 },
+  { id: "chebha", home: "che", away: "bha", winner: 66.1, zeroGoal: 17.7, oneGoal: 7.29, twoGoals: 4.5, threeGoals: 3.94, fourGoals: 4.78, fiveGoals: 7.14, sixGoals: 13 },
+  { id: "chesun", home: "che", away: "sun", winner: 66.1, zeroGoal: 17.7, oneGoal: 7.29, twoGoals: 4.5, threeGoals: 3.94, fourGoals: 4.78, fiveGoals: 7.14, sixGoals: 13 },
 
-  { id: "cheeve", home: "che", away: "eve", winner: 66.1, zeroGoal: 17.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.15, sixGoals: 13 },
-  { id: "checry", home: "che", away: "cry", winner: 66.1, zeroGoal: 17.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.15, sixGoals: 13 },
+  { id: "cheeve", home: "che", away: "eve", winner: 66.1, zeroGoal: 17.7, oneGoal: 7.29, twoGoals: 4.5, threeGoals: 3.94, fourGoals: 4.78, fiveGoals: 7.14, sixGoals: 13 },
+  { id: "checry", home: "che", away: "cry", winner: 66.1, zeroGoal: 17.7, oneGoal: 7.29, twoGoals: 4.5, threeGoals: 3.94, fourGoals: 4.78, fiveGoals: 7.14, sixGoals: 13 },
 
-  { id: "chetot", home: "che", away: "tot", winner: 46.3, zeroGoal: 16.6, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.3, sixGoals: 13.3 },
-  { id: "chebou", home: "che", away: "bou", winner: 46.3, zeroGoal: 16.6, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 9.3, sixGoals: 13.3 },
+  { id: "chetot", home: "che", away: "tot", winner: 46.3, zeroGoal: 16.6, oneGoal: 7.3, twoGoals: 4.43, threeGoals: 3.98, fourGoals: 4.84, fiveGoals: 7.16, sixGoals: 13.3 },
+  { id: "chebou", home: "che", away: "bou", winner: 46.3, zeroGoal: 16.6, oneGoal: 7.3, twoGoals: 4.43, threeGoals: 3.98, fourGoals: 4.84, fiveGoals: 7.16, sixGoals: 13.3 },
 
-  { id: "bouche", home: "bou", away: "che", winner: 168, zeroGoal: 15.3, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.35, sixGoals: 17.4 },
-  { id: "totche", home: "tot", away: "che", winner: 168, zeroGoal: 15.3, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 11.35, sixGoals: 17.4 },
+  { id: "bouche", home: "bou", away: "che", winner: 168, zeroGoal: 15.3, oneGoal: 5.96, twoGoals: 4.19, threeGoals: 3.86, fourGoals: 5.27, fiveGoals: 8.46, sixGoals: 17.4 },
+  { id: "totche", home: "tot", away: "che", winner: 168, zeroGoal: 15.3, oneGoal: 5.96, twoGoals: 4.19, threeGoals: 3.86, fourGoals: 5.27, fiveGoals: 8.46, sixGoals: 17.4 },
 
-  { id: "chewhu", home: "che", away: "whu", winner: 105, zeroGoal: 14.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 10.4, sixGoals: 15.5 },
-  { id: "cheful", home: "che", away: "ful", winner: 105, zeroGoal: 14.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 10.4, sixGoals: 15.5 },
-  { id: "chenot", home: "che", away: "not", winner: 105, zeroGoal: 14.7, oneGoal: 2.3, twoGoals: 3.3, threeGoals: 4.3, fourGoals: 5.3, fiveGoals: 10.4, sixGoals: 15.5 }
+  { id: "chewhu", home: "che", away: "whu", winner: 105, zeroGoal: 14.7, oneGoal: 6.65, twoGoals: 4.17, threeGoals: 3.99, fourGoals: 5, fiveGoals: 8.14, sixGoals: 15.5 },
+  { id: "cheful", home: "che", away: "ful", winner: 105, zeroGoal: 14.7, oneGoal: 6.65, twoGoals: 4.17, threeGoals: 3.99, fourGoals: 5, fiveGoals: 8.14, sixGoals: 15.5 },
+  { id: "chenot", home: "che", away: "not", winner: 105, zeroGoal: 14.7, oneGoal: 6.65, twoGoals: 4.17, threeGoals: 3.99, fourGoals: 5, fiveGoals: 8.14, sixGoals: 15.5 }
 ];
