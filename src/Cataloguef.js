@@ -233,28 +233,7 @@ const Homepage = () => {
     }
 
   };
-  /* ---------------- NEXT GAME ---------------- */
-  // const handleNextGame = async () => {
-  //   if (!fixture) return;
-
-  //   // Small 75 → Big
-  //   setBigDeficit((prev) => prev + 75);
-
-  //   // Reset all stakes
-  //   setPendingStakes({
-  //     winnerAmount: 0,
-  //     oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
-  //     x1: 0, ht11: 0, ft11: 0, o45: 0,
-  //     winGG: 0, htGG: 0, fourGoals: 0,
-  //   });
-
-  //   setFixture(null);
-  //   setInputA("");
-  //   setInputB("");
-  //   setPressedWins(new Set());
-
-  //   await saveAll();
-  // };
+  
   const handleNextGame = async () => {
   if (!fixture) return;
 
