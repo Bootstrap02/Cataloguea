@@ -512,9 +512,9 @@ export const odds = [
   { id: "chebur", home: "che", away: "bur", winner: 144, oneX: 18.6, twoX: 18.6, x1: 6, zeroGoals: 16, sixGoals: 15.1, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
   { id: "chemnu", home: "che", away: "mnu", winner: 144, oneX: 18.6, twoX: 18.6, x1: 6, zeroGoals: 16, sixGoals: 15.1, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
 
-  { id: "breche", home: "bre", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 2, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
-  { id: "newche", home: "new", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 2, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
-  { id: "arsche", home: "ars", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 2, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
+  { id: "breche", home: "bre", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 22, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
+  { id: "newche", home: "new", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 22, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
+  { id: "arsche", home: "ars", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x1: 6, zeroGoals: 12.9, sixGoals: 22, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
 
   { id: "cheast", home: "che", away: "ast", winner: 568, oneX: 13.8, twoX: 13.8, x1: 6, zeroGoals: 11.1, sixGoals: 19, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
   { id: "cheliv", home: "che", away: "liv", winner: 568, oneX: 13.8, twoX: 13.8, x1: 6, zeroGoals: 11.1, sixGoals: 19, ht11: 6.8, O45: 5.8, htgg: 4.3, ft11: 8.5, wingg: 3.8, fourGoals: 5.3 },
