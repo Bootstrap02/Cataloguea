@@ -49,66 +49,7 @@ const Homepage = () => {
   };
 
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
-/* ---------------- LOAD / SAVE - FULLY SYNCED ---------------- */
-// const fetchAll = async () => {
-//   try {
-//     const res = await axios.get(API_BASE);
-//     const data = res.data || {};
-//     console.log(res.data)
 
-//     setBaseStake(data.base ?? 10000);
-
-//     setBigDeficit(data.bigDeficit ?? 0);
-//     setSmallDeficit(data.smallDeficit ?? 0);
-
-//     // Shadows
-//     setBigShadow(data.badGameShadow ?? 0);
-//     setSmallShadow(data.deficitBank ?? 0);
-
-//     // Private deficits
-//     setPrivateDeficits({
-//       oneX: data.oneXDeficit ?? 0,
-//       twoX: data.twoXDeficit ?? 0,
-//       zeroGoals: data.zeroGoalsDeficit ?? 0,
-//       sixGoals: data.sixGoalsDeficit ?? 0,
-//       ht21: data.htTwoOneDeficit ?? 0,
-//     });
-
-//     setPrivateTotal(data.privateTotal ?? 0);
-
-//     setPressedWins(new Set());
-//   } catch (err) {
-//     console.error("❌ Load failed:", err.message);
-//   }
-// };
-
-// const saveAll = async () => {
-//   try {
-//     const payload = {
-//       base: Math.max(10000, baseRef.current),
-
-//       bigDeficit,
-//       smallDeficit,
-
-//       // Shadows - using existing backend fields
-//       badGameShadow: bigShadow,
-//       deficitBank: smallShadow,
-
-//       // Private deficits - using exact field names from your schema
-//       oneXDeficit: privateDeficits.oneX,
-//       twoXDeficit: privateDeficits.twoX,
-//       zeroGoalsDeficit: privateDeficits.zeroGoals,
-//       sixGoalsDeficit: privateDeficits.sixGoals,
-//       htTwoOneDeficit: privateDeficits.ht21,
-
-//       privateTotal,
-//     };
-
-//     await axios.put(API_BASE, payload);
-//   } catch (err) {
-//     console.error("❌ Save failed:", err.message);
-//   }
-// };
 /* ---------------- LOAD / SAVE - FULLY MATCHING YOUR BACKEND ---------------- */
 const fetchAll = async () => {
   try {
@@ -150,24 +91,21 @@ const saveAll = async () => {
       bigDeficit: bigDeficit,
       smallDeficit: smallDeficit,
 
-      // Shadows - save using existing backend field names
-      badGameShadow: bigShadow,
-      deficitBank: smallShadow,
-
       // Private deficits - exact field names from your schema
       oneXDeficit: privateDeficits.oneX,
       twoXDeficit: privateDeficits.twoX,
       zeroGoalsDeficit: privateDeficits.zeroGoals,
       sixGoalsDeficit: privateDeficits.sixGoals,
       htTwoOneDeficit: privateDeficits.ht21,
-
       privateTotal: privateTotal,
     };
 
     await axios.put(API_BASE, payload);
+    alert("✅ Saved payload:");
     console.log("✅ Saved payload:", payload);
   } catch (err) {
-    console.error("❌ Save failed:", err.message);
+    alert("❌ Save failed:");
+    console.log("❌ Save failed:", err.message);
   }
 };
 
