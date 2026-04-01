@@ -23,26 +23,83 @@ const Homepage = () => {
 
   const [pendingStakes, setPendingStakes] = useState({
     oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,     // Big
-    x1: 0, ht11: 0, ft11: 0, o45: 0,                 // Medium
-    winGG: 0, htGG: 0, fourGoals: 0,                 // Small
+    x1: 0, ht11: 0, ft11: 0, O45: 0,                 // Medium
+    wingg: 0, htgg: 0, fourGoals: 0,                 // Small
   });
 
   const [pressedWins, setPressedWins] = useState(new Set());
 
   // No winner button anymore
-  const allKeys = ["oneX", "twoX", "zeroGoals", "sixGoals", "x1", "ht11", "ft11", "o45", "winGG", "htGG", "fourGoals"];
+  const allKeys = ["oneX", "twoX", "zeroGoals", "sixGoals", "x1", "ht11", "ft11", "O45", "wingg", "htgg", "fourGoals"];
 
   const labels = {
     oneX: "1X", twoX: "2X", zeroGoals: "0 GOALS", sixGoals: "6 GOALS",
-    x1: "X1", ht11: "HT 1-1", ft11: "FT 1-1", o45: "O45",
-    winGG: "Win GG", htGG: "HT GG", fourGoals: "4+ Goals",
+    x1: "X1", ht11: "HT 1-1", ft11: "FT 1-1", O45: "O45",
+    wingg: "Win GG", htgg: "HT GG", fourGoals: "4 Goals",
   };
 useEffect(()=>{
   setBigDeficit(400)
 },[])
 
   /* ---------------- LOAD GAME ---------------- */
-  const handleLoadGame = (e) => {
+//   const handleLoadGame = (e) => {
+//     e.preventDefault();
+
+//     const home = sanitizeTeam(inputA) || "che";
+//     const away = sanitizeTeam(inputB) || "che";
+
+//     const found = odds.find((o) => o.home === home && o.away === away);
+//     if (!found) {
+//       alert(`No odds for ${home} vs ${away}`);
+//       return;
+//     }
+
+//     setFixture(found);
+//     setPressedWins(new Set());
+
+//     const newPending = {};
+
+//     ["oneX", "twoX", "zeroGoals", "sixGoals"].forEach((key) => {
+//       const odd = found[key] || 0;
+//       let stake = odd > 1.01 ? Math.round(bigDeficit / odd) : 0;
+//       newPending[key] = Math.max(stake, 10);
+//     });
+//  // Big stakes total always added to Medium Deficit
+//     const bigStakesTotal = ["oneX", "twoX", "zeroGoals", "sixGoals"].reduce(
+//       (sum, key) => sum + (newPending[key] || 0), 0
+//     );
+//     setBigDeficitShadow(bigDeficit)
+//     setMediumDeficit((prev) => prev + bigStakesTotal);
+//     setMediumDeficitShadow(mediumDeficit);
+
+//     ["x1", "ht11", "ft11", "O45"].forEach((key) => {
+//       const odd = found[key] || 0;
+//       let stake = odd > 1.01 ? Math.round(mediumDeficit / odd) : 0;
+//       newPending[key] = Math.max(stake, 10);
+//     });
+// // Medium stakes total always added to Medium Deficit
+//     const mediumStakesTotal = ["x1", "ht11", "ft11", "O45"].reduce(
+//       (sum, key) => sum + (newPending[key] || 0), 0
+//     );
+//     setSmallDeficit((prev) => prev + mediumStakesTotal);
+//     setSmallDeficitShadow(smallDeficit);
+//     ["wingg", "htgg", "fourGoals"].forEach((key) => {
+//       const odd = found[key] || 0;
+//       let stake = odd > 1.01 ? Math.round(smallDeficit / (odd - 1)) : 0;
+//       newPending[key] = Math.max(stake, 10);
+//     });
+//     setPendingStakes(newPending);
+
+   
+
+//     // Small stakes total added to smallPrivateDeficit
+//     const smallStakesTotal = ["wingg", "htgg", "fourGoals"].reduce(
+//       (sum, key) => sum + (newPending[key] || 0), 0
+//     );
+//     setSmallPrivateDeficit((prev) => prev + smallStakesTotal);
+//   };
+/* ---------------- LOAD GAME ---------------- */
+ const handleLoadGame = (e) => {
     e.preventDefault();
 
     const home = sanitizeTeam(inputA) || "che";
@@ -59,46 +116,54 @@ useEffect(()=>{
 
     const newPending = {};
 
+    // 1. Big stakes: bigDeficit / odd (no -1)
     ["oneX", "twoX", "zeroGoals", "sixGoals"].forEach((key) => {
       const odd = found[key] || 0;
       let stake = odd > 1.01 ? Math.round(bigDeficit / odd) : 0;
       newPending[key] = Math.max(stake, 10);
     });
- // Big stakes total always added to Medium Deficit
+
+    // Big stakes total → Medium Deficit
     const bigStakesTotal = ["oneX", "twoX", "zeroGoals", "sixGoals"].reduce(
       (sum, key) => sum + (newPending[key] || 0), 0
     );
-    setBigDeficitShadow(bigDeficit)
-    setMediumDeficit((prev) => prev + bigStakesTotal);
-    setMediumDeficitShadow(mediumDeficit);
+    const newMedium = mediumDeficit + bigStakesTotal;
+    setMediumDeficit(newMedium);
 
-    ["x1", "ht11", "ft11", "o45"].forEach((key) => {
+    // 2. Medium stakes: newMedium / odd (no -1)
+    ["x1", "ht11", "ft11", "O45"].forEach((key) => {
       const odd = found[key] || 0;
-      let stake = odd > 1.01 ? Math.round(mediumDeficit / odd) : 0;
+      let stake = odd > 1.01 ? Math.round(newMedium / odd) : 0;
       newPending[key] = Math.max(stake, 10);
     });
-// Medium stakes total always added to Medium Deficit
-    const mediumStakesTotal = ["x1", "ht11", "ft11", "o45"].reduce(
+
+    // Medium stakes total → Small Deficit
+    const mediumStakesTotal = ["x1", "ht11", "ft11", "O45"].reduce(
       (sum, key) => sum + (newPending[key] || 0), 0
     );
-    setSmallDeficit((prev) => prev + mediumStakesTotal);
-    setSmallDeficitShadow(smallDeficit);
-    ["winGG", "htGG", "fourGoals"].forEach((key) => {
+    const newSmall = smallDeficit + mediumStakesTotal;
+    setSmallDeficit(newSmall);
+
+    // 3. Small stakes: newSmall / (odd - 1)
+    ["wingg", "htgg", "fourGoals"].forEach((key) => {
       const odd = found[key] || 0;
-      let stake = odd > 1.01 ? Math.round(smallDeficit / (odd - 1)) : 0;
-      newPending[key] = Math.max(stake, 10);
+      let stake = odd > 1.01 ? Math.round(newSmall / (odd - 1)) : 0;
+      newPending[key] = Math.max(stake, 10);   // lower min for small if you want, or remove
     });
+
     setPendingStakes(newPending);
 
-   
-
-    // Small stakes total added to smallPrivateDeficit
-    const smallStakesTotal = ["winGG", "htGG", "fourGoals"].reduce(
+    // Small stakes total → smallPrivateDeficit
+    const smallStakesTotal = ["wingg", "htgg", "fourGoals"].reduce(
       (sum, key) => sum + (newPending[key] || 0), 0
     );
     setSmallPrivateDeficit((prev) => prev + smallStakesTotal);
-  };
 
+    // Update shadows
+    setBigDeficitShadow(bigDeficit);
+    setMediumDeficitShadow(newMedium);
+    setSmallDeficitShadow(newSmall);
+  };
   /* ---------------- WIN HANDLER ---------------- */
   const handleWin = (type) => {
     if (!fixture) return;
@@ -133,7 +198,7 @@ useEffect(()=>{
       }
     } 
     // Medium win → clear mediumDeficit
-    else if (["x1", "ht11", "ft11", "o45"].includes(type)) {
+    else if (["x1", "ht11", "ft11", "O45"].includes(type)) {
        if(mediumDeficit > 0){
       setMediumDeficit(0);
       }else{
@@ -157,7 +222,7 @@ useEffect(()=>{
       }
     } 
     // Small win → subtract only this stake from smallPrivateDeficit + wipe smallDeficit
-    else if (["winGG", "htGG", "fourGoals"].includes(type)) {
+    else if (["wingg", "htgg", "fourGoals"].includes(type)) {
   if(smallDeficit > 0){
       setSmallDeficit(0);
       setSmallPrivateDeficit((prev) => Math.max(0, prev - stake));
@@ -192,13 +257,15 @@ useEffect(()=>{
 
     setPendingStakes({
       oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
-      x1: 0, ht11: 0, ft11: 0, o45: 0,
-      winGG: 0, htGG: 0, fourGoals: 0,
+      x1: 0, ht11: 0, ft11: 0, O45: 0,
+      wingg: 0, htgg: 0, fourGoals: 0,
     });
     if(jackpot ){
       setBigDeficit(400 + smallPrivateDeficit)
       setSmallPrivateDeficit(0)
       setJackpot(false)
+    }else if(bigDeficit < 400){
+      setBigDeficit(400)
     }
     setFixture(null);
     setInputA("");
