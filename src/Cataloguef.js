@@ -88,7 +88,7 @@ const Homepage = () => {
       };
 
       await axios.put(API_BASE, payload);
-      console.log("✅ Saved:", payload);
+      alert("✅ Saved:", payload);
     } catch (err) {
       console.error("❌ Save failed:", err.message);
     }
@@ -99,7 +99,7 @@ const Homepage = () => {
     await fetchAll();
     setIsReloading(false);
   };
-
+// 1
   useEffect(() => { fetchAll(); }, []);
 
   /* ---------------- LOAD GAME ---------------- */
@@ -120,7 +120,7 @@ const Homepage = () => {
 
     // Big games stake based on bigDeficit (default 400)
     const currentBig = bigDeficit;
-
+    setBigShadow(currentBig)
     const newPending = {};
 
     bigGameKeys.forEach((key) => {
@@ -156,7 +156,9 @@ const Homepage = () => {
     setPrivateTotal(updatedPrivateTotal);
   };
 
-  /* ---------------- WIN HANDLER ---------------- */
+
+
+
   const handleWin = (type) => {
     if (!fixture) return;
     const stake = pendingStakes[type];
@@ -164,8 +166,24 @@ const Homepage = () => {
 
     setPressedWins((prev) => new Set([...prev, type]));
 
+    
+
     if (bigGameKeys.includes(type)) {
-      setBigDeficit(0);                    // Big win clears the deficit
+      if (bigDeficit > 0) {
+        setBigDeficit(0);
+      } else {
+        if (bigShadow > privateTotal) {
+          const residue = bigShadow - privateTotal
+          setPrivateTotal(0);
+          if(smallDeficit > residue){
+            setSmallDeficit((prev) => Math.max(0, prev - residue));
+          }else {
+              setSmallDeficit(0)
+          }
+        } else {
+          setPrivateTotal((prev) => Math.max(0, prev - bigShadow));
+        }
+      }
     } 
     else if (smallGameKeys.includes(type)) {
       if (smallDeficit > 0) {
@@ -174,12 +192,40 @@ const Homepage = () => {
         setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
         setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
       } else {
-        setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
-        setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
-        setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
+         if (smallShadow > bigDeficit) {
+          const residue = smallShadow - bigDeficit
+          setBigDeficit(0);
+          setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
+          setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
+          setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
+          if(privateTotal > residue){
+           const newPrivateTotal=  Math.max(0, privateTotal - residue)
+           const newValuePerAsset = Math.floor(newPrivateTotal / 5);
+        setPrivateDeficits({
+          oneX: newValuePerAsset,
+          twoX: newValuePerAsset,
+          zeroGoals: newValuePerAsset,
+          sixGoals: newValuePerAsset,
+          ht21: newValuePerAsset,
+        });
+
+        setPrivateTotal(newPrivateTotal);
+          }else{
+            setPrivateTotal(0)
+             setPrivateDeficits({
+        oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
+      });
+          }
+        } else {
+         setBigDeficit((prev) => Math.max(0, prev - smallShadow));
+          setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
+          setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
+          setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
+        }
       }
     }
   };
+
 
   /* ---------------- NEXT GAME ---------------- */
   const handleNextGame = async () => {
@@ -193,7 +239,7 @@ const Homepage = () => {
 
     // After big win, increase bigDeficit using shadow + privateTotal
     if (bigDeficit === 0 ) {
-      const newBig = bigShadow + privateTotal;
+      const newBig = 400 + privateTotal;
 
       setBigDeficit(newBig);
       setBigShadow(newBig);        
