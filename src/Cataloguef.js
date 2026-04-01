@@ -300,6 +300,81 @@ const Homepage = () => {
       </div>
 
       {/* Mobile version - you can adjust similarly */}
+      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-6">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-red-500">Two Deficit</h1>
+          <button 
+            onClick={handleReload} 
+            disabled={isReloading}
+            className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-xl text-sm flex items-center gap-2 mx-auto transition"
+          >
+            <FiRefreshCw className={`inline ${isReloading ? 'animate-spin' : ''}`} /> 
+            {isReloading ? "Reloading..." : "Reload"}
+          </button>
+        </div>
+
+        {/* Inputs */}
+        <div className="flex gap-2 mb-6 justify-center items-center">
+          <input 
+            value={inputA} 
+            onChange={(e) => setInputA(e.target.value)} 
+            placeholder="Home" 
+            className="flex-1 max-w-[110px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
+          />
+          <span className="text-xl text-red-500 font-black px-1">VS</span>
+          <input 
+            value={inputB} 
+            onChange={(e) => setInputB(e.target.value)} 
+            placeholder="Away" 
+            className="flex-1 max-w-[110px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
+          />
+        </div>
+
+        {/* Load & Next Buttons */}
+        <div className="flex gap-3 mb-8">
+          <button 
+            onClick={handleLoadGame} 
+            disabled={isGameLoaded} 
+            className={`flex-1 py-3 font-bold rounded-2xl text-sm transition ${
+              isGameLoaded ? "bg-gray-600" : "bg-red-600 hover:bg-red-700"
+            }`}
+          >
+            LOAD
+          </button>
+          <button 
+            onClick={handleNextGame} 
+            className="flex-1 py-3 bg-green-600 hover:bg-green-700 font-bold rounded-2xl text-sm transition"
+          >
+            NEXT
+          </button>
+        </div>
+
+        {/* Win Buttons - 2 columns for mobile */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {allKeys.map((key) => (
+            <button
+              key={key}
+              onClick={() => handleWin(key)}
+              disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
+              className={`py-5 rounded-2xl font-medium text-sm transition ${
+                isButtonPressed(key) ? "bg-yellow-500 text-black" 
+                : "bg-blue-600 text-white"
+              } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50" : ""}`}
+            >
+              {labels[key]}<br />
+              <span className="text-xs">({pendingStakes[key] || "–"})</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Stats - Mobile friendly */}
+        <div className="grid grid-cols-2 gap-4 text-xs bg-black/30 p-5 rounded-3xl">
+          <div>Big Def: <strong className="text-red-400">{bigDeficit}</strong></div>
+          <div>Shadow: <strong className="text-red-400">{bigShadow}</strong></div>
+          <div>Small Def: <strong className="text-purple-400">{smallDeficit}</strong></div>
+          <div>Private: <strong className="text-orange-400">{privateTotal}</strong></div>
+        </div>
+      </div>
     </div>
   );
 };
