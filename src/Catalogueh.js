@@ -158,16 +158,7 @@ useEffect(() => { fetchAll(); }, []);
     setSmallDeficit(newSmall);
     setSmallShadow(newSmall);
 
-    // smallGameKeys.forEach((key) => {
-    //   const odd = found[key] || 0;
-    //   let stake = odd > 1.01 ? Math.round(newSmall / (odd - 1)) : 0;
-    //   newPending[key] = Math.max(stake, 10);
-
-    //   setPrivateDeficits((prev) => ({
-    //     ...prev,
-    //     [key]: (prev[key] || 0) + newPending[key],
-    //   }));
-    // });
+    
 smallGameKeys.forEach((key) => {
   const odd = found[key] || 0;
   
