@@ -1,90 +1,47 @@
-import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import React, { useState, useEffect, } from "react";
 import { odds } from "./Scores";
 
 /* ---------------- UTILS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-
-/* ---------------- API ---------------- */
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
 
   const [fixture, setFixture] = useState(null);
-
-  const [baseStake, setBaseStake] = useState(10000);
-  const baseRef = useRef(10000);
+  const [jackpot, setJackpot] = useState(false);
 
   const [bigDeficit, setBigDeficit] = useState(0);
   const [mediumDeficit, setMediumDeficit] = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
+ const [bigDeficitShadow, setBigDeficitShadow] = useState(0);
+  const [mediumDeficitShadow, setMediumDeficitShadow] = useState(0);
+  const [smallDeficitShadow, setSmallDeficitShadow] = useState(0);
+
+  // Accumulates all small stakes every game
+  const [smallPrivateDeficit, setSmallPrivateDeficit] = useState(0);
 
   const [pendingStakes, setPendingStakes] = useState({
-    winnerAmount: 0,
-    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
-    x1: 0, ht11: 0, ft11: 0, o45: 0,
-    winGG: 0, htGG: 0, fourGoals: 0,
+    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,     // Big
+    x1: 0, ht11: 0, ft11: 0, o45: 0,                 // Medium
+    winGG: 0, htGG: 0, fourGoals: 0,                 // Small
   });
 
   const [pressedWins, setPressedWins] = useState(new Set());
 
-  const allKeys = ["winner", "oneX", "twoX", "zeroGoals", "sixGoals", "x1", "ht11", "ft11", "o45", "winGG", "htGG", "fourGoals"];
+  // No winner button anymore
+  const allKeys = ["oneX", "twoX", "zeroGoals", "sixGoals", "x1", "ht11", "ft11", "o45", "winGG", "htGG", "fourGoals"];
 
   const labels = {
-    winner: "6–0",
-    oneX: "1X",
-    twoX: "2X",
-    zeroGoals: "0 GOALS",
-    sixGoals: "6 GOALS",
-    x1: "X1",
-    ht11: "HT 1-1",
-    ft11: "FT 1-1",
-    o45: "O45",
-    winGG: "Win GG",
-    htGG: "HT GG",
-    fourGoals: "4+ Goals",
+    oneX: "1X", twoX: "2X", zeroGoals: "0 GOALS", sixGoals: "6 GOALS",
+    x1: "X1", ht11: "HT 1-1", ft11: "FT 1-1", o45: "O45",
+    winGG: "Win GG", htGG: "HT GG", fourGoals: "4+ Goals",
   };
+useEffect(()=>{
+  setBigDeficit(400)
+},[])
 
-  useEffect(() => {
-    baseRef.current = baseStake;
-  }, [baseStake]);
-
-  /* ---------------- LOAD / SAVE ---------------- */
-  const fetchAll = async () => {
-    try {
-      const res = await axios.get(API_BASE);
-      const data = res.data || {};
-      setBaseStake(data.base ?? 10000);
-      setBigDeficit(data.bigDeficit ?? 0);
-      setMediumDeficit(data.mediumDeficit ?? 0);
-      setSmallDeficit(data.smallDeficit ?? 0);
-      setPressedWins(new Set());
-    } catch (err) {
-      console.error("❌ Load failed:", err.message);
-    }
-  };
-
-  const saveAll = async () => {
-    try {
-      const payload = {
-        base: Math.max(10000, baseRef.current),
-        bigDeficit,
-        mediumDeficit,
-        smallDeficit,
-      };
-      await axios.put(API_BASE, payload);
-    } catch (err) {
-      console.error("❌ Save failed:", err.message);
-    }
-  };
-
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  
+  /* ---------------- LOAD GAME ---------------- */
   const handleLoadGame = (e) => {
     e.preventDefault();
 
@@ -100,183 +57,154 @@ const Homepage = () => {
     setFixture(found);
     setPressedWins(new Set());
 
-    // Calculate 6-0 stake
-    let winnerStake = Math.round(baseStake / found.winner);
-    winnerStake = Math.max(winnerStake, 10);
+    const newPending = {};
 
-    const newBigDeficit = bigDeficit + winnerStake;
-    setBigDeficit(newBigDeficit);
-
-    // Create pendingStakes with correct key "winner"
-    const newPending = { 
-      winner: winnerStake,           // ← This is what the button needs
-      winnerAmount: winnerStake      // keep old key if you want
-    };
-
-    // Big Deficit dynamic stakes
     ["oneX", "twoX", "zeroGoals", "sixGoals"].forEach((key) => {
       const odd = found[key] || 0;
-      if (odd <= 1.01) {
-        newPending[key] = 0;
-        return;
-      }
-      const stake = Math.round(newBigDeficit / odd);
+      let stake = odd > 1.01 ? Math.round(bigDeficit / odd) : 0;
       newPending[key] = Math.max(stake, 10);
     });
-
-    // Medium & Small - fixed 25
-    ["x1", "ht11", "ft11", "o45", "winGG", "htGG", "fourGoals"].forEach((key) => {
-      newPending[key] = 25;
-    });
-
-    setPendingStakes(newPending);
-
-    // Add Big stakes total to Medium
+ // Big stakes total always added to Medium Deficit
     const bigStakesTotal = ["oneX", "twoX", "zeroGoals", "sixGoals"].reduce(
       (sum, key) => sum + (newPending[key] || 0), 0
     );
+    setBigDeficitShadow(bigDeficit)
     setMediumDeficit((prev) => prev + bigStakesTotal);
+    setMediumDeficitShadow(mediumDeficit);
 
-    // Add 100 to Small from Medium
-    setSmallDeficit((prev) => prev + 100);
+    ["x1", "ht11", "ft11", "o45"].forEach((key) => {
+      const odd = found[key] || 0;
+      let stake = odd > 1.01 ? Math.round(mediumDeficit / odd) : 0;
+      newPending[key] = Math.max(stake, 10);
+    });
+// Medium stakes total always added to Medium Deficit
+    const mediumStakesTotal = ["x1", "ht11", "ft11", "o45"].reduce(
+      (sum, key) => sum + (newPending[key] || 0), 0
+    );
+    setSmallDeficit((prev) => prev + mediumStakesTotal);
+    setSmallDeficitShadow(smallDeficit);
+    ["winGG", "htGG", "fourGoals"].forEach((key) => {
+      const odd = found[key] || 0;
+      let stake = odd > 1.01 ? Math.round(smallDeficit / (odd - 1)) : 0;
+      newPending[key] = Math.max(stake, 10);
+    });
+    setPendingStakes(newPending);
 
+   
+
+    // Small stakes total added to smallPrivateDeficit
+    const smallStakesTotal = ["winGG", "htGG", "fourGoals"].reduce(
+      (sum, key) => sum + (newPending[key] || 0), 0
+    );
+    setSmallPrivateDeficit((prev) => prev + smallStakesTotal);
   };
-  
-  
-  
-  
-  
-  
-  /* ---------------- WIN HANDLER - FINAL FIXED VERSION ---------------- */
+
+  /* ---------------- WIN HANDLER ---------------- */
   const handleWin = (type) => {
     if (!fixture) return;
-
     const stake = pendingStakes[type];
     if (stake <= 0) return;
 
-    // Correct odd lookup from your array
-    let oddKey = type;
-    if (type === "winGG") oddKey = "wingg";
-    if (type === "htGG") oddKey = "htgg";
-    if (type === "o45") oddKey = "O45";
-
-    const odd = fixture[oddKey] || 2;
-    const winAmount = Math.round(stake * odd);
-
-    console.log(`Clicked: ${type} | Odd: ${odd} | Win Amount: ${winAmount}`);
-
-    // Mark button pressed (gold)
     setPressedWins((prev) => new Set([...prev, type]));
 
-    if (type === "winner") {
-      console.log("Jackpot!!");
-      return;
-    }
-
-    // Big Deficit buttons → clear entire bigDeficit
+    // Big win → clear bigDeficit
     if (["oneX", "twoX", "zeroGoals", "sixGoals"].includes(type)) {
-      setBigDeficit(0);
-    } 
-    // Medium Deficit buttons
-    else if (["x1", "ht11", "ft11", "o45"].includes(type)) {
-
-    if (mediumDeficit >= winAmount) {
-        setMediumDeficit((prev) => prev - winAmount);
-      } else {
-        // medium is not enough → clear medium and carry residue
-        const residue = winAmount - mediumDeficit;
-        setMediumDeficit(0);
-
-        // Residue to Big
-        if (smallDeficit >= residue) {
-          setSmallDeficit((prev) => prev - residue);
-        } else {
-          const newResidue = residue - smallDeficit;
-          setSmallDeficit(0);
-
-          // Final residue to Medium
-          if (bigDeficit >= newResidue) {
-            setBigDeficit((prev) => prev - newResidue);
-          } else {
-            setBigDeficit(0);
-          }
+      setJackpot(true)
+      if(bigDeficit > 400){
+      setBigDeficit(400);
+      }else if(jackpot === true){
+        if(smallPrivateDeficit >= bigDeficitShadow ){
+          setSmallPrivateDeficit((prev) => Math.max(0, prev - bigDeficitShadow))
+        }else{
+        const residue = bigDeficitShadow - smallPrivateDeficit
+        setSmallPrivateDeficit(0)
+        if(smallDeficit >= residue){
+          setSmallDeficit((prev) => Math.max(0, prev - residue))
+        }else{
+          const smallResidue = residue - smallDeficit
+          setSmallDeficit(0)
+          if(mediumDeficit >= smallResidue){
+          setMediumDeficit((prev) => Math.max(0, prev - smallResidue))
+        }else{
+          setSmallDeficit(0)
+        }
+        }
         }
       }
     } 
-    // Small Deficit buttons - CORRECTED
+    // Medium win → clear mediumDeficit
+    else if (["x1", "ht11", "ft11", "o45"].includes(type)) {
+       if(mediumDeficit > 0){
+      setMediumDeficit(0);
+      }else{
+        if(smallPrivateDeficit >= mediumDeficitShadow ){
+          setSmallPrivateDeficit((prev) => Math.max(0, prev - mediumDeficitShadow))
+        }else{
+        const residue = mediumDeficitShadow - smallPrivateDeficit
+        setSmallPrivateDeficit(0)
+        if(smallDeficit >= residue){
+          setSmallDeficit((prev) => Math.max(0, prev - residue))
+        }else{
+          const smallResidue = residue - smallDeficit
+          setSmallDeficit(0)
+          if(bigDeficit >= smallResidue){
+          setBigDeficit((prev) => Math.max(0, prev - smallResidue))
+        }else{
+          setBigDeficit(0)
+        }
+        }
+        }
+      }
+    } 
+    // Small win → subtract only this stake from smallPrivateDeficit + wipe smallDeficit
     else if (["winGG", "htGG", "fourGoals"].includes(type)) {
-
-      // Small first
-      if (smallDeficit >= winAmount) {
-        console.log("great!")
-        setSmallDeficit((prev) => prev - winAmount);
-      } else {
-        // Small is not enough → clear Small and carry residue
-        const residue = winAmount - smallDeficit;
-        setSmallDeficit(0);
-
-        // Residue to Big
-        if (bigDeficit >= residue) {
-          setBigDeficit((prev) => prev - residue);
-        } else {
-          const newResidue = residue - bigDeficit;
-          setBigDeficit(0);
-
-          // Final residue to Medium
-          if (mediumDeficit >= newResidue) {
-            setMediumDeficit((prev) => prev - newResidue);
-          } else {
-            setMediumDeficit(0);
-          }
+  if(smallDeficit > 0){
+      setSmallDeficit(0);
+      setSmallPrivateDeficit((prev) => Math.max(0, prev - stake));
+      setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
+      }else{
+        if(smallPrivateDeficit >= smallDeficitShadow ){
+          setSmallPrivateDeficit((prev) => Math.max(0, prev - smallDeficitShadow - stake))
+          setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
+        }else{
+        const residue = smallDeficitShadow - smallPrivateDeficit
+        setSmallPrivateDeficit(0)
+        setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
+        if(mediumDeficit >= residue){
+          setMediumDeficit((prev) => Math.max(0, prev - residue))
+        }else{
+          const smallResidue = residue - mediumDeficit
+          setMediumDeficit(0)
+          if(bigDeficit >= smallResidue){
+          setBigDeficit((prev) => Math.max(0, prev - smallResidue))
+        }else{
+          setBigDeficit(0)
+        }
+        }
         }
       }
     }
-
   };
-  
-  const handleNextGame = async () => {
-  if (!fixture) return;
 
-  let newBig = bigDeficit;
-  let newMedium = mediumDeficit;
-  let newSmall = smallDeficit;
+  /* ---------------- NEXT GAME ---------------- */
+  const handleNextGame = () => {
+    if (!fixture) return;
 
-  /* ---------------- SHIFT LOGIC ---------------- */
-
-  // Move from SMALL → BIG
-  while (newSmall >= 1000) {
-    newSmall -= 1000;
-    newBig += 1000;
-  }
-
-  // Move from MEDIUM → BIG
-  while (newMedium >= 1000) {
-    newMedium -= 1000;
-    newBig += 1000;
-  }
-
-  /* ---------------- APPLY UPDATED VALUES ---------------- */
-
-  setSmallDeficit(newSmall);
-  setMediumDeficit(newMedium);
-  setBigDeficit(newBig + 75); // keep your existing +75 logic
-
-  /* ---------------- RESET GAME ---------------- */
-
-  setPendingStakes({
-    winnerAmount: 0,
-    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
-    x1: 0, ht11: 0, ft11: 0, o45: 0,
-    winGG: 0, htGG: 0, fourGoals: 0,
-  });
-
-  setFixture(null);
-  setInputA("");
-  setInputB("");
-  setPressedWins(new Set());
-
-  await saveAll();
-};
+    setPendingStakes({
+      oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0,
+      x1: 0, ht11: 0, ft11: 0, o45: 0,
+      winGG: 0, htGG: 0, fourGoals: 0,
+    });
+    if(jackpot ){
+      setBigDeficit(400 + smallPrivateDeficit)
+      setSmallPrivateDeficit(0)
+      setJackpot(false)
+    }
+    setFixture(null);
+    setInputA("");
+    setInputB("");
+    setPressedWins(new Set());
+  };
 
   const isButtonPressed = (key) => pressedWins.has(key);
   const isGameLoaded = !!fixture;
@@ -285,14 +213,7 @@ const Homepage = () => {
     <div>
       {/* Desktop */}
       <div className="max-lg:hidden min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
-            3-Level Deficit System
-          </h1>
-        </div>
-
         <div className="max-w-6xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
-
           <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-8">
             <div className="flex items-center gap-4">
               <input
@@ -329,7 +250,6 @@ const Homepage = () => {
             </div>
           </div>
 
-          {/* All buttons together */}
           <div className="mb-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {allKeys.map((key) => (
               <button
@@ -337,12 +257,9 @@ const Homepage = () => {
                 onClick={() => handleWin(key)}
                 disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
                 className={`py-6 rounded-2xl font-extrabold transition text-white ${
-                  isButtonPressed(key) 
-                    ? "bg-yellow-500" 
-                    : key === "winner" 
-                      ? "bg-yellow-400 text-black hover:bg-yellow-300" 
-                      : "bg-blue-600 hover:bg-blue-500"
-                } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50 cursor-not-allowed" : ""}`}
+                  isButtonPressed(key) ? "bg-yellow-500" 
+                  : "bg-blue-600 hover:bg-blue-500"
+                } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50" : ""}`}
               >
                 {labels[key]}<br />
                 <span className="text-sm">({pendingStakes[key] || "–"})</span>
@@ -350,19 +267,19 @@ const Homepage = () => {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
-            <div>Base: <strong className="text-green-600">{baseStake}</strong></div>
+          <div className="grid grid-cols-2 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
             <div>Big Deficit: <strong className="text-red-600">{bigDeficit}</strong></div>
             <div>Medium Deficit: <strong className="text-orange-600">{mediumDeficit}</strong></div>
             <div>Small Deficit: <strong className="text-purple-600">{smallDeficit}</strong></div>
+            <div>Small Private: <strong className="text-purple-600">{smallPrivateDeficit}</strong></div>
           </div>
         </div>
       </div>
 
-      {/* Mobile version */}
-      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4 flex flex-col overflow-x-hidden">
+      {/* Mobile */}
+      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4">
         <div className="text-center mb-3">
-          <h1 className="text-2xl font-extrabold text-red-500">3 Deficits</h1>
+          <h1 className="text-2xl font-extrabold text-red-500">4 Deficits</h1>
         </div>
 
         <div className="mb-4 space-y-3">
@@ -371,14 +288,14 @@ const Homepage = () => {
               value={inputA}
               onChange={(e) => setInputA(e.target.value)}
               placeholder="Home"
-              className="flex-1 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white"
+              className="flex-1 max-w-[110px] px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white"
             />
             <span className="font-black text-lg text-red-500">VS</span>
             <input
               value={inputB}
               onChange={(e) => setInputB(e.target.value)}
               placeholder="Away"
-              className="flex-1 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white"
+              className="flex-1 max-w-[110px] px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white"
             />
           </div>
 
@@ -408,11 +325,8 @@ const Homepage = () => {
               onClick={() => handleWin(key)}
               disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
               className={`py-3 px-2 rounded-xl font-bold text-xs transition active:scale-95 ${
-                isButtonPressed(key) 
-                  ? "bg-yellow-500" 
-                  : key === "winner" 
-                    ? "bg-yellow-500 text-black" 
-                    : "bg-blue-700 text-white"
+                isButtonPressed(key) ? "bg-yellow-500" 
+                : "bg-blue-700 text-white"
               } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {labels[key]}<br />
@@ -422,10 +336,10 @@ const Homepage = () => {
         </div>
 
         <div className="flex-grow min-h-0 overflow-auto bg-black/20 rounded-xl p-3 text-xs grid grid-cols-2 gap-2">
-          <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
           <div>Big: <strong className="text-red-400">{bigDeficit}</strong></div>
           <div>Medium: <strong className="text-orange-400">{mediumDeficit}</strong></div>
           <div>Small: <strong className="text-purple-400">{smallDeficit}</strong></div>
+          <div>Private: <strong className="text-purple-400">{smallPrivateDeficit}</strong></div>
         </div>
       </div>
     </div>
