@@ -344,7 +344,7 @@ const handleNextGame = async () => {
 
   const currentBank = deficitBank;
 
-  if (currentBank > 0 && totalSpecialDeficits > 0) {
+  if (win) {
     if (currentBank >= totalSpecialDeficits) {
       // Bank is greater or equal → clear all special deficits, reduce bank
       setDeficitBank((prev) => Math.max(0, prev - totalSpecialDeficits));
