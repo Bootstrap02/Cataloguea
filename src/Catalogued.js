@@ -467,71 +467,121 @@ const handleSpecialWin = (type) => {
       </div>
 
       {/* ====================== MOBILE ====================== */}
-      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4">
-        <div className="text-center mb-4">
-          <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL</h1>
-          <button onClick={fetchAll} className="mt-2 px-4 py-1.5 bg-red-700 hover:bg-red-600 text-xs rounded-xl">
-            Reload Data
+      {/* ====================== MOBILE ====================== */}
+<div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-6">
+  <div className="text-center mb-6">
+    <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL</h1>
+    <button 
+      onClick={fetchAll} 
+      className="mt-3 px-5 py-1.5 bg-red-700 hover:bg-red-600 text-xs rounded-xl transition"
+    >
+      Reload Data
+    </button>
+  </div>
+
+  {/* Inputs - Made smaller */}
+  <div className="flex gap-2 mb-6 justify-center items-center">
+    <input 
+      value={inputA} 
+      onChange={(e) => setInputA(e.target.value)} 
+      placeholder="Home" 
+      className="flex-1 max-w-[105px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
+    />
+    <span className="text-xl text-red-500 font-black px-1">VS</span>
+    <input 
+      value={inputB} 
+      onChange={(e) => setInputB(e.target.value)} 
+      placeholder="Away" 
+      className="flex-1 max-w-[105px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
+    />
+  </div>
+
+  {/* Load & Next Buttons */}
+  <div className="flex gap-3 mb-8">
+    <button 
+      onClick={handleLoadGame} 
+      className="flex-1 py-3 bg-red-700 hover:bg-red-600 rounded-2xl text-sm font-bold transition"
+    >
+      LOAD
+    </button>
+    <button 
+      onClick={handleNextGame} 
+      className="flex-1 py-3 bg-green-700 hover:bg-green-600 rounded-2xl text-sm font-bold transition"
+    >
+      NEXT
+    </button>
+  </div>
+
+  {/* Outcome Buttons */}
+  <div className="mb-8">
+    {isSmallTeamMatch ? (
+      <div className="grid grid-cols-3 gap-2">
+        <button 
+          onClick={handleJackpot} 
+          disabled={!fixture} 
+          className="py-3 rounded-xl bg-yellow-500 text-black text-xs font-bold hover:bg-yellow-400 transition active:scale-95"
+        >
+          6–0<br />
+          <span className="text-[10px]">({amounts.winnerAmount || "–"})</span>
+        </button>
+        {specialKeys.map((key) => (
+          <button
+            key={key}
+            onClick={() => handleSpecialWin(key)}
+            disabled={!fixture || pendingSpecialStakes[key] === 0}
+            className="py-3 rounded-xl bg-blue-700 text-white text-xs font-bold hover:bg-blue-600 transition active:scale-95"
+          >
+            {specialLabels[key]}<br />
+            <span className="text-[10px]">({pendingSpecialStakes[key] || "–"})</span>
           </button>
-        </div>
-
-        {/* Outcome Buttons */}
-        <div className="mb-4">
-          {isSmallTeamMatch ? (
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={handleJackpot} disabled={!fixture} className="py-3 rounded-xl bg-yellow-500 text-black text-xs font-bold">
-                6–0<br /><span className="text-[10px]">({amounts.winnerAmount || "–"})</span>
-              </button>
-              {specialKeys.map((key) => (
-                <button
-                  key={key}
-                  onClick={() => handleSpecialWin(key)}
-                  disabled={!fixture || pendingSpecialStakes[key] === 0}
-                  className="py-3 rounded-xl bg-blue-700 text-white text-xs font-bold"
-                >
-                  {specialLabels[key]}<br /><span className="text-[10px]">({pendingSpecialStakes[key] || "–"})</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={handleJackpot} disabled={!fixture} className="py-4 rounded-xl bg-yellow-500 text-black text-sm font-bold">
-                6–0<br /><span className="text-xs">({amounts.winnerAmount || "–"})</span>
-              </button>
-              <button onClick={() => handleMainResult("H")} disabled={!fixture} className="py-4 rounded-xl bg-green-700 text-white text-sm font-bold">
-                {teamA}<br /><span className="text-xs">({amounts.homeAmount || "–"})</span>
-              </button>
-              <button onClick={() => handleMainResult("D")} disabled={!fixture} className="py-4 rounded-xl bg-gray-600 text-white text-sm font-bold col-span-2">
-                DRAW<br /><span className="text-xs">({amounts.drawAmount || "–"})</span>
-              </button>
-              <button onClick={() => handleMainResult("A")} disabled={!fixture} className="py-4 rounded-xl bg-red-700 text-white text-sm font-bold">
-                {teamB}<br /><span className="text-xs">({amounts.awayAmount || "–"})</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Inputs + Action Buttons */}
-        <div className="mb-4 space-y-3">
-          <div className="flex gap-2">
-            <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home" className="flex-1 px-3 py-2 border border-red-600 bg-transparent rounded-xl text-center text-sm" />
-            <span className="self-center font-black text-red-500">VS</span>
-            <input value={inputB} onChange={(e) => setInputB(e.target.value)} placeholder="Away" className="flex-1 px-3 py-2 border border-red-600 bg-transparent rounded-xl text-center text-sm" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleLoadGame} className="flex-1 py-3 bg-red-700 hover:bg-red-600 rounded-xl text-sm font-bold">LOAD</button>
-            <button onClick={handleNextGame} className="flex-1 py-3 bg-green-700 hover:bg-green-600 rounded-xl text-sm font-bold">NEXT</button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="bg-black/20 rounded-xl p-3 text-xs grid grid-cols-2 gap-2">
-          <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
-          <div>Bad: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
-          <div>Martingale: <strong className="text-purple-400">{martingaleDeficit}</strong></div>
-          <div>Total Small: <strong className="text-purple-400">{totalSmallDeficits}</strong></div>
-        </div>
+        ))}
       </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-2">
+        <button 
+          onClick={handleJackpot} 
+          disabled={!fixture} 
+          className="py-4 rounded-xl bg-yellow-500 text-black text-sm font-bold hover:bg-yellow-400 transition active:scale-95"
+        >
+          6–0<br />
+          <span className="text-xs">({amounts.winnerAmount || "–"})</span>
+        </button>
+        <button 
+          onClick={() => handleMainResult("H")} 
+          disabled={!fixture} 
+          className="py-4 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-600 transition active:scale-95"
+        >
+          {teamA}<br />
+          <span className="text-xs">({amounts.homeAmount || "–"})</span>
+        </button>
+        <button 
+          onClick={() => handleMainResult("D")} 
+          disabled={!fixture} 
+          className="py-4 rounded-xl bg-gray-600 text-white text-sm font-bold col-span-2 hover:bg-gray-500 transition active:scale-95"
+        >
+          DRAW<br />
+          <span className="text-xs">({amounts.drawAmount || "–"})</span>
+        </button>
+        <button 
+          onClick={() => handleMainResult("A")} 
+          disabled={!fixture} 
+          className="py-4 rounded-xl bg-red-700 text-white text-sm font-bold hover:bg-red-600 transition active:scale-95"
+        >
+          {teamB}<br />
+          <span className="text-xs">({amounts.awayAmount || "–"})</span>
+        </button>
+      </div>
+    )}
+  </div>
+
+  {/* Stats */}
+  <div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-2 gap-3">
+    <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
+    <div>Bad: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
+    <div>Martingale: <strong className="text-purple-400">{martingaleDeficit}</strong></div>
+    <div>Shadow: <strong className="text-orange-400">{badGameShadow}</strong></div>
+  </div>
+</div>
     </div>
   );
 };
