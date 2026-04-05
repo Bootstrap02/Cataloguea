@@ -673,30 +673,7 @@ const handleSpecialWin = (type) => {
 
 
 
-        <button 
-          onClick={() => handleMainResult("H")} 
-          disabled={!fixture} 
-          className="py-4 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-600 transition active:scale-95"
-        >
-          {teamA}<br />
-          <span className="text-xs">({amounts.homeAmount || "–"})</span>
-        </button>
-        <button 
-          onClick={() => handleMainResult("D")} 
-          disabled={!fixture} 
-          className="py-4 rounded-xl bg-gray-600 text-white text-sm font-bold col-span-2 hover:bg-gray-500 transition active:scale-95"
-        >
-          DRAW<br />
-          <span className="text-xs">({amounts.drawAmount || "–"})</span>
-        </button>
-        <button 
-          onClick={() => handleMainResult("A")} 
-          disabled={!fixture} 
-          className="py-4 rounded-xl bg-red-700 text-white text-sm font-bold hover:bg-red-600 transition active:scale-95"
-        >
-          {teamB}<br />
-          <span className="text-xs">({amounts.awayAmount || "–"})</span>
-        </button>
+        
       </div>
     )}
   </div>
