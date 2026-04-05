@@ -18,7 +18,10 @@ const Homepage = () => {
   const [fixture, setFixture] = useState(null);
   const [isSmallTeamMatch, setIsSmallTeamMatch] = useState(false);
   const [smallTeamImpact, setSmallTeamImpact] = useState(false);
-
+  const [isReloading, setIsReloading] = useState(false);
+  const [pressedWins, setPressedWins] = useState(new Set());
+  const [jackpot, setJackpot] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);     // for LOAD button
   /* ---------------- BASE & MAIN DEFICIT ---------------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [deficit, setDeficit] = useState(0);
@@ -71,7 +74,17 @@ const Homepage = () => {
   useEffect(() => {
     baseRef.current = baseStake;
   }, [baseStake]);
-
+  
+const handleReload = async () => {
+  setIsReloading(true);
+  try {
+    await fetchAll();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setIsReloading(false);
+  }
+};
   /* ---------------- LOAD / SAVE ---------------- */
   const fetchAll = async () => {
     try {
@@ -145,7 +158,7 @@ const Homepage = () => {
   
 const handleLoadGame = (e) => {
   e.preventDefault();
-
+  if (isLoading) return;
   const home = sanitizeTeam(inputA) || "che";
   const away = sanitizeTeam(inputB) || "che";
 
@@ -213,6 +226,7 @@ const handleLoadGame = (e) => {
     drawAmount,
     awayAmount,
   });
+setIsLoading(true) // ✅ VERY IMPORTANT
 
   // =========================
   // SMALL MATCH (MARTINGALE)
@@ -226,7 +240,14 @@ const handleLoadGame = (e) => {
     let toBad = 0;
     if (newMartingale <= 300) toBad = newMartingale;
     else if (newMartingale <= 600) toBad = Math.floor(newMartingale / 2);
-    else toBad = Math.floor(newMartingale / 3);
+    else if (newMartingale <= 10000) toBad = Math.floor(newMartingale / 3);
+    else if (newMartingale <= 15000) toBad = Math.floor(newMartingale / 4);
+    else if (newMartingale <= 20000) toBad = Math.floor(newMartingale / 5);
+    else if (newMartingale <= 25000) toBad = Math.floor(newMartingale / 6);
+    else if (newMartingale <= 30000) toBad = Math.floor(newMartingale / 7);
+    else if (newMartingale <= 35000) toBad = Math.floor(newMartingale / 8);
+    else if (newMartingale <= 40000) toBad = Math.floor(newMartingale / 9);
+    else toBad = Math.floor(newMartingale / 10);
 
     newBad += toBad;
     newMartingale -= toBad;
@@ -271,10 +292,9 @@ const handleLoadGame = (e) => {
     setTotalSmallDeficits((prev) => prev + addedThisTime);
   }
 };
-
 const handleSpecialWin = (type) => {
   if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
-
+  setPressedWins((prev) => new Set([...prev, type]));
   // ✅ snapshot (prevents React async issues)
   const stakesSnapshot = { ...pendingSpecialStakes };
 
@@ -304,16 +324,24 @@ const handleSpecialWin = (type) => {
     setTotalSmallDeficits(0);
   } else {
     // ✅ SECOND+ WIN
-    setMartingaleDeficit((prev) =>
+    if(martingaleDeficit > beforeTotal){
+      setMartingaleDeficit((prev) =>
       Math.max(0, prev - beforeTotal)
     );
+    }else{
+      const residue = beforeTotal - martingaleDeficit
+      setMartingaleDeficit(0)
+      setBaseStake((prev) => prev + residue)
+    }
+    
   }
 };
   /* ---------------- JACKPOT (6-0) ---------------- */
   const handleJackpot = () => {
     if (!fixture) return;
+    setJackpot(true);
     setDeficit(0);
-    saveAll();
+    setBaseStake(10000);
   };
 
   /* ---------------- MAIN RESULT (H/D/A) ---------------- */
@@ -328,8 +356,7 @@ const handleSpecialWin = (type) => {
   };
     /* ---------------- NEXT GAME ---------------- */
   const handleNextGame = async () => {
-    if (!fixture) return;
-
+    if (!fixture || !isLoading) return;
     const finalBaseThisGame = baseStake + deficit;
 
     let nextBase = finalBaseThisGame;
@@ -376,6 +403,7 @@ const handleSpecialWin = (type) => {
     setIsSmallTeamMatch(false);
     setInputA("");
     setInputB("");
+    setIsLoading(false);
 
     await saveAll();
   };
@@ -392,10 +420,15 @@ const handleSpecialWin = (type) => {
             <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
               Virtual EPL Strategy
             </h1>
-            <button onClick={fetchAll} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-semibold text-lg rounded-2xl">
-              <FiRefreshCw className="w-5 h-5" /> Reload Data
-            </button>
-          </div>
+<button 
+  onClick={handleReload} 
+  disabled={isReloading}
+  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-xl text-sm transition"
+>
+  <FiRefreshCw className={`w-4 h-4 ${isReloading ? 'animate-spin' : ''}`} /> 
+  {isReloading ? "Reloading..." : "Reload"}
+</button>          
+</div>
           <p className="text-red-400 mt-2">
             {fixture ? (isSmallTeamMatch ? "SMALL TEAM MATCH — Martingale Active" : "NORMAL MATCH") : "Ready"}
           </p>
@@ -406,15 +439,26 @@ const handleSpecialWin = (type) => {
           <div className="mb-8">
             {isSmallTeamMatch ? (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <button onClick={handleJackpot} disabled={!fixture} className="py-6 rounded-2xl bg-yellow-400 text-black font-extrabold hover:bg-yellow-300">
+                <button onClick={handleJackpot} disabled={!fixture || jackpot} 
+                className={`py-6 rounded-2xl font-extrabold transition ${
+                        jackpot 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-yellow-400 text-black hover:bg-yellow-500"
+                      }`}
+                >
                   6–0<br />({amounts.winnerAmount || "–"})
                 </button>
                 {specialKeys.map((key) => (
                   <button
                     key={key}
                     onClick={() => handleSpecialWin(key)}
-                    disabled={!fixture || pendingSpecialStakes[key] === 0}
-                    className="py-6 rounded-2xl bg-blue-600 text-white font-extrabold hover:bg-blue-500"
+                    disabled={!fixture || pendingSpecialStakes[key] === 0 || pressedWins.has(key)}
+                    className={`py-6 rounded-2xl font-bold transition ${
+                        pressedWins.has(key) 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-blue-600 text-white hover:bg-blue-500"
+                      }`}
+
                   >
                     {specialLabels[key]}<br />({pendingSpecialStakes[key] || "–"})
                   </button>
@@ -422,18 +466,47 @@ const handleSpecialWin = (type) => {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button onClick={handleJackpot} disabled={!fixture} className="py-6 rounded-2xl bg-yellow-400 text-black font-extrabold hover:bg-yellow-300">
+                <button onClick={handleJackpot} disabled={!fixture || jackpot} 
+                className={`py-6 rounded-2xl font-extrabold transition ${
+                        jackpot 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-yellow-400 text-black hover:bg-yellow-500"
+                      }`}
+                      >
                   6–0<br />({amounts.winnerAmount || "–"})
                 </button>
-                <button onClick={() => handleMainResult("H")} disabled={!fixture} className="py-6 rounded-2xl bg-green-600 text-white font-extrabold hover:bg-green-500">
-                  {teamA}<br />({amounts.homeAmount || "–"})
-                </button>
-                <button onClick={() => handleMainResult("D")} disabled={!fixture} className="py-6 rounded-2xl bg-gray-500 text-white font-extrabold hover:bg-gray-400">
-                  DRAW<br />({amounts.drawAmount || "–"})
-                </button>
-                <button onClick={() => handleMainResult("A")} disabled={!fixture} className="py-6 rounded-2xl bg-red-600 text-white font-extrabold hover:bg-red-500">
-                  {teamB}<br />({amounts.awayAmount || "–"})
-                </button>
+               {/* Home */}
+      <button 
+        onClick={() => handleMainResult("H")} 
+        disabled={!fixture || pressedWins.has("H")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("H") ? "bg-green-500 text-white scale-105" : "bg-green-600 text-white hover:bg-green-500"
+        }`}
+      >
+        {teamA}<br />({amounts.homeAmount || "–"})
+      </button>
+
+      {/* Draw */}
+      <button 
+        onClick={() => handleMainResult("D")} 
+        disabled={!fixture || pressedWins.has("D")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("D") ? "bg-green-500 text-white scale-105" : "bg-gray-500 text-white hover:bg-gray-400"
+        }`}
+      >
+        DRAW<br />({amounts.drawAmount || "–"})
+      </button>
+
+      {/* Away */}
+      <button 
+        onClick={() => handleMainResult("A")} 
+        disabled={!fixture || pressedWins.has("A")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("A") ? "bg-green-500 text-white scale-105" : "bg-red-600 text-white hover:bg-red-500"
+        }`}
+      >
+        {teamB}<br />({amounts.awayAmount || "–"})
+      </button>
               </div>
             )}
           </div>
@@ -446,8 +519,8 @@ const handleSpecialWin = (type) => {
               <input value={inputB} onChange={(e) => setInputB(e.target.value)} placeholder="away" className="w-32 px-6 py-3 border-2 border-red-600 rounded-2xl text-center text-lg" />
             </div>
             <div className="flex gap-4">
-              <button onClick={handleLoadGame} className="px-10 py-4 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xl rounded-2xl">GO FOR INPUT</button>
-              <button onClick={handleNextGame} className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xl rounded-2xl">GO TO NEXT GAME</button>
+              <button onClick={handleLoadGame} disabled={isLoading} className="px-10 py-4 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xl rounded-2xl">GO FOR INPUT</button>
+              <button onClick={handleNextGame} disabled={!isLoading} className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xl rounded-2xl">GO TO NEXT GAME</button>
             </div>
           </div>
 
@@ -467,16 +540,17 @@ const handleSpecialWin = (type) => {
       </div>
 
       {/* ====================== MOBILE ====================== */}
-      {/* ====================== MOBILE ====================== */}
 <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-6">
   <div className="text-center mb-6">
     <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL</h1>
     <button 
-      onClick={fetchAll} 
-      className="mt-3 px-5 py-1.5 bg-red-700 hover:bg-red-600 text-xs rounded-xl transition"
-    >
-      Reload Data
-    </button>
+  onClick={handleReload} 
+  disabled={isReloading}
+ className="mt-3 px-5 py-1.5 bg-red-700 hover:bg-red-600 text-xs rounded-xl transition"
+>
+  <FiRefreshCw className={`w-4 h-4 ${isReloading ? 'animate-spin' : ''}`} /> 
+  {isReloading ? "Reloading..." : "Reload"}
+</button>    
   </div>
 
   {/* Inputs - Made smaller */}
@@ -499,13 +573,15 @@ const handleSpecialWin = (type) => {
   {/* Load & Next Buttons */}
   <div className="flex gap-3 mb-8">
     <button 
-      onClick={handleLoadGame} 
+      onClick={handleLoadGame}
+      disabled={isLoading} 
       className="flex-1 py-3 bg-red-700 hover:bg-red-600 rounded-2xl text-sm font-bold transition"
     >
       LOAD
     </button>
     <button 
       onClick={handleNextGame} 
+      disabled={!isLoading}
       className="flex-1 py-3 bg-green-700 hover:bg-green-600 rounded-2xl text-sm font-bold transition"
     >
       NEXT
@@ -518,9 +594,13 @@ const handleSpecialWin = (type) => {
       <div className="grid grid-cols-3 gap-2">
         <button 
           onClick={handleJackpot} 
-          disabled={!fixture} 
-          className="py-3 rounded-xl bg-yellow-500 text-black text-xs font-bold hover:bg-yellow-400 transition active:scale-95"
-        >
+          disabled={!fixture || jackpot} 
+       className={`py-3 rounded-xl text-xs font-bold transition ${
+                        jackpot 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-yellow-500 text-black hover:bg-yellow-500"
+                      }`}
+       >
           6–0<br />
           <span className="text-[10px]">({amounts.winnerAmount || "–"})</span>
         </button>
@@ -528,8 +608,12 @@ const handleSpecialWin = (type) => {
           <button
             key={key}
             onClick={() => handleSpecialWin(key)}
-            disabled={!fixture || pendingSpecialStakes[key] === 0}
-            className="py-3 rounded-xl bg-blue-700 text-white text-xs font-bold hover:bg-blue-600 transition active:scale-95"
+            disabled={!fixture || pendingSpecialStakes[key] === 0 || pressedWins.has(key)}
+            className={`py-3 rounded-xl text-xs font-bold  transition ${
+                        pressedWins.has(key) 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-blue-700 text-white hover:bg-blue-600"
+                      }`}
           >
             {specialLabels[key]}<br />
             <span className="text-[10px]">({pendingSpecialStakes[key] || "–"})</span>
@@ -540,12 +624,55 @@ const handleSpecialWin = (type) => {
       <div className="grid grid-cols-2 gap-2">
         <button 
           onClick={handleJackpot} 
-          disabled={!fixture} 
-          className="py-4 rounded-xl bg-yellow-500 text-black text-sm font-bold hover:bg-yellow-400 transition active:scale-95"
+          disabled={!fixture || jackpot} 
+        className={`py-4 rounded-xl text-sm font-bold transition ${
+                        jackpot 
+                          ? "bg-green-500 text-white scale-105" 
+                          : "bg-yellow-500 text-black hover:bg-yellow-500"
+                      }`}
+        
         >
           6–0<br />
           <span className="text-xs">({amounts.winnerAmount || "–"})</span>
         </button>
+
+
+{/* Home */}
+      <button 
+        onClick={() => handleMainResult("H")} 
+        disabled={!fixture || pressedWins.has("H")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("H") ? "bg-green-500 text-white scale-105" : "bg-green-600 text-white hover:bg-green-500"
+        }`}
+      >
+        {teamA}<br />({amounts.homeAmount || "–"})
+      </button>
+
+      {/* Draw */}
+      <button 
+        onClick={() => handleMainResult("D")} 
+        disabled={!fixture || pressedWins.has("D")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("D") ? "bg-green-500 text-white scale-105" : "bg-gray-500 text-white hover:bg-gray-400"
+        }`}
+      >
+        DRAW<br />({amounts.drawAmount || "–"})
+      </button>
+
+      {/* Away */}
+      <button 
+        onClick={() => handleMainResult("A")} 
+        disabled={!fixture || pressedWins.has("A")}
+        className={`py-6 rounded-2xl font-extrabold transition ${
+          pressedWins.has("A") ? "bg-green-500 text-white scale-105" : "bg-red-600 text-white hover:bg-red-500"
+        }`}
+      >
+        {teamB}<br />({amounts.awayAmount || "–"})
+      </button>
+
+
+
+
         <button 
           onClick={() => handleMainResult("H")} 
           disabled={!fixture} 
@@ -577,7 +704,8 @@ const handleSpecialWin = (type) => {
   {/* Stats */}
   <div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-2 gap-3">
     <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
-    <div>Bad: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
+    <div>Bad: <strong className="text-yellow-400">{deficit}</strong></div>
+    <div>Def: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
     <div>Martingale: <strong className="text-purple-400">{martingaleDeficit}</strong></div>
     <div>Shadow: <strong className="text-orange-400">{badGameShadow}</strong></div>
   </div>
