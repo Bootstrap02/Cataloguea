@@ -331,7 +331,7 @@ const handleSpecialWin = (type) => {
     }else{
       const residue = beforeTotal - martingaleDeficit
       setMartingaleDeficit(0)
-      setBaseStake((prev) => prev + residue)
+      setBaseStake((prev) => prev - residue)
     }
     
   }
@@ -387,6 +387,8 @@ const handleSpecialWin = (type) => {
     setMartingaleDeficit(nextMartingale);        // ← This is the important line
     setTotalSmallDeficits(nextTotalSmall);
 
+    setPressedWins(new Set());
+    setJackpot(false); 
     // Reset pending stakes
     setPendingSpecialStakes({
       oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
