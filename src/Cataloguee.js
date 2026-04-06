@@ -358,30 +358,36 @@ const handleNextGame = async () => {
     else {
       // Total deficits > bank → use bank and spread remaining deficit
       const remainingDeficit = totalSpecialDeficits - currentBank;
-      const perAsset = Math.floor(remainingDeficit / 10);   // divide equally among 10 assets
+       setSpecialDeficits({
+        oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
+      });
+      setBadGamesDeficit(remainingDeficit)
+      setBadGameShadow(remainingDeficit)
+  //    const perAsset = Math.floor(remainingDeficit / 10);   // divide equally among 10 assets
 
-      // Check if per asset >= 1000
-      if (perAsset >= 1000) {
-        // Add everything to base (no need to divide)
-        setBaseStake((prev) => prev + remainingDeficit);
+      // // Check if per asset >= 1000
+      // if (perAsset >= 1000) {
+      //   // Add everything to base (no need to divide)
+      //   setBaseStake((prev) => prev + remainingDeficit);
         
-        // Clear all special deficits
-        setSpecialDeficits({
-          oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-          ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-        });
-      } 
-      else {
-        // Spread remaining deficit equally
-        const newSpecialDeficits = {
-          oneX: perAsset, twoX: perAsset, x2: perAsset,
-          zeroGoals: perAsset, sixGoals: perAsset,
-          ht12: perAsset, ht21: perAsset, ht30: perAsset,
-          ft40: perAsset, ft41: perAsset,
-        };
+      //   // Clear all special deficits
+      //   setSpecialDeficits({
+      //     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+      //     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
+      //   });
+      // } 
+      // else {
+      //   // Spread remaining deficit equally
+      //   const newSpecialDeficits = {
+      //     oneX: perAsset, twoX: perAsset, x2: perAsset,
+      //     zeroGoals: perAsset, sixGoals: perAsset,
+      //     ht12: perAsset, ht21: perAsset, ht30: perAsset,
+      //     ft40: perAsset, ft41: perAsset,
+      //   };
 
-        setSpecialDeficits(newSpecialDeficits);
-      }
+      //   setSpecialDeficits(newSpecialDeficits);
+      // }
 
       // Bank becomes 0
       setDeficitBank(0);
