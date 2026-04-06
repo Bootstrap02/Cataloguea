@@ -830,8 +830,8 @@ export const smallOdds = [
     ft41: 16.9,
   },
   {
-    id: "livbha",
-    home: "liv",
+    id: "chebha",
+    home: "che",
     away: "bha",
     winner: 66.1,
     oneX: 24.9,
