@@ -244,12 +244,47 @@ const handleLoadGame = (e) => {
     setPressedWins((prev) => new Set([...prev, "winner"]));
 
   };
-
-  /* ---------------- NEXT GAME ---------------- */
+/* ---------------- NEXT GAME ---------------- */
 const handleNextGame = async () => {
   if (!fixture) return;
 
-  // Simple cleanup and save
+  // Process each private deficit
+  setSpecialDeficits((prev) => {
+    const updated = { ...prev };
+    let remainingBank = deficitBank;
+    let baseIncrease = 0;
+
+    specialKeys.forEach((key) => {
+      let def = updated[key] || 0;
+
+      if (def >= 10000) {
+        if (remainingBank >= def) {
+          // Bank can cover the full deficit
+          remainingBank -= def;
+          updated[key] = 100;                    // reset to 100
+        } else {
+          // Bank is not enough
+          const coveredByBank = remainingBank;
+          const remainder = def - coveredByBank;
+          remainingBank = 0;
+          baseIncrease += remainder;
+          updated[key] = 100;                    // reset to 100
+        }
+      }
+    });
+
+    // Apply bank and base changes
+    if (remainingBank !== deficitBank) {
+      setDeficitBank(remainingBank);
+    }
+    if (baseIncrease > 0) {
+      setBaseStake((prev) => prev + baseIncrease);
+    }
+
+    return updated;
+  });
+
+  // Simple cleanup
   setPressedWins(new Set());
 
   setPendingStakes({
