@@ -32,6 +32,11 @@ const Homepage = () => {
     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
   });
 
+  const [specialBigDeficits, setSpecialBigDeficits] = useState({
+    oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
+  });
+
   const [pendingStakes, setPendingStakes] = useState({
     winnerAmount: 0,
     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
@@ -92,6 +97,19 @@ const fetchAll = async () => {
       ft41: data.ftFourOneDeficit ?? 0,
     });
 
+    setSpecialBigDeficits({
+      oneX: data.oneXBigDeficit ?? 0,
+      twoX: data.twoXBigDeficit ?? 0,
+      x2: data.xTwoBigDeficit ?? 0,
+      zeroGoals: data.zeroGoalsBigDeficit ?? 0,
+      sixGoals: data.sixGoalsBigDeficit ?? 0,
+      ht12: data.htOneTwoBigDeficit ?? 0,
+      ht21: data.htTwoOneBigDeficit ?? 0,
+      ht30: data.htThreeZeroBigDeficit ?? 0,
+      ft40: data.ftFourZeroBigDeficit ?? 0,
+      ft41: data.ftFourOneBigDeficit ?? 0,
+    });
+
     setPressedWins(new Set());
   } catch (err) {
     console.error("❌ Load failed:", err.message);
@@ -127,6 +145,18 @@ const saveAll = async () => {
       htThreeZeroDeficit: specialDeficits.ht30,
       ftFourZeroDeficit: specialDeficits.ft40,
       ftFourOneDeficit: specialDeficits.ft41,
+
+      // 10 Deficits
+      oneXBigDeficit: specialBigDeficits.oneX,
+      twoXBigDeficit: specialBigDeficits.twoX,
+      xTwoBigDeficit: specialBigDeficits.x2,
+      zeroGoalsBigDeficit: specialBigDeficits.zeroGoals,
+      sixGoalsBigDeficit: specialBigDeficits.sixGoals,
+      htOneTwoBigDeficit: specialBigDeficits.ht12,
+      htTwoOneBigDeficit: specialBigDeficits.ht21,
+      htThreeZeroBigDeficit: specialBigDeficits.ht30,
+      ftFourZeroBigDeficit: specialBigDeficits.ft40,
+      ftFourOneBigDeficit: specialBigDeficits.ft41,
     };
 
     await axios.put(API_BASE, payload);
@@ -157,24 +187,44 @@ const handleLoadGame = (e) => {
   setFixture(found);
   setPressedWins(new Set());
 
-  let winnerAmount = Math.round(newBase / (found.winner - 1)) || 10;
+  let winnerAmount = Math.round(newBase / (found.winner)) || 10;
   winnerAmount = Math.max(winnerAmount, 10);
 
   const targetPerAsset = Math.floor(winnerAmount / 10);
 
+  let oneXAmount = Math.round(specialBigDeficits.oneX / (found.winner)) || 10;
+  oneXAmount = Math.max(oneXAmount, 10);
+  let twoXAmount = Math.round(specialBigDeficits.twoX / (found.winner)) || 10;
+  twoXAmount = Math.max(twoXAmount, 10);
+  let x2Amount = Math.round(specialBigDeficits.x2 / (found.winner)) || 10;
+  x2Amount = Math.max(x2Amount, 10);
+  let zeroGoalsAmount = Math.round(specialBigDeficits.zeroGoals / (found.winner)) || 10;
+  zeroGoalsAmount = Math.max(zeroGoalsAmount, 10);
+  let sixGoalsAmount = Math.round(specialBigDeficits.sixGoals / (found.winner)) || 10;
+  sixGoalsAmount = Math.max(sixGoalsAmount, 10);
+  let ht12Amount = Math.round(specialBigDeficits.ht12 / (found.winner)) || 10;
+  ht12Amount = Math.max(ht12Amount, 10);
+  let ht21Amount = Math.round(specialBigDeficits.ht21 / (found.winner)) || 10;
+  ht21Amount = Math.max(ht21Amount, 10);
+  let ht30Amount = Math.round(specialBigDeficits.ht30 / (found.winner)) || 10;
+  ht30Amount = Math.max(ht30Amount, 10);
+  let ft40Amount = Math.round(specialBigDeficits.ft40 / (found.winner)) || 10;
+  ft40Amount = Math.max(ft40Amount, 10);
+  let ft41Amount = Math.round(specialBigDeficits.ft41 / (found.winner)) || 10;
+  ft41Amount = Math.max(ft41Amount, 10);
   // Step 1: Update targets
   setAssetTargets((prev) => {
     const updatedTargets = {
-      oneX: prev.oneX + targetPerAsset,
-      twoX: prev.twoX + targetPerAsset,
-      x2: prev.x2 + targetPerAsset,
-      zeroGoals: prev.zeroGoals + targetPerAsset,
-      sixGoals: prev.sixGoals + targetPerAsset,
-      ht12: prev.ht12 + targetPerAsset,
-      ht21: prev.ht21 + targetPerAsset,
-      ht30: prev.ht30 + targetPerAsset,
-      ft40: prev.ft40 + targetPerAsset,
-      ft41: prev.ft41 + targetPerAsset,
+      oneX: prev.oneX + targetPerAsset + oneXAmount,
+      twoX: prev.twoX + targetPerAsset + twoXAmount,
+      x2: prev.x2 + targetPerAsset + x2Amount,
+      zeroGoals: prev.zeroGoals + targetPerAsset + zeroGoalsAmount,
+      sixGoals: prev.sixGoals + targetPerAsset + sixGoalsAmount,
+      ht12: prev.ht12 + targetPerAsset + ht12Amount,
+      ht21: prev.ht21 + targetPerAsset + ht21Amount,
+      ht30: prev.ht30 + targetPerAsset + ht30Amount,
+      ft40: prev.ft40 + targetPerAsset + ft40Amount,
+      ft41: prev.ft41 + targetPerAsset + ft41Amount,
     };
 
     return updatedTargets;
@@ -237,7 +287,11 @@ const handleLoadGame = (e) => {
     if (!fixture) return;
     // Reset base stake
     setBaseStake(10000);
-
+  // Reset all BigDeficits to 0
+    setSpecialBigDeficits({
+      oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+      ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
+    });
     setPendingStakes((prev) => ({ ...prev, winnerAmount: 0 }));
 
     // Mark jackpot button pressed
@@ -252,7 +306,6 @@ const handleNextGame = async () => {
   setSpecialDeficits((prev) => {
     const updated = { ...prev };
     let remainingBank = deficitBank;
-    let baseIncrease = 0;
 
     specialKeys.forEach((key) => {
       let def = updated[key] || 0;
@@ -267,7 +320,10 @@ const handleNextGame = async () => {
           const coveredByBank = remainingBank;
           const remainder = def - coveredByBank;
           remainingBank = 0;
-          baseIncrease += remainder;
+          setSpecialBigDeficits((prevBig) => ({
+            ...prevBig,
+            [key]: (prevBig[key] || 0) + remainder,
+          }));
           updated[key] = 100;                    // reset to 100
         }
       }
@@ -277,10 +333,7 @@ const handleNextGame = async () => {
     if (remainingBank !== deficitBank) {
       setDeficitBank(remainingBank);
     }
-    if (baseIncrease > 0) {
-      setBaseStake((prev) => prev + baseIncrease);
-    }
-
+    
     return updated;
   });
 
@@ -335,7 +388,10 @@ const isButtonPressed = (key) => pressedWins.has(key);
                   isButtonPressed("winner") ? "bg-yellow-500" : "bg-yellow-400 hover:bg-yellow-300"
                 } ${!fixture || isButtonPressed("winner") ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                6–0<br />({pendingStakes.winnerAmount || "–"})
+                {/* 6–0<br />({pendingStakes.winnerAmount || "–"}) */}
+                6–0<br />
+                ({pendingStakes.winnerAmount + 
+                  Object.values(specialBigDeficits).reduce((sum, v) => sum + v, 0) || "–"})
               </button>
 
               {specialKeys.map((key) => (
@@ -396,7 +452,7 @@ const isButtonPressed = (key) => pressedWins.has(key);
             <div>Bank: <strong className="text-cyan-600">{deficitBank}</strong></div>
             {specialKeys.map((key) => (
     <div key={key}>
-      {specialLabels[key]} TagDef: {assetTargets[key]}<strong className="text-purple-600">({specialDeficits[key]})</strong><br />
+      {specialLabels[key]} Tag<strong className="text-purple-600">(Def)</strong><strong className="text-yellow-600">Big</strong>: {assetTargets[key]}<strong className="text-purple-600">({specialDeficits[key]})</strong><strong className="text-yellow-600">{specialBigDeficits[key]}</strong><br />
     </div>
   ))}
           </div>
@@ -431,8 +487,11 @@ const isButtonPressed = (key) => pressedWins.has(key);
                 isButtonPressed("winner") ? "bg-yellow-500" : "bg-yellow-500 hover:bg-yellow-400"
               } ${!fixture || isButtonPressed("winner") ? "opacity-50 cursor-not-allowed" : ""}`}
             >
+              {/* 6–0<br />
+              <span className="text-[10px]">({pendingStakes.winnerAmount || "–"})</span> */}
               6–0<br />
-              <span className="text-[10px]">({pendingStakes.winnerAmount || "–"})</span>
+                ({pendingStakes.winnerAmount + 
+                  Object.values(specialBigDeficits).reduce((sum, v) => sum + v, 0) || "–"})
             </button>
 
             {specialKeys.map((key) => (
@@ -496,7 +555,7 @@ const isButtonPressed = (key) => pressedWins.has(key);
           <div className="col-span-3 grid grid-cols-5 gap-1 text-[10px] text-center">
             {specialKeys.map((key) => (
     <div key={key}>
-      {specialLabels[key]} TagDef: {assetTargets[key]}<strong className="text-purple-600">({specialDeficits[key]})</strong><br />
+      {specialLabels[key]} Tag<strong className="text-purple-600">(Def)</strong><strong className="text-yellow-600">Big</strong>: {assetTargets[key]}<strong className="text-purple-600">({specialDeficits[key]})</strong><strong className="text-yellow-600">{specialBigDeficits[key]}</strong><br />
     </div>
   ))}
           </div>
