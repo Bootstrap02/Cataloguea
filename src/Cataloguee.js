@@ -20,10 +20,10 @@ const Homepage = () => {
 
   
 
-  const [deficitBank, setDeficitBank] = useState(0);
+  const [deficitBank, setDeficitBank] = useState(2000);
   const [assetTargets, setAssetTargets] = useState({
-  oneX: 100, twoX: 100, x2: 100, zeroGoals: 100, sixGoals: 100,
-  ht12: 100, ht21: 100, ht3100: 100, ft4100: 100, ft41: 100,
+  oneX: 200, twoX: 200, x2: 200, zeroGoals: 200, sixGoals: 200,
+  ht12: 200, ht21: 200, ht30: 200, ft4100: 200, ft41: 200,
 });
 
 
