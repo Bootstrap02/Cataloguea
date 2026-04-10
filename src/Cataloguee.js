@@ -287,7 +287,7 @@ const handleNextGame = async () => {
     specialKeys.forEach((key) => {
       let def = updated[key] || 0;
 
-      if (def >= 10000) {
+      if (def >= baseStake) {
         if (remainingBank >= def) {
           // Bank can cover the full deficit
           remainingBank -= def;
