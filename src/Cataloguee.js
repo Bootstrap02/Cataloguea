@@ -256,9 +256,9 @@ const handleLoadGame = (e) => {
     // Mark this button as pressed
     setPressedWins((prev) => new Set([...prev, type]));    
     setSpecialDeficits((prev) => ({ ...prev, [type]: 0 }));
-    setAssetTargets((prev) => ({ ...prev, [type]: 100 }));
+    setAssetTargets((prev) => ({ ...prev, [type]: 200 }));
     
-      setDeficitBank((prev) => prev + 100 );
+      setDeficitBank((prev) => prev + 200 );
 
   };
 
@@ -291,14 +291,14 @@ const handleNextGame = async () => {
         if (remainingBank >= def) {
           // Bank can cover the full deficit
           remainingBank -= def;
-          updated[key] = 100;                    // reset to 100
+          updated[key] = 200;                    // reset to 100
         } else {
           // Bank is not enough
           const coveredByBank = remainingBank;
           const remainder = def - coveredByBank;
           remainingBank = 0;
           baseIncrease += remainder;
-          updated[key] = 100;                    // reset to 100
+          updated[key] = 200;                    // reset to 100
         }
       }
     });
