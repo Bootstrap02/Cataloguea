@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { odds } from "./Scores";
+import axios from "axios";
 import { FiRefreshCw } from 'react-icons/fi';
 
 /* ---------------- UTILS ---------------- */
@@ -16,7 +17,7 @@ const Homepage = () => {
   const [pressedWins, setPressedWins] = useState(new Set());
   const [jackpot, setJackpot] = useState(false);
   const [win, setWin] = useState(false);
-
+  const [isReloading, setIsReloading] = useState(false);   // ← New for reload spinner
   /* ---------------- BASE ---------------- */
   const [winner, setWinner] = useState(0);
   const [shadow, setShadow] = useState(0);
@@ -73,6 +74,95 @@ const Homepage = () => {
     ft40: "FT 4-0", ft41: "FT 4-1",
   };
 
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+
+const fetchAll = async () => {
+  setIsReloading(true);
+  try {
+    const res = await axios.get(API_BASE);
+    const data = res.data || {};
+
+    setBaseStake(data.base ?? 10000);
+    setShadow(data.shadow ?? 0);
+    setDeficitBank(data.deficitBank ?? 0);
+    setWinner(data.winner ?? 0);
+    setDeficit(data.deficit ?? "");
+
+    // Main deficits
+    setCheLee(data.cheLee ?? 0);
+    setCheTot(data.cheTot ?? 0);
+    setCheWhu(data.cheWhu ?? 0);
+    setCheBur(data.cheBur ?? 0);
+    setBouChe(data.bouChe ?? 0);
+    setCheWol(data.cheWol ?? 0);
+    setLeeChe(data.leeChe ?? 0);
+    setCheNew(data.cheNew ?? 0);
+    setWhuChe(data.whuChe ?? 0);
+    setMnuChe(data.mnuChe ?? 0);
+    setCheAst(data.cheAst ?? 0);
+    setMncChe(data.mncChe ?? 0);
+    setBreChe(data.breChe ?? 0);
+    setAstChe(data.astChe ?? 0);
+
+    // Big deficits
+    setBigCheLee(data.bigCheLee ?? 0);
+    setBigCheTot(data.bigCheTot ?? 0);
+    setBigCheWhu(data.bigCheWhu ?? 0);
+    setBigCheBur(data.bigCheBur ?? 0);
+    setBigBouChe(data.bigBouChe ?? 0);
+    setBigCheWol(data.bigCheWol ?? 0);
+    setBigLeeChe(data.bigLeeChe ?? 0);
+    setBigCheNew(data.bigCheNew ?? 0);
+    setBigWhuChe(data.bigWhuChe ?? 0);
+    setBigMnuChe(data.bigMnuChe ?? 0);
+    setBigCheAst(data.bigCheAst ?? 0);
+    setBigMncChe(data.bigMncChe ?? 0);
+    setBigBreChe(data.bigBreChe ?? 0);
+    setBigAstChe(data.bigAstChe ?? 0);
+
+    // Pending stakes
+    if (data.pendingSpecialStakes) {
+      const pendingObj = {};
+      specialKeys.forEach(key => {
+        pendingObj[key] = data.pendingSpecialStakes.get(key) ?? 0;
+      });
+      setPendingSpecialStakes(pendingObj);
+    }
+
+  } catch (err) {
+    console.error("Fetch failed:", err.message);
+  }finally {
+      setIsReloading(false);
+    }
+};
+
+const saveAll = async () => {
+  try {
+    const payload = {
+      base: baseStake,
+      shadow,
+      deficitBank,
+      winner,
+      deficit,
+
+      cheLee, cheTot, cheWhu, cheBur, bouChe, cheWol, leeChe, cheNew,
+      whuChe, mnuChe, cheAst, mncChe, breChe, astChe,
+
+      bigCheLee, bigCheTot, bigCheWhu, bigCheBur, bigBouChe, bigCheWol,
+      bigLeeChe, bigCheNew, bigWhuChe, bigMnuChe, bigCheAst, bigMncChe,
+      bigBreChe, bigAstChe,
+
+      pendingSpecialStakes: pendingSpecialStakes, // will be converted to Map on backend
+    };
+
+    await axios.put(API_BASE, payload);
+    console.log("✅ Saved successfully");
+  } catch (err) {
+    console.error("❌ Save failed:", err.message);
+  }
+};
+
+
   // Martingale order for behind logic
   const martingaleOrder = ["oneX", "twoX", "x2", "zeroGoals", "sixGoals", "ht12", "ht21", "ht30", "ft40", "ft41"];
 
@@ -81,6 +171,9 @@ const Homepage = () => {
     return index === -1 ? [] : martingaleOrder.slice(index + 1);
   };
 
+  useEffect(() => {
+    fetchAll();
+  });
   useEffect(() => {
     baseRef.current = baseStake;
   }, [baseStake]);
@@ -349,6 +442,8 @@ const handleNextGame = () => {
   setInputA("");
   setInputB("");
   setIsLoading(false);
+
+  saveAll();
 };
   
   const isButtonPressed = (key) => pressedWins.has(key);
@@ -362,11 +457,19 @@ const handleNextGame = () => {
             <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
               Virtual EPL Strategy
             </h1>
-            <button 
-              onClick={() => window.location.reload()} 
+            {/* <button 
+              onClick={fetchAll} 
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm transition"
             >
               <FiRefreshCw className="w-4 h-4" /> Reload
+            </button> */}
+            <button 
+              onClick={fetchAll} 
+              disabled={isReloading}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-xl text-sm transition"
+            >
+              <FiRefreshCw className={`w-4 h-4 ${isReloading ? 'animate-spin' : ''}`} /> 
+              {isReloading ? "Reloading..." : "Reload"}
             </button>
           </div>
           <p className="text-red-400 mt-2">
@@ -443,7 +546,7 @@ const handleNextGame = () => {
           </div>
 
           {/* Stats */}
-          <div className="mt-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
+          {/* <div className="mt-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
             <div>Base: <strong className="text-green-600">{baseStake}</strong></div>
             <div>Shadow: <strong className="text-green-600">{shadow}</strong></div>
             <div>Bank: <strong className="text-cyan-600">{deficitBank}</strong></div>
@@ -467,7 +570,29 @@ const handleNextGame = () => {
 <div>CheTot: <strong>{cheTot}</strong> <span className="font-bold text-red-600">({bigCheTot})</span></div>
 
 <div>CheLee: <strong>{cheLee}</strong> <span className="font-bold text-red-600">({bigCheLee})</span></div>
-          </div>
+          </div> */}
+          {/* Stats - Desktop */}
+<div className="mt-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
+  <div>Base: <strong className="text-green-600">{baseStake}</strong></div>
+  <div>Shadow: <strong className="text-yellow-400">{shadow}</strong></div>
+  <div>Bank: <strong className="text-cyan-600">{deficitBank}</strong></div>
+
+  <div>AstChe: <strong>{astChe}</strong> <span className="font-bold text-red-500">({bigAstChe})</span></div>
+  <div>CheAst: <strong>{cheAst}</strong> <span className="font-bold text-red-500">({bigCheAst})</span></div>
+  <div>BreChe: <strong>{breChe}</strong> <span className="font-bold text-red-500">({bigBreChe})</span></div>
+  <div>CheNew: <strong>{cheNew}</strong> <span className="font-bold text-red-500">({bigCheNew})</span></div>
+  <div>MncChe: <strong>{mncChe}</strong> <span className="font-bold text-red-500">({bigMncChe})</span></div>
+  <div>CheWol: <strong>{cheWol}</strong> <span className="font-bold text-red-500">({bigCheWol})</span></div>
+  <div>CheBur: <strong>{cheBur}</strong> <span className="font-bold text-red-500">({bigCheBur})</span></div>
+  <div>CheWhu: <strong>{cheWhu}</strong> <span className="font-bold text-red-500">({bigCheWhu})</span></div>
+  <div>CheTot: <strong>{cheTot}</strong> <span className="font-bold text-red-500">({bigCheTot})</span></div>
+  <div>CheLee: <strong>{cheLee}</strong> <span className="font-bold text-red-500">({bigCheLee})</span></div>
+
+  <div>BouChe: <strong>{bouChe}</strong> <span className="font-bold text-red-500">({bigBouChe})</span></div>
+  <div>LeeChe: <strong>{leeChe}</strong> <span className="font-bold text-red-500">({bigLeeChe})</span></div>
+  <div>WhuChe: <strong>{whuChe}</strong> <span className="font-bold text-red-500">({bigWhuChe})</span></div>
+  <div>MnuChe: <strong>{mnuChe}</strong> <span className="font-bold text-red-500">({bigMnuChe})</span></div>
+</div>
         </div>
       </div>
 
@@ -477,12 +602,20 @@ const handleNextGame = () => {
   {/* HEADER */}
   <div className="text-center mb-6">
     <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL Strategy</h1>
-    <button 
-      onClick={() => window.location.reload()} 
+    {/* <button 
+      onClick={fetchAll} 
       className="mt-3 px-5 py-1.5 bg-red-700 hover:bg-red-600 text-xs rounded-xl transition flex items-center justify-center gap-1 mx-auto"
     >
       <FiRefreshCw className="w-4 h-4" /> Reload
-    </button>
+    </button> */}
+    <button 
+            onClick={fetchAll}
+            disabled={isReloading}
+            className="mt-3 px-5 py-1.5 bg-red-700 hover:bg-red-600 disabled:bg-red-800 text-xs rounded-xl transition flex items-center justify-center gap-1 mx-auto"
+          >
+            <FiRefreshCw className={`w-4 h-4 ${isReloading ? 'animate-spin' : ''}`} /> 
+            {isReloading ? "Reloading..." : "Reload"}
+          </button>
     <p className="text-red-400 text-xs mt-2">
       {fixture ? "MATCH LOADED" : "Ready"}
     </p>
@@ -562,7 +695,7 @@ const handleNextGame = () => {
   </div>
 
   {/* STATS */}
-  <div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-2 gap-3 font-mono">
+  {/* <div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-2 gap-3 font-mono">
 
     <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
     <div>Shadow: <strong className="text-yellow-400">{shadow}</strong></div>
@@ -579,7 +712,30 @@ const handleNextGame = () => {
     <div>CheTot: <strong>{cheTot}</strong> <span className="font-bold text-red-500">({bigCheTot})</span></div>
     <div>CheLee: <strong>{cheLee}</strong> <span className="font-bold text-red-500">({bigCheLee})</span></div>
 
-  </div>
+  </div> */}
+  {/* STATS - Mobile */}
+<div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-2 gap-3 font-mono mt-6">
+
+  <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
+  <div>Shadow: <strong className="text-yellow-400">{shadow}</strong></div>
+  <div>Bank: <strong className="text-cyan-400">{deficitBank}</strong></div>
+
+  <div>AstChe: <strong>{astChe}</strong> <span className="font-bold text-red-500">({bigAstChe})</span></div>
+  <div>CheAst: <strong>{cheAst}</strong> <span className="font-bold text-red-500">({bigCheAst})</span></div>
+  <div>BreChe: <strong>{breChe}</strong> <span className="font-bold text-red-500">({bigBreChe})</span></div>
+  <div>CheNew: <strong>{cheNew}</strong> <span className="font-bold text-red-500">({bigCheNew})</span></div>
+  <div>MncChe: <strong>{mncChe}</strong> <span className="font-bold text-red-500">({bigMncChe})</span></div>
+  <div>CheWol: <strong>{cheWol}</strong> <span className="font-bold text-red-500">({bigCheWol})</span></div>
+  <div>CheBur: <strong>{cheBur}</strong> <span className="font-bold text-red-500">({bigCheBur})</span></div>
+  <div>CheWhu: <strong>{cheWhu}</strong> <span className="font-bold text-red-500">({bigCheWhu})</span></div>
+  <div>CheTot: <strong>{cheTot}</strong> <span className="font-bold text-red-500">({bigCheTot})</span></div>
+  <div>CheLee: <strong>{cheLee}</strong> <span className="font-bold text-red-500">({bigCheLee})</span></div>
+
+  <div>BouChe: <strong>{bouChe}</strong> <span className="font-bold text-red-500">({bigBouChe})</span></div>
+  <div>LeeChe: <strong>{leeChe}</strong> <span className="font-bold text-red-500">({bigLeeChe})</span></div>
+  <div>WhuChe: <strong>{whuChe}</strong> <span className="font-bold text-red-500">({bigWhuChe})</span></div>
+  <div>MnuChe: <strong>{mnuChe}</strong> <span className="font-bold text-red-500">({bigMnuChe})</span></div>
+</div>
 
 </div>
     </div>
