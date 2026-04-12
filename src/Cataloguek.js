@@ -173,7 +173,7 @@ const saveAll = async () => {
 
   useEffect(() => {
     fetchAll();
-  });
+  }, []);
   useEffect(() => {
     baseRef.current = baseStake;
   }, [baseStake]);
