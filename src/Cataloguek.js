@@ -171,9 +171,7 @@ const saveAll = async () => {
     return index === -1 ? [] : martingaleOrder.slice(index + 1);
   };
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+ 
   useEffect(() => {
     baseRef.current = baseStake;
   }, [baseStake]);
