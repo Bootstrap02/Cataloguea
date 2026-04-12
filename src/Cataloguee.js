@@ -17,6 +17,7 @@ const Homepage = () => {
 
   const [baseStake, setBaseStake] = useState(10000);
   const baseRef = useRef(10000);
+  const [baseDivider, setBaseDivider] = useState(0); 
 
   
 
@@ -60,6 +61,7 @@ const Homepage = () => {
 
   useEffect(() => {
     baseRef.current = baseStake;
+    setBaseDivider(baseStake / 50)
   }, [baseStake]);
 
 const fetchAll = async () => {
@@ -109,7 +111,7 @@ const fetchAll = async () => {
       ft40: data.ftFourZeroBigDeficit ?? 0,
       ft41: data.ftFourOneBigDeficit ?? 0,
     });
-
+    setBaseDivider(baseStake / 50)
     setPressedWins(new Set());
   } catch (err) {
     console.error("❌ Load failed:", err.message);
@@ -256,9 +258,9 @@ const handleLoadGame = (e) => {
     // Mark this button as pressed
     setPressedWins((prev) => new Set([...prev, type]));    
     setSpecialDeficits((prev) => ({ ...prev, [type]: 0 }));
-    setAssetTargets((prev) => ({ ...prev, [type]: 200 }));
+    setAssetTargets((prev) => ({ ...prev, [type]: baseDivider }));
     
-      setDeficitBank((prev) => prev + 200 );
+      setDeficitBank((prev) => prev + baseDivider );
 
   };
 
@@ -277,7 +279,7 @@ const handleLoadGame = (e) => {
 /* ---------------- NEXT GAME ---------------- */
 const handleNextGame = async () => {
   if (!fixture) return;
-
+  const divider = baseStake / 10
   // Process each private deficit
   setSpecialDeficits((prev) => {
     const updated = { ...prev };
@@ -287,18 +289,18 @@ const handleNextGame = async () => {
     specialKeys.forEach((key) => {
       let def = updated[key] || 0;
 
-      if (def >= baseStake) {
+      if (def >= divider) {
         if (remainingBank >= def) {
           // Bank can cover the full deficit
-          remainingBank -= def;
-          updated[key] = 200;                    // reset to 100
+          (remainingBank + baseDivider) -= def;
+          updated[key] = baseDivider;                    // reset to 100
         } else {
           // Bank is not enough
           const coveredByBank = remainingBank;
           const remainder = def - coveredByBank;
           remainingBank = 0;
-          baseIncrease += remainder;
-          updated[key] = 200;                    // reset to 100
+          (baseIncrease -baseDivider) += remainder;
+          updated[key] = baseDivider;                    // reset to 100
         }
       }
     });
@@ -316,7 +318,7 @@ const handleNextGame = async () => {
 
   // Simple cleanup
   setPressedWins(new Set());
-
+  setBaseDivider(baseStake / 50)
   setPendingStakes({
     winnerAmount: 0,
     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
