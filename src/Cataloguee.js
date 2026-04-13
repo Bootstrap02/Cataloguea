@@ -167,9 +167,6 @@ const saveAll = async () => {
     console.error("❌ Save failed:", err.message);
   }
 };
-  useEffect(() => {
-    fetchAll();
-  }, []);
 
 /* ---------------- LOAD GAME ---------------- */
 const handleLoadGame = (e) => {
@@ -276,10 +273,69 @@ const handleLoadGame = (e) => {
     setPressedWins((prev) => new Set([...prev, "winner"]));
 
   };
+// /* ---------------- NEXT GAME ---------------- */
+// const handleNextGame = async () => {
+//   if (!fixture) return;
+//   const divider = baseStake / 10
+//   // Process each private deficit
+//   setSpecialDeficits((prev) => {
+//     const updated = { ...prev };
+//     let remainingBank = deficitBank;
+//     let baseIncrease = 0;
+
+//     specialKeys.forEach((key) => {
+//       let def = updated[key] || 0;
+
+//       if (def >= divider) {
+//         if (remainingBank >= def) {
+//           // Bank can cover the full deficit
+//           const deal = remainingBank + baseDivider
+//           deal -= def;
+//           updated[key] = baseDivider;                    // reset to 100
+//         } else {
+//           // Bank is not enough
+//           const coveredByBank = remainingBank;
+//           const remainder = def - coveredByBank;
+//           remainingBank = 0;
+//           const secondDeal = baseIncrease - baseDivider
+//           secondDeal += remainder;
+//           updated[key] = baseDivider;                    // reset to 100
+//         }
+//       }
+//     });
+
+//     // Apply bank and base changes
+//     if (remainingBank !== deficitBank) {
+//       setDeficitBank(remainingBank);
+//     }
+//     if (baseIncrease > 0) {
+//       setBaseStake((prev) => prev + baseIncrease);
+//     }
+
+//     return updated;
+//   });
+
+//   // Simple cleanup
+//   setPressedWins(new Set());
+//   setBaseDivider(baseStake / 50)
+//   setPendingStakes({
+//     winnerAmount: 0,
+//     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+//     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
+//   });
+
+//   setFixture(null);
+//   setInputA("");
+//   setInputB("");
+
+//   await saveAll();
+// };
 /* ---------------- NEXT GAME ---------------- */
 const handleNextGame = async () => {
   if (!fixture) return;
-  const divider = baseStake / 10
+
+  const divider = baseStake / 10;
+
   // Process each private deficit
   setSpecialDeficits((prev) => {
     const updated = { ...prev };
@@ -292,14 +348,14 @@ const handleNextGame = async () => {
       if (def >= divider) {
         if (remainingBank >= def) {
           // Bank can cover the full deficit
-          (remainingBank + baseDivider) -= def;
+          remainingBank -= def;
           updated[key] = baseDivider;                    // reset to 100
         } else {
           // Bank is not enough
           const coveredByBank = remainingBank;
           const remainder = def - coveredByBank;
           remainingBank = 0;
-          (baseIncrease -baseDivider) += remainder;
+          baseIncrease += remainder;
           updated[key] = baseDivider;                    // reset to 100
         }
       }
@@ -318,7 +374,7 @@ const handleNextGame = async () => {
 
   // Simple cleanup
   setPressedWins(new Set());
-  setBaseDivider(baseStake / 50)
+  setBaseDivider(baseStake / 50);
   setPendingStakes({
     winnerAmount: 0,
     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
