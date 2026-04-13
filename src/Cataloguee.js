@@ -14,7 +14,7 @@ const Homepage = () => {
   const [inputB, setInputB] = useState("");
 
   const [fixture, setFixture] = useState(null);
-
+  const [isReloading, setIsReloading] = useState(false);
   const [baseStake, setBaseStake] = useState(10000);
   const baseRef = useRef(10000);
   const [baseDivider, setBaseDivider] = useState(0); 
@@ -24,7 +24,7 @@ const Homepage = () => {
   const [deficitBank, setDeficitBank] = useState(2000);
   const [assetTargets, setAssetTargets] = useState({
   oneX: 200, twoX: 200, x2: 200, zeroGoals: 200, sixGoals: 200,
-  ht12: 200, ht21: 200, ht30: 200, ft4100: 200, ft41: 200,
+  ht12: 200, ht21: 200, ht30: 200, ft40: 200, ft41: 200,
 });
 
 
@@ -65,6 +65,7 @@ const Homepage = () => {
   }, [baseStake]);
 
 const fetchAll = async () => {
+   setIsReloading(true); // start spinning
   try {
     const res = await axios.get(API_BASE);
     const data = res.data || {};
@@ -74,16 +75,16 @@ const fetchAll = async () => {
 
     // Load the 10 targets
     setAssetTargets({
-      oneX: data.oneXTarget ?? 0,
-      twoX: data.twoXTarget ?? 0,
-      x2: data.xTwoTarget ?? 0,
-      zeroGoals: data.zeroGoalsTarget ?? 0,
-      sixGoals: data.sixGoalsTarget ?? 0,
-      ht12: data.htOneTwoTarget ?? 0,
-      ht21: data.htTwoOneTarget ?? 0,
-      ht30: data.htThreeZeroTarget ?? 0,
-      ft40: data.ftFourZeroTarget ?? 0,
-      ft41: data.ftFourOneTarget ?? 0,
+      oneX: data.oneXTarget ?? 200,
+      twoX: data.twoXTarget ?? 200,
+      x2: data.xTwoTarget ?? 200,
+      zeroGoals: data.zeroGoalsTarget ?? 200,
+      sixGoals: data.sixGoalsTarget ?? 200,
+      ht12: data.htOneTwoTarget ?? 200,
+      ht21: data.htTwoOneTarget ?? 200,
+      ht30: data.htThreeZeroTarget ?? 200,
+      ft40: data.ftFourZeroTarget ?? 200,
+      ft41: data.ftFourOneTarget ?? 200,
     });
 
     setSpecialDeficits({
@@ -115,6 +116,8 @@ const fetchAll = async () => {
     setPressedWins(new Set());
   } catch (err) {
     console.error("❌ Load failed:", err.message);
+  } finally {
+    setIsReloading(false); // stop spinning
   }
 };
 
@@ -400,12 +403,15 @@ const isButtonPressed = (key) => pressedWins.has(key);
               Virtual Strategy
             </h1>
             <button
-              onClick={fetchAll}
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-semibold text-lg rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95 border border-red-500/30 disabled:opacity-50"
-            >
-              <FiRefreshCw className="w-5 h-5" />
-              Reload Data
-            </button>
+  onClick={fetchAll}
+  disabled={isReloading}
+  className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-bold text-xl rounded-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 border border-red-500/30 disabled:opacity-50"
+>
+  <FiRefreshCw
+    className={`w-6 h-6 ${isReloading ? "animate-spin" : ""}`}
+  />
+  {isReloading ? "Reloading..." : "Reload Data"}
+</button>
           </div>
           <p className="text-red-400 mt-2">
             {fixture ? "MATCH LOADED — 6-0 + SPECIALS" : "Ready"}
@@ -498,11 +504,15 @@ const isButtonPressed = (key) => pressedWins.has(key);
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <h1 className="text-2xl font-extrabold text-red-500">Virtual Strategy</h1>
             <button
-              onClick={fetchAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium text-xs rounded-xl shadow transition active:scale-95 border border-red-500/30 disabled:opacity-50"
-            >
-              Reload
-            </button>
+  onClick={fetchAll}
+  disabled={isReloading}
+  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-700 to-red-900 text-white font-semibold text-sm rounded-xl shadow transition active:scale-95 border border-red-500/30 disabled:opacity-50"
+>
+  <FiRefreshCw
+    className={`w-4 h-4 ${isReloading ? "animate-spin" : ""}`}
+  />
+  {isReloading ? "..." : "Reload"}
+</button>
           </div>
           <p className="text-red-400 text-xs mt-1">
             {fixture ? "LOADED — 6-0 + SPECIALS" : "Ready"}
