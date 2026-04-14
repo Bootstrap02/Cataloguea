@@ -82,13 +82,13 @@ const Homepage = () => {
   };
 
   /* ---------------- AUTOSAVE EVERY 5 MINUTES ---------------- */
-  useEffect(() => {
-    const interval = setInterval(() => {
-      saveBase(baseRef.current);
-      saveDeficits();
-    }, 300000);
-    return () => clearInterval(interval);
-  }, []);
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     saveBase(baseRef.current);
+  //     saveDeficits();
+  //   }, 300000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   /* ---------------- HANDLE SAVE ---------------- */
   const handleSave = async () => {

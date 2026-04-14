@@ -42,8 +42,8 @@ const Homepage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
 
     const found = odds.find(
       (o) => o.home === home && o.away === away
@@ -133,8 +133,8 @@ const Homepage = () => {
     alert("Session saved");
   };
 
-  const teamA = sanitizeTeam(inputA) || "liv";
-  const teamB = sanitizeTeam(inputB) || "liv";
+  const teamA = sanitizeTeam(inputA) || "che";
+  const teamB = sanitizeTeam(inputB) || "che";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
@@ -219,7 +219,7 @@ const Homepage = () => {
             <input
               value={inputA}
               onChange={(e) => setInputA(sanitizeTeam(e.target.value))}
-              placeholder="liv"
+              placeholder="che"
               className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
             />
 
@@ -228,7 +228,7 @@ const Homepage = () => {
             <input
               value={inputB}
               onChange={(e) => setInputB(sanitizeTeam(e.target.value))}
-              placeholder="liv"
+              placeholder="che"
               className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
             />
           </div>

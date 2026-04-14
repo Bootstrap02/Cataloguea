@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
+import { FiRefreshCw } from "react-icons/fi";
 
 /* ---------------- UTILS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
@@ -12,7 +13,7 @@ const Homepage = () => {
   /* ---------------- INPUTS ---------------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
-
+  const [isReloading, setIsReloading] = useState(false);
   /* ---------------- FIXTURE ---------------- */
   const [fixture, setFixture] = useState(null);
 
@@ -39,6 +40,7 @@ const Homepage = () => {
 
   /* ---------------- LOAD BASE (RELOAD BUTTON) ---------------- */
   const fetchBase = async () => {
+    setIsReloading(true); // 🔄 start spin
     try {
       const res = await axios.get(API_BASE);
       if (typeof res.data?.base === "number") {
@@ -46,7 +48,9 @@ const Homepage = () => {
       }
     } catch (err) {
       console.error("❌ Failed to fetch base:", err.message);
-    }
+    }finally {
+    setIsReloading(false); // 🛑 stop spin
+  }
   };
 
   /* ---------------- SAVE BASE ---------------- */
@@ -71,8 +75,8 @@ const Homepage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
 
     const found = odds.find(
       (o) => o.home === home && o.away === away
@@ -165,27 +169,34 @@ const Homepage = () => {
     });
   };
 
-  const teamA = sanitizeTeam(inputA) || "liv";
-  const teamB = sanitizeTeam(inputB) || "liv";
+  const teamA = sanitizeTeam(inputA) || "che";
+  const teamB = sanitizeTeam(inputB) || "che";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
 
       {/* SAVE / RELOAD */}
       <div className="absolute top-5 right-5 flex rounded-full overflow-hidden shadow-xl">
-        <button
-          onClick={() => saveBase(baseStake)}
-          className="px-5 py-2 bg-green-600 font-bold"
-        >
-          💾 Save
-        </button>
-        <button
-          onClick={fetchBase}
-          className="px-5 py-2 bg-red-600 font-bold"
-        >
-          🔄 Reload
-        </button>
-      </div>
+
+  {/* SAVE */}
+  <button
+    onClick={() => saveBase(baseStake)}
+    className="px-6 py-3 bg-green-600 font-bold text-white text-lg hover:bg-green-700 transition"
+  >
+    💾 Save
+  </button>
+
+  {/* RELOAD (SPINNING) */}
+  <button
+    onClick={fetchBase}
+    disabled={isReloading}
+    className="flex items-center gap-2 px-6 py-3 bg-red-600 font-bold text-white text-lg hover:bg-red-700 transition disabled:opacity-50"
+  >
+    <FiRefreshCw className={`transition ${isReloading ? "animate-spin" : ""}`} />
+    {isReloading ? "Reloading..." : "Reload"}
+  </button>
+
+</div>
 
       {/* HEADER */}
       <div className="text-center mb-10">
@@ -243,14 +254,14 @@ const Homepage = () => {
             <input
               value={inputA}
               onChange={(e) => setInputA(e.target.value)}
-              placeholder="liv"
+              placeholder="che"
               className="w-28 px-4 py-2 border-2 rounded-xl text-center"
             />
             <span className="font-extrabold">VS</span>
             <input
               value={inputB}
               onChange={(e) => setInputB(e.target.value)}
-              placeholder="liv"
+              placeholder="che"
               className="w-28 px-4 py-2 border-2 rounded-xl text-center"
             />
           </div>
