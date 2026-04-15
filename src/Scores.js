@@ -7,6 +7,8 @@ export const odds = [
     win: 1.77,
     draw: 3.65,
     lose: 4.73,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -17,6 +19,8 @@ export const odds = [
     win: 1.77,
     draw: 3.65,
     lose: 4.73,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -27,6 +31,8 @@ export const odds = [
     win: 1.77,
     draw: 3.65,
     lose: 4.73,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -37,6 +43,8 @@ export const odds = [
     win: 6.1,
     draw: 4.37,
     lose: 1.52,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -47,6 +55,8 @@ export const odds = [
     win: 6.1,
     draw: 4.37,
     lose: 1.52,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -57,6 +67,8 @@ export const odds = [
     win: 4.17,
     draw: 3.82,
     lose: 1.83,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -67,6 +79,8 @@ export const odds = [
     win: 4.17,
     draw: 3.82,
     lose: 1.83,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -77,6 +91,8 @@ export const odds = [
     win: 6.1,
     draw: 4.37,
     lose: 1.52,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -87,6 +103,8 @@ export const odds = [
     win: 1.57,
     draw: 4.04,
     lose: 6.04,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -97,6 +115,8 @@ export const odds = [
     win: 1.57,
     draw: 4.04,
     lose: 6.04,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -107,6 +127,8 @@ export const odds = [
     win: 3.53,
     draw: 3.66,
     lose: 2.03,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "DHA",
   },
   {
@@ -117,6 +139,8 @@ export const odds = [
     win: 5.09,
     draw: 3.92,
     lose: 1.67,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -127,6 +151,8 @@ export const odds = [
     win: 5.09,
     draw: 3.92,
     lose: 1.67,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -137,6 +163,8 @@ export const odds = [
     win: 7.63,
     draw: 4.67,
     lose: 1.42,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -147,6 +175,8 @@ export const odds = [
     win: 7.63,
     draw: 4.67,
     lose: 1.42,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -157,6 +187,8 @@ export const odds = [
     win: 7.63,
     draw: 4.67,
     lose: 1.42,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   
@@ -168,6 +200,8 @@ export const odds = [
     win: 7.63,
     draw: 4.67,
     lose: 1.42,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -178,6 +212,8 @@ export const odds = [
     win: 7.63,
     draw: 4.67,
     lose: 1.42,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -188,6 +224,8 @@ export const odds = [
     win: 2.87,
     draw: 3.56,
     lose: 2.38,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "DHA",
   },
   {
@@ -198,6 +236,8 @@ export const odds = [
     win: 2.87,
     draw: 3.56,
     lose: 2.38,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "DHA",
   },
   {
@@ -208,6 +248,8 @@ export const odds = [
     win: 1.47,
     draw: 4.39,
     lose: 7.04,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -218,6 +260,8 @@ export const odds = [
     win: 1.47,
     draw: 4.39,
     lose: 7.04,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -228,6 +272,8 @@ export const odds = [
     win: 2.13,
     draw: 3.19,
     lose: 3.76,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -238,6 +284,8 @@ export const odds = [
     win: 2.13,
     draw: 3.19,
     lose: 3.76,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -248,6 +296,8 @@ export const odds = [
     win: 3.53,
     draw: 3.66,
     lose: 2.03,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "DHA",
   },
   {
@@ -258,6 +308,8 @@ export const odds = [
     win: 3.53,
     draw: 3.66,
     lose: 2.03,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "DHA",
   },
   {
@@ -268,6 +320,8 @@ export const odds = [
     win: 1.42,
     draw: 4.56,
     lose: 7.96,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -278,6 +332,8 @@ export const odds = [
     win: 1.42,
     draw: 4.56,
     lose: 7.96,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -288,6 +344,8 @@ export const odds = [
     win: 1.42,
     draw: 4.56,
     lose: 7.96,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -298,6 +356,8 @@ export const odds = [
     win: 1.3,
     draw: 5.54,
     lose: 10.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -308,6 +368,8 @@ export const odds = [
     win: 1.3,
     draw: 5.54,
     lose: 10.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -318,6 +380,8 @@ export const odds = [
     win: 1.3,
     draw: 5.54,
     lose: 10.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -328,6 +392,8 @@ export const odds = [
     win: 1.3,
     draw: 5.54,
     lose: 10.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -338,6 +404,8 @@ export const odds = [
     win: 1.3,
     draw: 5.54,
     lose: 10.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -348,6 +416,8 @@ export const odds = [
     win: 1.23,
     draw: 6.23,
     lose: 13.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -358,6 +428,8 @@ export const odds = [
     win: 1.23,
     draw: 6.23,
     lose: 13.1,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "ADH",
   },
   {
@@ -368,6 +440,8 @@ export const odds = [
     win: 8.64,
     draw: 4.91,
     lose: 1.37,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
   {
@@ -378,6 +452,8 @@ export const odds = [
     win: 8.64,
     draw: 4.91,
     lose: 1.37,
+    fiveZero: 90,
+    fiveOne: 91,
     code: "HDA",
   },
 ];
