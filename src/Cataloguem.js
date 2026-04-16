@@ -280,13 +280,13 @@ setBaseDeficit((prev) => prev + mainLoss);
   };
   const handleZeroJackpot = async () => {
     await setBaseStake(10000 + oneDeficit);
-    setBaseDeficit(0);
+    setBaseDeficit(oneDeficit);
     setOneDeficit(0);
     setZeroDeficit(0);
   };
   const handleOneJackpot = async () => {
     await setBaseStake(10000 + oneDeficit);
-    setBaseDeficit(0);
+    setBaseDeficit(zeroDeficit);
     setZeroDeficit(0);
     setOneDeficit(0);
    
