@@ -56,36 +56,40 @@ const Homepage = () => {
 
   /* ---------------- LOAD BASE (RELOAD BUTTON) ---------------- */
   const fetchBase = async () => {
-    setIsReloading(true); // 🔄 start spin
-    try {
-      const res = await axios.get(API_BASE);
-      if (typeof res.data?.base === "number") {
-        setBaseStake(res.data.base);
-      }
-    } catch (err) {
-      console.error("❌ Failed to fetch base:", err.message);
-    }finally {
-    setIsReloading(false); // 🛑 stop spin
+  setIsReloading(true);
+  try {
+    const res = await axios.get(API_BASE);
+
+    if (res.data) {
+      setBaseStake(res.data.base || 0);
+      setBaseDeficit(res.data.baseDeficit || 0);
+      setZeroDeficit(res.data.zeroDeficit || 0);
+      setOneDeficit(res.data.oneDeficit || 0);
+    }
+  } catch (err) {
+    console.error("❌ Failed to fetch base:", err.message);
+  } finally {
+    setIsReloading(false);
   }
-  };
+};
 
   /* ---------------- SAVE BASE ---------------- */
   const saveBase = async (value) => {
     try {
-      await axios.put(API_BASE, { base: value });
-      console.log("✅ Autosaved base:", value);
-    } catch (err) {
+    await axios.put(API_BASE, {
+      base: baseRef.current,
+      baseDeficit,
+      zeroDeficit,
+      oneDeficit,
+    });
+    console.log("✅ Autosaved full state");
+  }  catch (err) {
       console.error("❌ Autosave failed:", err.message);
     }
   };
 
   /* ---------------- AUTOSAVE EVERY 10 SECONDS ---------------- */
-  useEffect(() => {
-    const interval = setInterval(() => {
-      saveBase(baseRef.current);
-    }, 300000); // ⏱ 10 seconds (change to 600000 later)
-    return () => clearInterval(interval);
-  }, []);
+  
 
   /* ---------------- SUBMIT (NEW GAME) ---------------- */
   const handleSubmit = (e) => {
@@ -276,13 +280,13 @@ setBaseDeficit((prev) => prev + mainLoss);
   };
   const handleZeroJackpot = async () => {
     await setBaseStake(10000 + oneDeficit);
-    setDeficit(0);
+    setBaseDeficit(0);
     setOneDeficit(0);
     setZeroDeficit(0);
   };
   const handleOneJackpot = async () => {
     await setBaseStake(10000 + oneDeficit);
-    setDeficit(0);
+    setBaseDeficit(0);
     setZeroDeficit(0);
     setOneDeficit(0);
    
@@ -454,20 +458,29 @@ setBaseDeficit((prev) => prev + mainLoss);
         </form>
 
         {/* BASE & DEFICIT */}
-        <div className="mt-6 text-center font-mono">
-          <div>
-            Base Amount: <strong>{baseStake}</strong>
-          </div>
-          <div className="text-red-600 font-extrabold">
-            Current Deficit: {deficit}
-          </div>
-          <div className="text-red-600 font-extrabold">
-            5-0 Deficit: {zeroDeficit}
-          </div>
-          <div className="text-red-600 font-extrabold">
-            5-1 Deficit: {oneDeficit}
-          </div>
-        </div>
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 font-mono text-center">
+
+  <div className="p-3 rounded-xl bg-gray-100">
+    Base Amount <br /> <strong>{baseStake}</strong>
+  </div>
+
+  <div className="p-3 rounded-xl bg-red-50 text-red-600 font-extrabold">
+    Current Deficit <br /> {deficit}
+  </div>
+
+  <div className="p-3 rounded-xl bg-red-50 text-red-600 font-extrabold">
+    5-0 Deficit <br /> {zeroDeficit}
+  </div>
+
+  <div className="p-3 rounded-xl bg-red-50 text-red-600 font-extrabold">
+    5-1 Deficit <br /> {oneDeficit}
+  </div>
+
+  <div className="p-3 rounded-xl bg-red-50 text-red-600 font-extrabold">
+    Base Deficit <br /> {baseDeficit}
+  </div>
+
+</div>
       </div>
     </div>
   );
