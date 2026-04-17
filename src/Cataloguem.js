@@ -276,6 +276,7 @@ setBaseDeficit((prev) => prev + mainLoss);
   /* ---------------- 6–0 WIN ---------------- */
   const handleJackpot = async () => {
     setBaseStake(10000);
+    setBaseDeficit(0);
     setDeficit(0);
   };
   const handleZeroJackpot = async () => {
