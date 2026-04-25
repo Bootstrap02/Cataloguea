@@ -318,7 +318,7 @@ const handleNextGame = () => {
   let currentWorkingDeficit = deficit;
 
   // 2. If NO win happened at all, move the entire combined loss to Big Deficit
-  if (!win && !winArrayState) {
+  if (!win || !winArrayState) {
     currentBigDeficit += totalLossThisRound;
   }
 
