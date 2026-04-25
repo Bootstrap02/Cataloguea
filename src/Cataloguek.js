@@ -87,39 +87,10 @@ const fetchAll = async () => {
     setDeficitBank(data.deficitBank ?? 0);
     setWinner(data.winner ?? 0);
     setDeficit(data.deficit ?? "");
-
-    // Main deficits
-    setCheLee(data.cheLee ?? 0);
-    setCheTot(data.cheTot ?? 0);
-    setCheWhu(data.cheWhu ?? 0);
-    setCheBur(data.cheBur ?? 0);
-    setBouChe(data.bouChe ?? 0);
-    setCheWol(data.cheWol ?? 0);
-    setLeeChe(data.leeChe ?? 0);
-    setCheNew(data.cheNew ?? 0);
-    setWhuChe(data.whuChe ?? 0);
-    setMnuChe(data.mnuChe ?? 0);
-    setCheAst(data.cheAst ?? 0);
-    setMncChe(data.mncChe ?? 0);
-    setBreChe(data.breChe ?? 0);
-    setAstChe(data.astChe ?? 0);
-
-    // Big deficits
-    setBigCheLee(data.bigCheLee ?? 0);
-    setBigCheTot(data.bigCheTot ?? 0);
-    setBigCheWhu(data.bigCheWhu ?? 0);
-    setBigCheBur(data.bigCheBur ?? 0);
-    setBigBouChe(data.bigBouChe ?? 0);
-    setBigCheWol(data.bigCheWol ?? 0);
-    setBigLeeChe(data.bigLeeChe ?? 0);
-    setBigCheNew(data.bigCheNew ?? 0);
-    setBigWhuChe(data.bigWhuChe ?? 0);
-    setBigMnuChe(data.bigMnuChe ?? 0);
-    setBigCheAst(data.bigCheAst ?? 0);
-    setBigMncChe(data.bigMncChe ?? 0);
-    setBigBreChe(data.bigBreChe ?? 0);
-    setBigAstChe(data.bigAstChe ?? 0);
-
+    setBigDeficit(data.deficit ?? "");
+    setBadGameShadow(data.deficit ?? "");
+    
+ 
     // Pending stakes
     if (data.pendingSpecialStakes) {
       const pendingObj = {};
@@ -144,15 +115,9 @@ const saveAll = async () => {
       deficitBank,
       winner,
       deficit,
-
-      cheLee, cheTot, cheWhu, cheBur, bouChe, cheWol, leeChe, cheNew,
-      whuChe, mnuChe, cheAst, mncChe, breChe, astChe,
-
-      bigCheLee, bigCheTot, bigCheWhu, bigCheBur, bigBouChe, bigCheWol,
-      bigLeeChe, bigCheNew, bigWhuChe, bigMnuChe, bigCheAst, bigMncChe,
-      bigBreChe, bigAstChe,
-
-      pendingSpecialStakes: pendingSpecialStakes, // will be converted to Map on backend
+      bigDeficit: bigDeficit,
+      badGameShadow: bigShadow,
+     
     };
 
     await axios.put(API_BASE, payload);
