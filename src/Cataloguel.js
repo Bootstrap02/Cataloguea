@@ -1,4 +1,3 @@
-
 // export default Homepage;
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -201,23 +200,23 @@ const handleLoadGame = (e) => {
     setPressedWins((prev) => new Set([...prev, "winner"]));
     setWin(false);
   };
-  const handleArrayWin = (key) => {
-  if (!deficitArray.includes(key)) return;
+  // const handleArrayWin = (key) => {
+    // if (!deficitArray.includes(key)) return;
 
-  const shares = calculateDeficitShare();
-  const recovered = shares[key] || 0;
+   //  const shares = calculateDeficitShare();
+  //   const recovered = shares[key] || 0;
 
-  if (recovered <= 0) return;
+  //   if (recovered <= 0) return;
 
   // Reduce deficit
-  setDeficit(prev => Math.max(prev - recovered, 0));
+  //   setDeficit(prev => Math.max(prev - recovered, 0));
 
   // Remove this asset from array
-  setDeficitArray(prev => prev.filter(item => item !== key));
+  //   setDeficitArray(prev => prev.filter(item => item !== key));
 
-  // mark pressed (optional reuse)
-  setPressedWins(prev => new Set([...prev, `array-${key}`]));
-};
+    // mark pressed (optional reuse)
+  //   setPressedWins(prev => new Set([...prev, `array-${key}`]));
+  //    };
 
   /* ---------------- MARTINGALE WIN HANDLER ---------------- */
   
@@ -292,7 +291,7 @@ const handleWin = (type) => {
       setWinArrayState(true);
       setDeficit(0); // Clear current working deficit
       setDeficitArray(prev => prev.filter(item => item !== type));
-      subtractFromBadDeficit(totalToSubtract);
+      subtractFromBadDeficit(totalDeficitToSubtract);
     } else {
       if (!deficitArray.includes(type)) setDeficitArray(prev => [...prev, type]);
       subtractFromBadDeficit(totalToSubtract);
