@@ -332,6 +332,10 @@ const handleNextGame = () => {
     }
   }
 
+  if(winArrayState){
+    setDeficitArray([]) 
+  } 
+
   // 4. Update states
   setBigDeficit(currentBigDeficit);
   setDeficit(currentWorkingDeficit);
