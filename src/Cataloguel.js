@@ -887,6 +887,9 @@ const Homepage = () => {
     // Normal "before" total (used to cancel out already-lost stakes on 2nd+ wins)
     const normalBeforeTotal = beforeKeys.reduce((sum, k) => sum + (pendingStakes[k] || 0), 0);
 
+    // Deficit "before" total (used to cancel out already-lost stakes on 2nd+ wins)
+    const deficitBeforeTotal = beforeKeys.reduce((sum, k) => sum + (dShares[k] || 0), 0);
+
     // Total of ALL deficit stakes across every asset (needed when treating deficit as full loss)
     const totalDeficitStaked = Object.values(dShares).reduce((sum, v) => sum + v, 0);
 
@@ -934,19 +937,29 @@ const Homepage = () => {
 
       if (isInDeficitArray) {
         /* --- Deficit-array asset won --- */
-        setWinArrayState(true);
+        if(!winArrayState){
+           setWinArrayState(true);
         setDeficit(0);
         setDeficitArray((prev) => prev.filter((item) => item !== type));
-
         // Cancel out: subtract normal-before + winnerAmount from bigDeficit
-        const toSubtract = normalBeforeTotal + (pendingStakes.winnerAmount || 0);
+        const toSubtract = deficitBeforeTotal + (deficit || 0);
+        if(bigDeficit > toSubtract){
         setBigDeficit((prev) => Math.max(0, prev - toSubtract));
-
-        // Residues of both streams still go to bigDeficit
-        const totalResidue = normalResidue + deficitResidue;
-        if (totalResidue > 0) {
-          setBigDeficit((prev) => prev + totalResidue);
+        }else{
+          const residue = toSubtract - bigDeficit
+          setBigDeficit(0)
+          setDeficit((prev) => Math.max(0, prev - residue));
         }
+
+        }
+       
+
+        
+        // // Residues of both streams still go to bigDeficit
+        // const totalResidue = normalResidue + deficitResidue;
+        // if (totalResidue > 0) {
+        //   setBigDeficit((prev) => prev + totalResidue);
+        // }
       } else {
         /* --- Normal asset won; deficit array still did NOT win --- */
 
@@ -956,17 +969,23 @@ const Homepage = () => {
 
         // Cancel out: subtract normal-before + winnerAmount from bigDeficit
         const toSubtract = normalBeforeTotal + (pendingStakes.winnerAmount || 0);
+       if(bigDeficit > toSubtract){
         setBigDeficit((prev) => Math.max(0, prev - toSubtract));
+        }else{
+          const residue = toSubtract - bigDeficit
+          setBigDeficit(0)
+          setDeficit((prev) => Math.max(0, prev - residue));
+        }
 
         // Normal residue → bigDeficit
-        if (normalResidue > 0) {
-          setBigDeficit((prev) => prev + normalResidue);
-        }
+        // if (normalResidue > 0) {
+        //   setBigDeficit((prev) => prev + normalResidue);
+        // }
 
-        // ALL deficit stakes are still a total loss → go to bigDeficit
-        if (totalDeficitStaked > 0) {
-          setBigDeficit((prev) => prev + totalDeficitStaked);
-        }
+        // // ALL deficit stakes are still a total loss → go to bigDeficit
+        // if (totalDeficitStaked > 0) {
+        //   setBigDeficit((prev) => prev + totalDeficitStaked);
+        // }
       }
     }
   };
