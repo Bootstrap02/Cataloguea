@@ -286,7 +286,7 @@ setBaseDeficit((prev) => prev + mainLoss);
     setZeroDeficit(0);
   };
   const handleOneJackpot = async () => {
-    await setBaseStake(10000 + oneDeficit);
+    await setBaseStake(10000 + zeroDeficit);
     setBaseDeficit(zeroDeficit);
     setZeroDeficit(0);
     setOneDeficit(0);
@@ -317,6 +317,7 @@ setBaseDeficit((prev) => prev + mainLoss);
       drawAmount: 0,
       awayAmount: 0,
     });
+    saveBase()
   };
 
   const teamA = sanitizeTeam(inputA) || "che";
