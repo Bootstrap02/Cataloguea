@@ -195,6 +195,8 @@ const Homepage = () => {
         });
         return newArray;
       });
+    }else{
+      setDeficitArray([])
     }
     
     // Reset game state
