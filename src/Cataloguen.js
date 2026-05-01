@@ -93,7 +93,7 @@ const Homepage = () => {
     
     const home = sanitizeTeam(inputA) || "che";
     const away = sanitizeTeam(inputB) || "che";
-    const found = odds.find((o) => o.home === home && o.away === away);
+    const found = odd.find((o) => o.home === home && o.away === away);
     
     if (!found) {
       alert(`No odds for ${home} vs ${away}`);
