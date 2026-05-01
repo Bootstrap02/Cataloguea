@@ -1,236 +1,195 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useCallback } from "react";
 import { odd } from "./Scores";
-import { FiRefreshCw } from 'react-icons/fi';
 
 /* ---------------- UTILS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-
-/* ---------------- API ---------------- */
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [fixture, setFixture] = useState(null);
-  
-  // Base starts at 1000 now
+
+  // Base starts at 1000
   const [baseAmount, setBaseAmount] = useState(1000);
-  
-  // Assets currently in the deficit array (these are the only ones that get stakes)
+
+  // Assets currently in the deficit array
   const [deficitArray, setDeficitArray] = useState([]);
-  
-  // Counter for each asset - increments every time Next Game is clicked
+
+  // Counter for each asset (counts every NEXT GAME press)
   const [counters, setCounters] = useState({
-    oneX: 0,
-    twoX: 0,
-    x2: 0,
-    zeroGoals: 0,
-    sixGoals: 0,
-    ht12: 0,
-    ht21: 0,
-    ht30: 0,
-    ft40: 0,
-    ft41: 0
+    oneX: 0, twoX: 0, x2: 0,
+    zeroGoals: 0, sixGoals: 0,
+    ht12: 0, ht21: 0, ht30: 0,
+    ft40: 0, ft41: 0,
   });
-  
-  // Pending stakes for the current game (only for assets in deficitArray)
+
+  // Pending stakes for the current game
   const [pendingStakes, setPendingStakes] = useState({});
-  
-  // Track pressed buttons
+
+  // Track which wins have been pressed this game
   const [pressedWins, setPressedWins] = useState(new Set());
   const [hasWon, setHasWon] = useState(false);
-  
-  // Martingale order for special outcomes
-  const martingaleOrder = ["oneX", "twoX", "x2", "zeroGoals", "sixGoals", "ht12", "ht21", "ht30", "ft40", "ft41"];
-  
+
+  const martingaleOrder = [
+    "oneX", "twoX", "x2", "zeroGoals", "sixGoals",
+    "ht12", "ht21", "ht30", "ft40", "ft41",
+  ];
+
   const specialKeys = [
     "oneX", "twoX", "x2", "zeroGoals", "sixGoals",
-    "ht12", "ht21", "ht30", "ft40", "ft41"
+    "ht12", "ht21", "ht30", "ft40", "ft41",
   ];
-  
+
   const specialLabels = {
     oneX: "1X", twoX: "2X", x2: "X2",
     zeroGoals: "0 GOALS", sixGoals: "6 GOALS",
     ht12: "HT 1-2", ht21: "HT 2-1", ht30: "HT 3-0",
     ft40: "FT 4-0", ft41: "FT 4-1",
   };
-  
-  /* ---------------- HELPERS ---------------- */
-  const getAssetsBehind = (wonKey) => {
+
+  /* ---- assets that come AFTER a given key in martingale order ---- */
+  const getAssetsBehind = useCallback((wonKey) => {
     const index = martingaleOrder.indexOf(wonKey);
     return index === -1 ? [] : martingaleOrder.slice(index + 1);
-  };
-  
-  /* ---------------- LOAD / SAVE ---------------- */
-  const fetchData = async () => {
-    try {
-      const res = await axios.get(API_BASE);
-      const data = res.data || {};
-      setBaseAmount(data.baseAmount ?? 1000);
-      setDeficitArray(data.deficitArray ?? []);
-      setCounters(data.counters ?? {
-        oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
-      });
-    } catch (err) {
-      console.error("❌ Load failed:", err.message);
-    }
-  };
-  
-  
-  
-  useEffect(() => {
-    fetchData();
   }, []);
-  
-  // Auto-save when states change
-  
-  
-  /* ---------------- LOAD GAME ---------------- */
-  const handleLoadGame = (e) => {
-    e.preventDefault();
-    
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
-    const found = odd.find((o) => o.home === home && o.away === away);
-    
-    if (!found) {
-      alert(`No odds for ${home} vs ${away}`);
-      return;
-    }
-    
-    setFixture(found);
-    setPressedWins(new Set());
-    setHasWon(false);
-    
-    // Calculate stakes ONLY for assets in deficitArray
-    // They target the baseAmount
-    let runningTarget = baseAmount;
-    const newPending = {};
-    
-    // Initialize all stakes to 0 first
-    specialKeys.forEach(key => {
-      newPending[key] = 0;
-    });
-    
-    // Only calculate for assets in deficitArray, in martingale order
+
+  /* ---- calculate stakes for assets in deficitArray ---- */
+  const calcStakes = (found, currentDeficit, currentBase) => {
+    let runningTarget = currentBase;
+    const stakes = {};
+    specialKeys.forEach((k) => (stakes[k] = 0));
+
     martingaleOrder.forEach((key) => {
-      if (deficitArray.includes(key)) {
-        const odd = found[key] || 0;
-        if (odd > 1.01) {
-          let stakeAmount = Math.round(runningTarget / (odd - 1));
-          stakeAmount = Math.max(stakeAmount, 10);
-          newPending[key] = stakeAmount;
+      if (currentDeficit.includes(key)) {
+        const oddValue = found[key] || 0;
+        if (oddValue > 1.01) {
+          const stakeAmount = Math.max(Math.round(runningTarget / (oddValue - 1)), 10);
+          stakes[key] = stakeAmount;
           runningTarget += stakeAmount;
         }
       }
     });
-    
-    setPendingStakes(newPending);
+    return stakes;
   };
-  
+
+  /* ---------------- LOAD GAME ---------------- */
+  const handleLoadGame = (e) => {
+    e.preventDefault();
+
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
+    const found = odd.find((o) => o.home === home && o.away === away);
+
+    if (!found) {
+      alert(`No odds for ${home} vs ${away}`);
+      return;
+    }
+
+    setFixture(found);
+    setPressedWins(new Set());
+    setHasWon(false);
+    setPendingStakes(calcStakes(found, deficitArray, baseAmount));
+  };
+
   /* ---------------- WIN HANDLER ---------------- */
+  // Called when any button is clicked (whether in deficit or not).
+  // If the asset is in deficit → full martingale win logic.
+  // If NOT in deficit → just reset its counter to 0 (stops it reaching 30).
   const handleWin = (type) => {
     if (!fixture) return;
-    
-    const stakeAmount = pendingStakes[type];
-    if (stakeAmount === 0) return;
-    
-    // Mark button as pressed
+    if (pressedWins.has(type)) return;
+
     setPressedWins((prev) => new Set([...prev, type]));
+
+    const isInDeficit = deficitArray.includes(type);
+
+    if (!isInDeficit) {
+      // Simply reset counter — win registered, no martingale involved
+      setCounters((prev) => ({ ...prev, [type]: 0 }));
+      return;
+    }
+
+    // ---- Full deficit win logic ----
     setHasWon(true);
-    
-    // Calculate residue (stakes of assets after this one in martingale order)
+
     const behindKeys = getAssetsBehind(type);
-    const residue = behindKeys.reduce((sum, key) => sum + (pendingStakes[key] || 0), 0);
-    
-    // NEW BASE = 1000 + residue
+    // Residue = stakes of assets that come AFTER the winner in martingale order
+    // (those bets are now lost / never placed next game)
+    const residue = behindKeys.reduce(
+      (sum, key) => sum + (pendingStakes[key] || 0),
+      0
+    );
+
     const newBase = 1000 + residue;
     setBaseAmount(newBase);
-    
-    // Remove the won asset from deficit array
-    setDeficitArray(prev => prev.filter(item => item !== type));
-    
-    // Reset counter for the won asset to 0
-    setCounters(prev => ({
-      ...prev,
-      [type]: 0
-    }));
-    
-    // Add any remaining assets (behind keys) to deficit array for next game
-    setDeficitArray(prev => {
-      const newArray = [...prev];
-      behindKeys.forEach(key => {
-        if (!newArray.includes(key) && pendingStakes[key] > 0) {
+
+    // Remove won asset from deficit; keep the ones behind it
+    setDeficitArray((prev) => {
+      const withoutWinner = prev.filter((item) => item !== type);
+      // Any behind keys that aren't already in array stay in array
+      const newArray = [...withoutWinner];
+      behindKeys.forEach((key) => {
+        if (!newArray.includes(key) && (pendingStakes[key] || 0) > 0) {
           newArray.push(key);
         }
       });
       return newArray;
     });
+
+    // Reset counter for the won asset
+    setCounters((prev) => ({ ...prev, [type]: 0 }));
   };
-  
-  /* ---------------- NEXT GAME (LOSS HANDLER & COUNTER INCREMENT) ---------------- */
+
+  /* ---------------- NEXT GAME ---------------- */
   const handleNextGame = () => {
     if (!fixture) return;
-    
-    // FIRST: Increment counters for ALL assets (whether in deficit array or not)
-    setCounters(prev => {
-      const newCounters = { ...prev };
-      specialKeys.forEach(key => {
-        newCounters[key] = (prev[key] || 0) + 1;
+
+    // 1. Increment every counter by 1
+    setCounters((prev) => {
+      const updated = { ...prev };
+      specialKeys.forEach((key) => {
+        updated[key] = (prev[key] || 0) + 1;
       });
-      return newCounters;
+
+      // 2. For any asset whose NEW counter hits 30 and isn't in deficit yet,
+      //    add it. We read the new counter values right here so no stale closure.
+      setDeficitArray((prevDeficit) => {
+        let changed = false;
+        const newDeficit = [...prevDeficit];
+        specialKeys.forEach((key) => {
+          if (updated[key] >= 30 && !newDeficit.includes(key)) {
+            newDeficit.push(key);
+            changed = true;
+          }
+        });
+        return changed ? newDeficit : prevDeficit;
+      });
+
+      return updated;
     });
-    
-    // If NO win occurred this game
+
+    // 3. Handle loss: add all staked assets to deficit, increase base
     if (!hasWon) {
-      // Total loss: add total staked to base
-      const totalStaked = Object.values(pendingStakes).reduce((sum, val) => sum + (val || 0), 0);
+      const totalStaked = Object.values(pendingStakes).reduce(
+        (sum, v) => sum + (v || 0),
+        0
+      );
       const newBase = baseAmount + totalStaked;
       setBaseAmount(newBase);
-      
-      // Add all assets that had stakes this game to deficit array for next game
-      const assetsToAdd = martingaleOrder.filter(key => pendingStakes[key] > 0);
-      setDeficitArray(prev => {
+
+      setDeficitArray((prev) => {
         const newArray = [...prev];
-        assetsToAdd.forEach(key => {
-          if (!newArray.includes(key)) {
+        martingaleOrder.forEach((key) => {
+          if ((pendingStakes[key] || 0) > 0 && !newArray.includes(key)) {
             newArray.push(key);
           }
         });
         return newArray;
       });
-    } else {
-      // If a win occurred, clear deficit array (as per your code)
-      setDeficitArray([]);
     }
-    
-    // AFTER incrementing counters, check if any counter has reached 30
-    // Use setTimeout to ensure we have the latest counters
-    setTimeout(() => {
-      setCounters(currentCounters => {
-        const newDeficitArray = [...deficitArray];
-        let updated = false;
-        
-        specialKeys.forEach(key => {
-          // If counter reaches 30 and asset is not already in deficit array
-          if (currentCounters[key] >= 30 && !newDeficitArray.includes(key)) {
-            newDeficitArray.push(key);
-            updated = true;
-            console.log(`✅ ${key} reached counter ${currentCounters[key]} and was added to deficit array`);
-          }
-        });
-        
-        if (updated) {
-          setDeficitArray(newDeficitArray);
-        }
-        
-        return currentCounters;
-      });
-    }, 0);
-    
-    // Reset game state
+    // If hasWon, deficitArray was already updated in handleWin
+
+    // 4. Reset game state
     setFixture(null);
     setInputA("");
     setInputB("");
@@ -238,128 +197,108 @@ const Homepage = () => {
     setPressedWins(new Set());
     setHasWon(false);
   };
-  
-  /* ---------------- DERIVED VALUES ---------------- */
-  const isButtonPressed = (key) => pressedWins.has(key);
+
+  /* ---------------- DERIVED ---------------- */
   const isGameLoaded = !!fixture;
-  const hasStake = (key) => pendingStakes[key] > 0;
-  
+
+  /* ---- What to show on each button ---- */
+  const getButtonState = (key) => {
+    const stake = pendingStakes[key] || 0;
+    const isInDeficit = deficitArray.includes(key);
+    const counter = counters[key] || 0;
+    const isPressed = pressedWins.has(key);
+
+    if (!isGameLoaded) {
+      // No game loaded — show counter, clickable to register pre-emptive win
+      return { mode: "idle", stake, isInDeficit, counter, isPressed };
+    }
+
+    if (stake > 0) {
+      // Active stake (in deficit array)
+      return { mode: "active", stake, isInDeficit: true, counter, isPressed };
+    }
+
+    // Game loaded but no stake (not in deficit yet) — still clickable
+    return { mode: "noStake", stake: 0, isInDeficit, counter, isPressed };
+  };
+
+  /* ---------------- BUTTON COLORS ---------------- */
+  const btnColor = (mode, isInDeficit, isPressed, counter) => {
+    if (isPressed) return "bg-yellow-500 opacity-50 cursor-not-allowed";
+    if (mode === "active") return isInDeficit ? "bg-purple-600 hover:bg-purple-500" : "bg-blue-600 hover:bg-blue-500";
+    if (mode === "noStake") return isInDeficit ? "bg-purple-600 hover:bg-purple-500" : "bg-gray-500 hover:bg-gray-400";
+    // idle
+    return isInDeficit || counter >= 30 ? "bg-purple-600 hover:bg-purple-500" : "bg-green-600 hover:bg-green-500";
+  };
+
   return (
     <div>
-      {/* DESKTOP VERSION */}
+      {/* ===================== DESKTOP ===================== */}
       <div className="max-lg:hidden min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
         <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-6 flex-wrap">
-            <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
-              Deficit Array Strategy
-            </h1>
-            <button
-              onClick={fetchData}
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-semibold text-lg rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95 border border-red-500/30"
-            >
-              <FiRefreshCw className="w-5 h-5" />
-              Reload Data
-            </button>
-          </div>
-          <p className="text-red-400 mt-2">
-            {fixture ? "GAME LOADED" : "Ready"} | Assets in array: [{deficitArray.join(", ")}]
+          <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
+            Deficit Array Strategy
+          </h1>
+          <p className="text-red-400 mt-2 text-sm">
+            {fixture ? "GAME LOADED" : "Ready — click to register wins or increment counters"} &nbsp;|&nbsp;
+            Array: [{deficitArray.join(", ")}]
           </p>
         </div>
-        
+
         <div className="max-w-6xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
-          {/* Bet Buttons - ALL buttons visible always */}
+          {/* Bet Buttons */}
           <div className="mb-8">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {specialKeys.map((key) => {
-                const stake = pendingStakes[key];
-                const isInArray = deficitArray.includes(key);
-                const showStake = hasStake(key);
-                const isPressed = isButtonPressed(key);
-                const counter = counters[key] || 0;
-                const needsToBeAdded = counter >= 30 && !isInArray;
-                
-                if (fixture && showStake) {
-                  // WIN BUTTON - has stake
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handleWin(key)}
-                      disabled={isPressed}
-                      className={`py-6 rounded-2xl text-white font-extrabold transition ${
-                        isPressed
-                          ? "bg-yellow-500"
-                          : isInArray
-                            ? "bg-purple-600 hover:bg-purple-500"
-                            : "bg-blue-600 hover:bg-blue-500"
-                      } ${isPressed ? "opacity-50 cursor-not-allowed" : ""}`}
-                      title={isInArray ? "In Deficit Array" : "Normal Stake"}
-                    >
-                      {specialLabels[key]}<br />
-                      ({stake})<br />
-                      <span className="text-xs">C:{counter}</span>
-                    </button>
-                  );
-                } else if (fixture && !showStake) {
-                  // NO STAKE YET - show counter status
-                  return (
-                    <button
-                      key={key}
-                      disabled={true}
-                      className={`py-6 rounded-2xl text-white font-bold transition ${
-                        needsToBeAdded
-                          ? "bg-orange-600"
-                          : isInArray
-                            ? "bg-purple-600"
-                            : "bg-gray-500"
-                      } cursor-not-allowed opacity-75`}
-                      title={needsToBeAdded ? "Will be added next game!" : `Counter: ${counter}/30`}
-                    >
-                      {specialLabels[key]}<br />
-                      <span className="text-sm">(−)</span>
-                      <br />
-                      <span className="text-xs">{counter}/30</span>
-                    </button>
-                  );
-                } else {
-                  // DISABLED BUTTON - game not loaded
-                  return (
-                    <button
-                      key={key}
-                      disabled={true}
-                      className="py-6 rounded-2xl bg-gray-300 text-gray-500 font-bold opacity-50 cursor-not-allowed"
-                    >
-                      {specialLabels[key]}<br />
-                      <span className="text-sm">(−)</span>
-                      <br />
-                      <span className="text-xs">C:{counter}</span>
-                    </button>
-                  );
-                }
+                const { mode, stake, isInDeficit, counter, isPressed } = getButtonState(key);
+                const color = btnColor(mode, isInDeficit, isPressed, counter);
+                const disabled = isPressed;
+
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (!isGameLoaded) {
+                        // Idle: clicking resets counter (treat as win for that asset)
+                        setCounters((prev) => ({ ...prev, [key]: 0 }));
+                      } else {
+                        handleWin(key);
+                      }
+                    }}
+                    disabled={disabled}
+                    className={`py-6 rounded-2xl text-white font-extrabold transition ${color}`}
+                    title={
+                      mode === "idle"
+                        ? `Click to reset counter (register win) — ${counter}/30`
+                        : mode === "active"
+                        ? `Stake: ${stake} | Click if this wins`
+                        : `No stake — click if this wins (resets counter)`
+                    }
+                  >
+                    {specialLabels[key]}
+                    <br />
+                    {mode === "active" ? (
+                      <span className="text-sm">({stake})</span>
+                    ) : (
+                      <span className="text-sm">—</span>
+                    )}
+                    <br />
+                    <span className={`text-xs ${counter >= 30 ? "text-yellow-300 font-bold" : ""}`}>
+                      {counter}/30{counter >= 30 ? " ⚠" : ""}
+                    </span>
+                  </button>
+                );
               })}
             </div>
-            
-            {/* Information about counters */}
+
             {!fixture && (
-              <div className="text-center text-blue-600 font-bold py-4 bg-blue-50 rounded-xl mt-4">
-                💡 Each asset has a counter that increments when you click NEXT GAME.<br />
-                When counter reaches 30, the asset is automatically added to deficit array!
-              </div>
-            )}
-            
-            {/* Show which assets are about to be added */}
-            {!fixture && (
-              <div className="mt-4 text-center text-sm">
-                <span className="text-gray-600">Assets close to 30: </span>
-                {specialKeys.filter(key => counters[key] >= 25 && counters[key] < 30).map(key => (
-                  <span key={key} className="inline-block bg-orange-200 text-orange-800 rounded-full px-2 py-1 text-xs mx-1">
-                    {specialLabels[key]} ({counters[key]}/30)
-                  </span>
-                ))}
+              <div className="text-center text-green-700 font-semibold py-3 bg-green-50 rounded-xl mt-4 text-sm">
+                💡 Click any button to register a win (resets its counter). Counters increment each "Next Game". At 30 → enters deficit array.
               </div>
             )}
           </div>
-          
-          {/* Input Controls */}
+
+          {/* Controls */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-8">
             <div className="flex items-center gap-4">
               <input
@@ -376,161 +315,116 @@ const Homepage = () => {
                 className="w-32 px-6 py-3 border-2 border-red-600 rounded-2xl text-center text-lg"
               />
             </div>
-            
             <div className="flex gap-4">
               <button
                 onClick={handleLoadGame}
                 disabled={isGameLoaded}
                 className={`px-10 py-4 text-white font-extrabold text-xl rounded-2xl transition shadow-lg ${
-                  isGameLoaded
-                    ? "bg-gray-600 opacity-50 cursor-not-allowed"
-                    : "bg-red-600 hover:bg-red-700"
+                  isGameLoaded ? "bg-gray-400 opacity-50 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
                 }`}
               >
                 LOAD GAME
               </button>
               <button
                 onClick={handleNextGame}
-                className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xl rounded-2xl transition shadow-lg"
+                disabled={!isGameLoaded}
+                className={`px-10 py-4 text-white font-extrabold text-xl rounded-2xl transition shadow-lg ${
+                  !isGameLoaded ? "bg-gray-400 opacity-50 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
               >
                 NEXT GAME
               </button>
             </div>
           </div>
-          
-          {/* Stats Display */}
-          <div className="mt-10 grid grid-cols-2 md:grid-cols-3 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
+
+          {/* Stats */}
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
             <div>
-              Current Base: <strong className="text-green-600">{baseAmount}</strong>
-              <div className="text-xs text-gray-500">Target for stakes</div>
+              Base: <strong className="text-green-700">{baseAmount}</strong>
+              <div className="text-xs text-gray-500">Recovery target</div>
             </div>
             <div className="col-span-2">
-              Deficit Array: <strong className="text-purple-600">[{deficitArray.join(", ")}]</strong>
-              <div className="text-xs text-gray-500">Assets currently being chased</div>
+              Deficit Array: <strong className="text-purple-700">[{deficitArray.join(", ")}]</strong>
+              <div className="text-xs text-gray-500">Assets being martingaled</div>
             </div>
             <div>
-              Status: <strong className={hasWon ? "text-green-600" : "text-yellow-600"}>
-                {hasWon ? "Won This Game" : "No Win Yet"}
+              Game Status:{" "}
+              <strong className={hasWon ? "text-green-700" : "text-yellow-600"}>
+                {hasWon ? "WON ✓" : "Pending"}
               </strong>
             </div>
           </div>
         </div>
       </div>
-      
-      {/* MOBILE VERSION */}
-      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4 flex flex-col overflow-x-hidden">
-        {/* Header */}
+
+      {/* ===================== MOBILE ===================== */}
+      <div className="hidden max-lg:flex flex-col min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4 overflow-x-hidden">
         <div className="text-center mb-3">
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <h1 className="text-xl font-extrabold text-red-500">Deficit Array</h1>
-            <button
-              onClick={fetchData}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium text-xs rounded-xl shadow transition active:scale-95 border border-red-500/30"
-            >
-              <FiRefreshCw className="w-3 h-3" />
-              Reload
-            </button>
-          </div>
+          <h1 className="text-xl font-extrabold text-red-500">Deficit Array</h1>
           <p className="text-red-400 text-xs mt-1">
-            {fixture ? "GAME LOADED" : "Ready"} | [{deficitArray.slice(0, 3).join(", ")}]
+            {fixture ? "GAME LOADED" : "Tap to register win / reset counter"}
           </p>
         </div>
-        
-        {/* Bet Buttons - 2 columns for mobile */}
-        <div className="mb-4 flex-grow min-h-0">
+
+        {/* Buttons */}
+        <div className="mb-4">
           <div className="grid grid-cols-2 gap-2">
             {specialKeys.map((key) => {
-              const stake = pendingStakes[key];
-              const isInArray = deficitArray.includes(key);
-              const showStake = hasStake(key);
-              const isPressed = isButtonPressed(key);
-              const counter = counters[key] || 0;
-              
-              if (fixture && showStake) {
-                // WIN BUTTON
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleWin(key)}
-                    disabled={isPressed}
-                    className={`py-3 px-2 rounded-xl text-white font-bold text-xs transition active:scale-95 ${
-                      isPressed
-                        ? "bg-yellow-500"
-                        : isInArray
-                          ? "bg-purple-700 hover:bg-purple-600"
-                          : "bg-blue-700 hover:bg-blue-600"
-                    } ${isPressed ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    {specialLabels[key]}<br />
+              const { mode, stake, isInDeficit, counter, isPressed } = getButtonState(key);
+              const color = btnColor(mode, isInDeficit, isPressed, counter);
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    if (!isGameLoaded) {
+                      setCounters((prev) => ({ ...prev, [key]: 0 }));
+                    } else {
+                      handleWin(key);
+                    }
+                  }}
+                  disabled={isPressed}
+                  className={`py-3 px-2 rounded-xl text-white font-bold text-xs transition active:scale-95 ${color}`}
+                >
+                  {specialLabels[key]}
+                  <br />
+                  {mode === "active" ? (
                     <span className="text-[10px]">({stake})</span>
-                    <br />
-                    <span className="text-[8px]">C:{counter}</span>
-                  </button>
-                );
-              } else if (fixture && !showStake) {
-                // NO STAKE
-                return (
-                  <button
-                    key={key}
-                    disabled={true}
-                    className={`py-3 px-2 rounded-xl text-white font-bold text-xs cursor-not-allowed opacity-75 ${
-                      isInArray ? "bg-purple-700" : "bg-gray-600"
-                    }`}
-                  >
-                    {specialLabels[key]}<br />
-                    <span className="text-[10px]">(−)</span>
-                    <br />
-                    <span className="text-[8px]">{counter}/30</span>
-                  </button>
-                );
-              } else {
-                // DISABLED
-                return (
-                  <button
-                    key={key}
-                    disabled={true}
-                    className="py-3 px-2 rounded-xl bg-gray-700 text-gray-400 font-bold text-xs opacity-50 cursor-not-allowed"
-                  >
-                    {specialLabels[key]}<br />
-                    <span className="text-[10px]">(−)</span>
-                    <br />
-                    <span className="text-[8px]">C:{counter}</span>
-                  </button>
-                );
-              }
+                  ) : (
+                    <span className="text-[10px]">—</span>
+                  )}
+                  <br />
+                  <span className={`text-[8px] ${counter >= 30 ? "text-yellow-300 font-bold" : ""}`}>
+                    {counter}/30{counter >= 30 ? "⚠" : ""}
+                  </span>
+                </button>
+              );
             })}
           </div>
-          
-          {!fixture && (
-            <div className="text-center text-green-400 text-xs py-2 bg-black/30 rounded-lg mt-2">
-              Counters increase when you press NEXT. At 30, added to deficit array!
-            </div>
-          )}
         </div>
-        
-        {/* Input + Actions */}
-        <div className="mb-4 space-y-3">
-          <div className="flex items-center justify-center gap-2 max-w-full">
+
+        {/* Inputs */}
+        <div className="mb-3 space-y-2">
+          <div className="flex items-center justify-center gap-2">
             <input
               value={inputA}
               onChange={(e) => setInputA(e.target.value)}
               placeholder="Home"
-              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none"
             />
             <span className="font-black text-lg text-red-500 shrink-0">VS</span>
             <input
               value={inputB}
               onChange={(e) => setInputB(e.target.value)}
               placeholder="Away"
-              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none"
             />
           </div>
-          
           <div className="flex gap-2">
             <button
               onClick={handleLoadGame}
               disabled={isGameLoaded}
-              className={`flex-1 py-3 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm ${
+              className={`flex-1 py-3 text-white font-bold text-sm rounded-xl active:scale-95 ${
                 isGameLoaded ? "bg-gray-600 opacity-50 cursor-not-allowed" : "bg-red-700 hover:bg-red-600"
               }`}
             >
@@ -538,27 +432,30 @@ const Homepage = () => {
             </button>
             <button
               onClick={handleNextGame}
-              className="flex-1 py-3 bg-green-700 hover:bg-green-600 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm"
+              disabled={!isGameLoaded}
+              className={`flex-1 py-3 text-white font-bold text-sm rounded-xl active:scale-95 ${
+                !isGameLoaded ? "bg-gray-600 opacity-50 cursor-not-allowed" : "bg-green-700 hover:bg-green-600"
+              }`}
             >
               NEXT
             </button>
           </div>
         </div>
-        
+
         {/* Stats */}
-        <div className="flex-grow min-h-0 overflow-auto bg-black/20 rounded-xl p-3 text-xs space-y-2">
+        <div className="bg-black/20 rounded-xl p-3 text-xs space-y-1.5">
           <div className="flex justify-between">
             <span>Base:</span>
             <strong className="text-green-400">{baseAmount}</strong>
           </div>
-          <div className="flex justify-between">
-            <span>Deficit Array:</span>
-            <strong className="text-purple-400">[{deficitArray.join(", ")}]</strong>
+          <div className="flex justify-between items-start gap-2">
+            <span className="shrink-0">Deficit Array:</span>
+            <strong className="text-purple-400 text-right">[{deficitArray.join(", ")}]</strong>
           </div>
           <div className="flex justify-between">
             <span>Status:</span>
             <strong className={hasWon ? "text-green-400" : "text-yellow-400"}>
-              {hasWon ? "Won" : "Pending"}
+              {hasWon ? "WON ✓" : "Pending"}
             </strong>
           </div>
         </div>
