@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+here is whatb i want. i want you to make the base 1000 no ore 250, i want you to create a counter state for each asset so every time next is clicked, each counter state is added +1 , when any counter state is up to 30, et it be pused into the deficit array no more push to the deicit array by cliciks but by the conter state of the partiular asset hitting 30   import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { odds } from "./Scores";
+import { odd } from "./Scores";
 import { FiRefreshCw } from 'react-icons/fi';
 
 /* ---------------- UTILS ---------------- */
