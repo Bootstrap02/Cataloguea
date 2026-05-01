@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { odds } from "./Scores";
+import { odd } from "./Scores";
 import { FiRefreshCw } from 'react-icons/fi';
 
 /* ---------------- UTILS ---------------- */
@@ -78,31 +78,14 @@ const Homepage = () => {
     }
   };
   
-  const saveData = async () => {
-    try {
-      const payload = {
-        baseAmount: baseAmount,
-        deficitArray: deficitArray,
-        counters: counters,
-      };
-      await axios.put(API_BASE, payload);
-      console.log("✅ Saved successfully");
-    } catch (err) {
-      console.error("❌ Save failed:", err.message);
-    }
-  };
+  
   
   useEffect(() => {
     fetchData();
   }, []);
   
   // Auto-save when states change
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      saveData();
-    }, 1000);
-    return () => clearTimeout(timeout);
-  }, [baseAmount, deficitArray, counters]);
+  
   
   /* ---------------- LOAD GAME ---------------- */
   const handleLoadGame = (e) => {
