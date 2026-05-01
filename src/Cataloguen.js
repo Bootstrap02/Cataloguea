@@ -1,6 +1,6 @@
-here is whatb i want. i want you to make the base 1000 no ore 250, i want you to create a counter state for each asset so every time next is clicked, each counter state is added +1 , when any counter state is up to 30, et it be pused into the deficit array no more push to the deicit array by cliciks but by the conter state of the partiular asset hitting 30   import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { odd } from "./Scores";
+import { odds } from "./Scores";
 import { FiRefreshCw } from 'react-icons/fi';
 
 /* ---------------- UTILS ---------------- */
@@ -14,11 +14,25 @@ const Homepage = () => {
   const [inputB, setInputB] = useState("");
   const [fixture, setFixture] = useState(null);
   
-  // The only state we track - starts at 250 permanently
-  const [baseAmount, setBaseAmount] = useState(250);
+  // Base starts at 1000 now
+  const [baseAmount, setBaseAmount] = useState(1000);
   
   // Assets currently in the deficit array (these are the only ones that get stakes)
   const [deficitArray, setDeficitArray] = useState([]);
+  
+  // Counter for each asset - increments every time Next Game is clicked
+  const [counters, setCounters] = useState({
+    oneX: 0,
+    twoX: 0,
+    x2: 0,
+    zeroGoals: 0,
+    sixGoals: 0,
+    ht12: 0,
+    ht21: 0,
+    ht30: 0,
+    ft40: 0,
+    ft41: 0
+  });
   
   // Pending stakes for the current game (only for assets in deficitArray)
   const [pendingStakes, setPendingStakes] = useState({});
@@ -53,37 +67,42 @@ const Homepage = () => {
     try {
       const res = await axios.get(API_BASE);
       const data = res.data || {};
-      setBaseAmount(data.baseAmount ?? 250);
+      setBaseAmount(data.baseAmount ?? 1000);
       setDeficitArray(data.deficitArray ?? []);
+      setCounters(data.counters ?? {
+        oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
+        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
+      });
     } catch (err) {
       console.error("❌ Load failed:", err.message);
     }
   };
   
-//   const saveData = async () => {
-//     try {
-//       const payload = {
-//         baseAmount: baseAmount,
-//         deficitArray: deficitArray,
-//       };
-//       await axios.put(API_BASE, payload);
-//       console.log("✅ Saved successfully");
-//     } catch (err) {
-//       console.error("❌ Save failed:", err.message);
-//     }
-//   };
+  const saveData = async () => {
+    try {
+      const payload = {
+        baseAmount: baseAmount,
+        deficitArray: deficitArray,
+        counters: counters,
+      };
+      await axios.put(API_BASE, payload);
+      console.log("✅ Saved successfully");
+    } catch (err) {
+      console.error("❌ Save failed:", err.message);
+    }
+  };
   
   useEffect(() => {
     fetchData();
   }, []);
   
   // Auto-save when states change
-//   useEffect(() => {
-//     const timeout = setTimeout(() => {
-//       saveData();
-//     }, 1000);
-//     return () => clearTimeout(timeout);
-//   }, [baseAmount, deficitArray]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      saveData();
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [baseAmount, deficitArray, counters]);
   
   /* ---------------- LOAD GAME ---------------- */
   const handleLoadGame = (e) => {
@@ -128,23 +147,12 @@ const Homepage = () => {
     setPendingStakes(newPending);
   };
   
-  /* ---------------- ADD TO DEFICIT ARRAY (Click on button with no stake) ---------------- */
-  const addToDeficitArray = (type) => {
-    if (!deficitArray.includes(type)) {
-      setDeficitArray(prev => [...prev, type]);
-    }
-  };
-  
   /* ---------------- WIN HANDLER ---------------- */
   const handleWin = (type) => {
     if (!fixture) return;
     
     const stakeAmount = pendingStakes[type];
     if (stakeAmount === 0) return;
-    
-    // const odd = fixture[type];
-    // const winAmount = stakeAmount * odd;
-    // const totalStaked = Object.values(pendingStakes).reduce((sum, val) => sum + (val || 0), 0);
     
     // Mark button as pressed
     setPressedWins((prev) => new Set([...prev, type]));
@@ -154,12 +162,18 @@ const Homepage = () => {
     const behindKeys = getAssetsBehind(type);
     const residue = behindKeys.reduce((sum, key) => sum + (pendingStakes[key] || 0), 0);
     
-    // NEW BASE = 250 + residue
-    const newBase = 250 + residue;
+    // NEW BASE = 1000 + residue
+    const newBase = 1000 + residue;
     setBaseAmount(newBase);
     
     // Remove the won asset from deficit array
     setDeficitArray(prev => prev.filter(item => item !== type));
+    
+    // Reset counter for the won asset to 0
+    setCounters(prev => ({
+      ...prev,
+      [type]: 0
+    }));
     
     // Add any remaining assets (behind keys) to deficit array for next game
     setDeficitArray(prev => {
@@ -173,9 +187,18 @@ const Homepage = () => {
     });
   };
   
-  /* ---------------- NEXT GAME (LOSS HANDLER) ---------------- */
+  /* ---------------- NEXT GAME (LOSS HANDLER & COUNTER INCREMENT) ---------------- */
   const handleNextGame = () => {
     if (!fixture) return;
+    
+    // FIRST: Increment counters for ALL assets (whether in deficit array or not)
+    setCounters(prev => {
+      const newCounters = { ...prev };
+      specialKeys.forEach(key => {
+        newCounters[key] = (prev[key] || 0) + 1;
+      });
+      return newCounters;
+    });
     
     // If NO win occurred this game
     if (!hasWon) {
@@ -195,9 +218,34 @@ const Homepage = () => {
         });
         return newArray;
       });
-    }else{
-      setDeficitArray([])
+    } else {
+      // If a win occurred, clear deficit array (as per your code)
+      setDeficitArray([]);
     }
+    
+    // AFTER incrementing counters, check if any counter has reached 30
+    // Use setTimeout to ensure we have the latest counters
+    setTimeout(() => {
+      setCounters(currentCounters => {
+        const newDeficitArray = [...deficitArray];
+        let updated = false;
+        
+        specialKeys.forEach(key => {
+          // If counter reaches 30 and asset is not already in deficit array
+          if (currentCounters[key] >= 30 && !newDeficitArray.includes(key)) {
+            newDeficitArray.push(key);
+            updated = true;
+            console.log(`✅ ${key} reached counter ${currentCounters[key]} and was added to deficit array`);
+          }
+        });
+        
+        if (updated) {
+          setDeficitArray(newDeficitArray);
+        }
+        
+        return currentCounters;
+      });
+    }, 0);
     
     // Reset game state
     setFixture(null);
@@ -244,10 +292,8 @@ const Homepage = () => {
                 const isInArray = deficitArray.includes(key);
                 const showStake = hasStake(key);
                 const isPressed = isButtonPressed(key);
-                
-                // If game is loaded and asset has a stake, it's a win button
-                // If game is loaded but no stake, it's an "add to deficit" button
-                // If game not loaded, buttons are disabled
+                const counter = counters[key] || 0;
+                const needsToBeAdded = counter >= 30 && !isInArray;
                 
                 if (fixture && showStake) {
                   // WIN BUTTON - has stake
@@ -266,25 +312,29 @@ const Homepage = () => {
                       title={isInArray ? "In Deficit Array" : "Normal Stake"}
                     >
                       {specialLabels[key]}<br />
-                      ({stake})
+                      ({stake})<br />
+                      <span className="text-xs">C:{counter}</span>
                     </button>
                   );
                 } else if (fixture && !showStake) {
-                  // ADD TO DEFICIT BUTTON - no stake yet
+                  // NO STAKE YET - show counter status
                   return (
                     <button
                       key={key}
-                      onClick={() => addToDeficitArray(key)}
-                      disabled={isInArray}
+                      disabled={true}
                       className={`py-6 rounded-2xl text-white font-bold transition ${
-                        isInArray
-                          ? "bg-gray-500 cursor-not-allowed opacity-50"
-                          : "bg-green-600 hover:bg-green-500"
-                      }`}
-                      title={isInArray ? "Already in deficit array" : "Click to add to deficit array"}
+                        needsToBeAdded
+                          ? "bg-orange-600"
+                          : isInArray
+                            ? "bg-purple-600"
+                            : "bg-gray-500"
+                      } cursor-not-allowed opacity-75`}
+                      title={needsToBeAdded ? "Will be added next game!" : `Counter: ${counter}/30`}
                     >
                       {specialLabels[key]}<br />
                       <span className="text-sm">(−)</span>
+                      <br />
+                      <span className="text-xs">{counter}/30</span>
                     </button>
                   );
                 } else {
@@ -297,16 +347,31 @@ const Homepage = () => {
                     >
                       {specialLabels[key]}<br />
                       <span className="text-sm">(−)</span>
+                      <br />
+                      <span className="text-xs">C:{counter}</span>
                     </button>
                   );
                 }
               })}
             </div>
             
-            {/* Instruction message when game is loaded but no stakes */}
-            {fixture && Object.values(pendingStakes).every(v => v === 0) && (
+            {/* Information about counters */}
+            {!fixture && (
               <div className="text-center text-blue-600 font-bold py-4 bg-blue-50 rounded-xl mt-4">
-                💡 Click on any green button above to add it to the deficit array
+                💡 Each asset has a counter that increments when you click NEXT GAME.<br />
+                When counter reaches 30, the asset is automatically added to deficit array!
+              </div>
+            )}
+            
+            {/* Show which assets are about to be added */}
+            {!fixture && (
+              <div className="mt-4 text-center text-sm">
+                <span className="text-gray-600">Assets close to 30: </span>
+                {specialKeys.filter(key => counters[key] >= 25 && counters[key] < 30).map(key => (
+                  <span key={key} className="inline-block bg-orange-200 text-orange-800 rounded-full px-2 py-1 text-xs mx-1">
+                    {specialLabels[key]} ({counters[key]}/30)
+                  </span>
+                ))}
               </div>
             )}
           </div>
@@ -396,6 +461,7 @@ const Homepage = () => {
               const isInArray = deficitArray.includes(key);
               const showStake = hasStake(key);
               const isPressed = isButtonPressed(key);
+              const counter = counters[key] || 0;
               
               if (fixture && showStake) {
                 // WIN BUTTON
@@ -414,23 +480,24 @@ const Homepage = () => {
                   >
                     {specialLabels[key]}<br />
                     <span className="text-[10px]">({stake})</span>
+                    <br />
+                    <span className="text-[8px]">C:{counter}</span>
                   </button>
                 );
               } else if (fixture && !showStake) {
-                // ADD TO DEFICIT BUTTON
+                // NO STAKE
                 return (
                   <button
                     key={key}
-                    onClick={() => addToDeficitArray(key)}
-                    disabled={isInArray}
-                    className={`py-3 px-2 rounded-xl text-white font-bold text-xs transition active:scale-95 ${
-                      isInArray
-                        ? "bg-gray-600 cursor-not-allowed opacity-50"
-                        : "bg-green-700 hover:bg-green-600"
+                    disabled={true}
+                    className={`py-3 px-2 rounded-xl text-white font-bold text-xs cursor-not-allowed opacity-75 ${
+                      isInArray ? "bg-purple-700" : "bg-gray-600"
                     }`}
                   >
                     {specialLabels[key]}<br />
                     <span className="text-[10px]">(−)</span>
+                    <br />
+                    <span className="text-[8px]">{counter}/30</span>
                   </button>
                 );
               } else {
@@ -443,15 +510,17 @@ const Homepage = () => {
                   >
                     {specialLabels[key]}<br />
                     <span className="text-[10px]">(−)</span>
+                    <br />
+                    <span className="text-[8px]">C:{counter}</span>
                   </button>
                 );
               }
             })}
           </div>
           
-          {fixture && Object.values(pendingStakes).every(v => v === 0) && (
+          {!fixture && (
             <div className="text-center text-green-400 text-xs py-2 bg-black/30 rounded-lg mt-2">
-              Tap green buttons to add to deficit array
+              Counters increase when you press NEXT. At 30, added to deficit array!
             </div>
           )}
         </div>
