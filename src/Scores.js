@@ -10,7 +10,7 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 52.4
   },
   {
     id: "chenew",
@@ -23,7 +23,7 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 52.4
   },
   {
     id: "chears",
@@ -36,7 +36,7 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 52.4
   },
   {
     id: "fulche",
@@ -49,7 +49,7 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 51.3
   },
   {
     id: "whuche",
@@ -62,7 +62,7 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 51.3
   },
   {
     id: "mncche",
@@ -75,7 +75,7 @@ export const odds = [
     fiveZero: 211,
     fiveOne: 156,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 68.4
   },
   {
     id: "wolche",
@@ -88,7 +88,7 @@ export const odds = [
     fiveZero: 211,
     fiveOne: 156,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 68.4
   },
   {
     id: "notche",
@@ -101,7 +101,7 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 51.3
   },
   {
     id: "chewol",
@@ -114,7 +114,7 @@ export const odds = [
     fiveZero: 71.2,
     fiveOne: 67.3,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 49
   },
   {
     id: "chemnc",
@@ -127,20 +127,7 @@ export const odds = [
     fiveZero: 71.2,
     fiveOne: 67.3,
     code: "ADH",
-    fourTwo: 40
-  },
-  {
-    id: "arsche",
-    home: "ars",
-    away: "che",
-    winner: 1140,
-    win: 3.53,
-    draw: 3.66,
-    lose: 2.03,
-    fiveZero: 269,
-    fiveOne: 183,
-    code: "DHA",
-    fourTwo: 40
+    fourTwo: 49
   },
   {
     id: "mnuche",
@@ -153,7 +140,7 @@ export const odds = [
     fiveZero: 145,
     fiveOne: 118,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 59.3
   },
   {
     id: "burche",
@@ -166,7 +153,7 @@ export const odds = [
     fiveZero: 145,
     fiveOne: 118,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 59.3
   },
   {
     id: "bhache",
@@ -179,7 +166,7 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 41.9
   },
   {
     id: "eveche",
@@ -192,7 +179,7 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 41.9
   },
   {
     id: "leeche",
@@ -205,7 +192,7 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 41.9
   },
   {
     id: "sunche",
@@ -218,7 +205,7 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 41.9
   },
   {
     id: "cryche",
@@ -231,7 +218,7 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 41.9
   },
   {
     id: "astche",
@@ -244,7 +231,7 @@ export const odds = [
     fiveZero: 288,
     fiveOne: 202,
     code: "DHA",
-    fourTwo: 40
+    fourTwo: 79.3
   },
   {
     id: "livche",
@@ -257,7 +244,7 @@ export const odds = [
     fiveZero: 288,
     fiveOne: 202,
     code: "DHA",
-    fourTwo: 40
+    fourTwo: 79.3
   },
   {
     id: "chebur",
@@ -270,7 +257,7 @@ export const odds = [
     fiveZero: 52,
     fiveOne: 51.3,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 42.4
   },
   {
     id: "chemnu",
@@ -283,7 +270,7 @@ export const odds = [
     fiveZero: 52,
     fiveOne: 51.3,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 42.4
   },
   {
     id: "cheliv",
@@ -296,7 +283,7 @@ export const odds = [
     fiveZero: 157,
     fiveOne: 126,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 65.5
   },
   {
     id: "cheast",
@@ -309,7 +296,7 @@ export const odds = [
     fiveZero: 157,
     fiveOne: 126,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 65.5
   },
   {
     id: "breche",
@@ -322,7 +309,7 @@ export const odds = [
     fiveZero: 269,
     fiveOne: 183,
     code: "DHA",
-    fourTwo: 40
+    fourTwo: 72.8
   },
   {
     id: "newche",
@@ -335,9 +322,25 @@ export const odds = [
     fiveZero: 269,
     fiveOne: 183,
     code: "DHA",
-    fourTwo: 40
+    fourTwo: 72.8
   },
   {
+    id: "arsche",
+    home: "ars",
+    away: "che",
+    winner: 1140,
+    win: 3.53,
+    draw: 3.66,
+    lose: 2.03,
+    fiveZero: 269,
+    fiveOne: 183,
+    code: "DHA",
+    fourTwo: 72.8
+  },
+];
+
+export const smallOdds = [
+  
     id: "cheful",
     home: "che",
     away: "ful",
@@ -348,7 +351,7 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 46.3
   },
   {
     id: "chenot",
@@ -361,7 +364,7 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 46.3
   },
   {
     id: "chewhu",
@@ -374,11 +377,8 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 40
-  }
-];
-
-export const smallOdds = [
+    fourTwo: 46.3
+  }, 
   {
     id: "chelee",
     home: "che",
@@ -390,7 +390,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 41.3
   },
   {
     id: "chebha",
@@ -403,7 +403,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 41.3
   },
   {
     id: "chesun",
@@ -416,7 +416,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 41.3
   },
   {
     id: "cheeve",
@@ -429,7 +429,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 41.3
   },
   {
     id: "checry",
@@ -442,7 +442,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 41.3
   },
   {
     id: "chetot",
@@ -455,7 +455,7 @@ export const smallOdds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 51.3
   },
   {
     id: "chebou",
@@ -468,7 +468,7 @@ export const smallOdds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    fourTwo: 40
+    fourTwo: 51.3
   },
   {
     id: "bouche",
@@ -481,7 +481,7 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 45.1
   },
   {
     id: "totche",
@@ -494,6 +494,6 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    fourTwo: 40
+    fourTwo: 45.1
   }
 ];
