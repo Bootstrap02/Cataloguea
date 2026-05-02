@@ -340,7 +340,7 @@ export const odds = [
 ];
 
 export const smallOdds = [
-  
+  {
     id: "cheful",
     home: "che",
     away: "ful",
