@@ -126,7 +126,7 @@ const Homepage = () => {
       for (const step of code) {
         const odd = oddsMap[step];
         if (!odd || odd <= 1.01) continue;
-        const stake = Math.max(Math.round(runningTotal / (odd - 1)), 10);
+        const stake = Math.round(runningTotal / (odd - 1));
         ladder.push({ step, stake, type });
         if (step === "H") homeAmount = stake;
         if (step === "D") drawAmount = stake;
@@ -144,7 +144,7 @@ const Homepage = () => {
     setBaseStake(newBase6);
     setDeficit(0);
 
-    const sixWinner = Math.max(Math.round(newBase6 / (found.winner - 1)), 10);
+    const sixWinner = Math.max(Math.round(newBase6 / (found.winner)), 10);
 
     if (isSmall) {
       /* Small-odds: bank absorbs winner, overflow → smallDeficit. No HDA ladder. */
@@ -171,21 +171,21 @@ const Homepage = () => {
 
     /* ── LINE 2: 5-0 (always runs, both game types) ── */
     const base50    = baseDeficit + zeroDeficit;
-    const zeroWinner = Math.max(Math.round(base50 / (found.fiveZero - 1)), 10);
+    const zeroWinner = Math.max(Math.round(base50 / (found.fiveZero)), 10);
     const res50     = buildLadder(zeroWinner, "5-0");
     newStakes.push(...res50.ladder);
     setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
 
     /* ── LINE 3: 5-1 (always runs, both game types) ── */
     const base51    = baseDeficit + oneDeficit;
-    const oneWinner  = Math.max(Math.round(base51 / (found.fiveOne - 1)), 10);
+    const oneWinner  = Math.max(Math.round(base51 / (found.fiveOne)), 10);
     const res51     = buildLadder(oneWinner, "5-1");
     newStakes.push(...res51.ladder);
     setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
 
     /* ── LINE 4: 4-2 — targets smallDeficit + twoDeficit (always runs) ── */
     const base42    = smallDeficit + twoDeficit;
-    const twoWinner  = Math.max(Math.round(base42 / (found.fourTwo - 1)), 10);
+    const twoWinner  = Math.max(Math.round(base42 / (found.fourTwo)), 10);
     const res42     = buildLadder(twoWinner, "4-2");
     newStakes.push(...res42.ladder);
     setTwoAmounts({ winnerAmount: twoWinner, homeAmount: res42.homeAmount, drawAmount: res42.drawAmount, awayAmount: res42.awayAmount });
