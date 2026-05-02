@@ -213,8 +213,7 @@ const Homepage = () => {
     setBaseStake(10000);
     setBaseDeficit(0);
     setDeficit(0);
-    setSmallDeficit(230);
-    setBank(230);
+    
   };
 
   const handleZeroJackpot = () => {
