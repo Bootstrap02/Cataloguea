@@ -25,18 +25,17 @@ const Homepage = () => {
   const [zeroDeficit,  setZeroDeficit]  = useState(0);
   const [oneDeficit,   setOneDeficit]   = useState(0);
   const [twoDeficit,   setTwoDeficit]   = useState(0);
-  const [smallDeficit, setSmallDeficit] = useState(230);
-  const [bank,         setBank]         = useState(230);
+  const [threeDeficit, setThreeDeficit] = useState(0);
 
   /* ---------- STAKES PER LINE ---------- */
   const [amounts,       setAmounts]       = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [zeroAmounts,   setZeroAmounts]   = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [oneAmounts,    setOneAmounts]    = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [twoAmounts,    setTwoAmounts]    = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [threeAmounts,  setThreeAmounts]  = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [orderedStakes, setOrderedStakes] = useState([]);
 
   /* ---------- CLICK INDICATORS ---------- */
-  // Tracks which buttons have been pressed this game: "six"|"zero"|"one"|"two"|"H"|"D"|"A"
   const [clicked, setClicked] = useState(new Set());
 
   /* ---------- REF FOR AUTOSAVE ---------- */
@@ -51,13 +50,12 @@ const Homepage = () => {
     try {
       const res = await axios.get(API_BASE);
       if (res.data) {
-        setBaseStake(res.data.base          || 0);
-        setBaseDeficit(res.data.baseDeficit || 0);
-        setZeroDeficit(res.data.zeroDeficit || 0);
-        setOneDeficit(res.data.oneDeficit   || 0);
-        setTwoDeficit(res.data.twoDeficit   || 0);
-        setSmallDeficit(res.data.smallDeficit ?? 230);
-        setBank(res.data.bank               ?? 230);
+        setBaseStake(res.data.base            || 0);
+        setBaseDeficit(res.data.baseDeficit   || 0);
+        setZeroDeficit(res.data.zeroDeficit   || 0);
+        setOneDeficit(res.data.oneDeficit     || 0);
+        setTwoDeficit(res.data.twoDeficit     || 0);
+        setThreeDeficit(res.data.threeDeficit || 0);
       }
     } catch (err) {
       console.error("❌ fetch failed:", err.message);
@@ -71,7 +69,7 @@ const Homepage = () => {
       await axios.put(API_BASE, {
         base: baseRef.current,
         baseDeficit, zeroDeficit, oneDeficit,
-        twoDeficit, smallDeficit, bank,
+        twoDeficit, threeDeficit,
       });
       console.log("✅ Saved");
     } catch (err) {
@@ -99,7 +97,7 @@ const Homepage = () => {
 
     setIsSmallOddsGame(isSmall);
     setFixture(found);
-    setClicked(new Set()); // reset indicators on new game
+    setClicked(new Set());
 
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
 
@@ -113,7 +111,6 @@ const Homepage = () => {
         const odd = oddsMap[step];
         if (!odd || odd <= 1.01) continue;
         let stake = Math.round(runningTotal / (odd - 1));
-        stake = Math.max(stake, 10);
         ladder.push({ step, stake, type });
         if (step === "H") homeAmount = stake;
         if (step === "D") drawAmount = stake;
@@ -126,23 +123,14 @@ const Homepage = () => {
     const newStakes = [];
 
     /* LINE 1: 6-0 */
-    const newBase6  = baseStake + deficit;
+    const newBase6 = baseStake + deficit;
     setBaseStake(newBase6);
     setDeficit(0);
-    let sixWinner = Math.round(newBase6 / found.winner);
+    const base = newBase6;
+    let sixWinner = Math.round(base / found.winner);
     sixWinner = Math.max(sixWinner, 10);
 
     if (isSmall) {
-      let bankNow = bank;
-      let sdNow   = smallDeficit;
-      if (bankNow >= sixWinner) {
-        bankNow -= sixWinner;
-      } else {
-        sdNow  += sixWinner - bankNow;
-        bankNow = 0;
-      }
-      setBank(bankNow);
-      setSmallDeficit(sdNow);
       setAmounts({ winnerAmount: sixWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     } else {
       const res6 = buildLadder(sixWinner, "6-0");
@@ -151,28 +139,52 @@ const Homepage = () => {
     }
 
     /* LINE 2: 5-0 */
-    const base50     = baseDeficit + zeroDeficit;
-    let zeroWinner   = Math.round(base50 / found.fiveZero);
-    zeroWinner       = Math.max(zeroWinner, 10);
-    const res50      = buildLadder(zeroWinner, "5-0");
-    newStakes.push(...res50.ladder);
-    setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
+    const base50   = baseDeficit + zeroDeficit;
+    let zeroWinner = Math.round(base50 / found.fiveZero);
+    zeroWinner     = Math.max(zeroWinner, 10);
+    if (isSmall) {
+      setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    } else {
+      const res50 = buildLadder(zeroWinner, "5-0");
+      newStakes.push(...res50.ladder);
+      setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
+    }
 
     /* LINE 3: 5-1 */
-    const base51   = baseDeficit + oneDeficit;
-    let oneWinner  = Math.round(base51 / found.fiveOne);
-    oneWinner      = Math.max(oneWinner, 10);
-    const res51    = buildLadder(oneWinner, "5-1");
-    newStakes.push(...res51.ladder);
-    setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
+    const base51  = baseDeficit + oneDeficit;
+    let oneWinner = Math.round(base51 / found.fiveOne);
+    oneWinner     = Math.max(oneWinner, 10);
+    if (isSmall) {
+      setOneAmounts({ winnerAmount: oneWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    } else {
+      const res51 = buildLadder(oneWinner, "5-1");
+      newStakes.push(...res51.ladder);
+      setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
+    }
 
     /* LINE 4: 4-2 */
-    const base42   = smallDeficit + twoDeficit;
-    let twoWinner  = Math.round(base42 / found.fourTwo);
-    twoWinner      = Math.max(twoWinner, 10);
-    const res42    = buildLadder(twoWinner, "4-2");
-    newStakes.push(...res42.ladder);
-    setTwoAmounts({ winnerAmount: twoWinner, homeAmount: res42.homeAmount, drawAmount: res42.drawAmount, awayAmount: res42.awayAmount });
+    const base42  = baseDeficit + twoDeficit;
+    let twoWinner = Math.round(base42 / found.fourTwo);
+    twoWinner     = Math.max(twoWinner, 10);
+    if (isSmall) {
+      setTwoAmounts({ winnerAmount: twoWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    } else {
+      const res42 = buildLadder(twoWinner, "4-2");
+      newStakes.push(...res42.ladder);
+      setTwoAmounts({ winnerAmount: twoWinner, homeAmount: res42.homeAmount, drawAmount: res42.drawAmount, awayAmount: res42.awayAmount });
+    }
+
+    /* LINE 5: 3-3 */
+    const base33    = baseDeficit + threeDeficit;
+    let threeWinner = Math.round(base33 / found.threeThree);
+    threeWinner     = Math.max(threeWinner, 10);
+    if (isSmall) {
+      setThreeAmounts({ winnerAmount: threeWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    } else {
+      const res33 = buildLadder(threeWinner, "3-3");
+      newStakes.push(...res33.ladder);
+      setThreeAmounts({ winnerAmount: threeWinner, homeAmount: res33.homeAmount, drawAmount: res33.drawAmount, awayAmount: res33.awayAmount });
+    }
 
     setOrderedStakes(newStakes);
   };
@@ -198,9 +210,10 @@ const Homepage = () => {
       setBaseDeficit((prev) => prev + mainLoss);
     }
 
-    setZeroDeficit((prev) => prev + calcLoss("5-0"));
-    setOneDeficit((prev)  => prev + calcLoss("5-1"));
-    setTwoDeficit((prev)  => prev + calcLoss("4-2"));
+    setZeroDeficit((prev)  => prev + calcLoss("5-0"));
+    setOneDeficit((prev)   => prev + calcLoss("5-1"));
+    setTwoDeficit((prev)   => prev + calcLoss("4-2"));
+    setThreeDeficit((prev) => prev + calcLoss("3-3"));
 
     clearForNext();
   };
@@ -213,47 +226,73 @@ const Homepage = () => {
     setBaseStake(10000);
     setBaseDeficit(0);
     setDeficit(0);
-    setSmallDeficit(230);
-    setBank(230);
   };
 
   const handleZeroJackpot = () => {
     setClicked((prev) => new Set([...prev, "zero"]));
-    setBaseStake(10000 + oneDeficit);
-    setBaseDeficit(oneDeficit);
+    setBaseStake(10000 + oneDeficit + twoDeficit + threeDeficit);
+    setBaseDeficit(oneDeficit + twoDeficit + threeDeficit);
     setOneDeficit(0);
     setZeroDeficit(0);
+    setTwoDeficit(0);
+    setThreeDeficit(0);
   };
 
   const handleOneJackpot = () => {
     setClicked((prev) => new Set([...prev, "one"]));
-    setBaseStake(10000 + zeroDeficit);
-    setBaseDeficit(zeroDeficit);
-    setZeroDeficit(0);
+    setBaseStake(10000 + zeroDeficit + twoDeficit + threeDeficit);
+    setBaseDeficit(zeroDeficit + twoDeficit + threeDeficit);
     setOneDeficit(0);
+    setZeroDeficit(0);
+    setTwoDeficit(0);
+    setThreeDeficit(0);
   };
 
   const handleTwoJackpot = () => {
     setClicked((prev) => new Set([...prev, "two"]));
+    setBaseStake(10000 + oneDeficit + zeroDeficit + threeDeficit);
+    setBaseDeficit(oneDeficit + zeroDeficit + threeDeficit);
+    setOneDeficit(0);
+    setZeroDeficit(0);
     setTwoDeficit(0);
-    setSmallDeficit(230);
-    setBank(230);
+    setThreeDeficit(0);
+  };
+
+  const handleThreeJackpot = () => {
+    setClicked((prev) => new Set([...prev, "three"]));
+    setBaseStake(10000 + oneDeficit + twoDeficit + zeroDeficit);
+    setBaseDeficit(oneDeficit + twoDeficit + zeroDeficit);
+    setOneDeficit(0);
+    setZeroDeficit(0);
+    setTwoDeficit(0);
+    setThreeDeficit(0);
   };
 
   /* ================================================================
      CLEAR FOR NEXT
      ================================================================ */
   const clearForNext = () => {
+    /* Small-odds game: push all current stakes into their respective deficits */
+    if (isSmallOddsGame) {
+      setDeficit((prev)      => prev + amounts.winnerAmount);
+      setBaseDeficit((prev)  => prev + amounts.winnerAmount);
+      setZeroDeficit((prev)  => prev + zeroAmounts.winnerAmount);
+      setOneDeficit((prev)   => prev + oneAmounts.winnerAmount);
+      setTwoDeficit((prev)   => prev + twoAmounts.winnerAmount);
+      setThreeDeficit((prev) => prev + threeAmounts.winnerAmount);
+    }
+
     setInputA("");
     setInputB("");
     setFixture(null);
     setIsSmallOddsGame(false);
     setOrderedStakes([]);
     setClicked(new Set());
-    setAmounts(    { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setOneAmounts( { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setTwoAmounts( { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setAmounts(     { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setZeroAmounts( { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setOneAmounts(  { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setTwoAmounts(  { winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setThreeAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     saveBase();
   };
 
@@ -264,9 +303,9 @@ const Homepage = () => {
   const teamB = sanitizeTeam(inputB) || "AWY";
 
   const displayAmounts = {
-    homeAmount: amounts.homeAmount + zeroAmounts.homeAmount + oneAmounts.homeAmount + twoAmounts.homeAmount,
-    drawAmount: amounts.drawAmount + zeroAmounts.drawAmount + oneAmounts.drawAmount + twoAmounts.drawAmount,
-    awayAmount: amounts.awayAmount + zeroAmounts.awayAmount + oneAmounts.awayAmount + twoAmounts.awayAmount,
+    homeAmount:  amounts.homeAmount  + zeroAmounts.homeAmount  + oneAmounts.homeAmount  + twoAmounts.homeAmount  + threeAmounts.homeAmount,
+    drawAmount:  amounts.drawAmount  + zeroAmounts.drawAmount  + oneAmounts.drawAmount  + twoAmounts.drawAmount  + threeAmounts.drawAmount,
+    awayAmount:  amounts.awayAmount  + zeroAmounts.awayAmount  + oneAmounts.awayAmount  + twoAmounts.awayAmount  + threeAmounts.awayAmount,
   };
 
   /* ================================================================
@@ -307,7 +346,7 @@ const Homepage = () => {
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
         {/* ── JACKPOT ROW ── */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-3">
 
           <button
             onClick={handleJackpot}
@@ -317,7 +356,7 @@ const Homepage = () => {
                 : "bg-yellow-400 text-black hover:bg-yellow-300"
             }`}
           >
-            <div className="text-2xl font-black">6–0</div>
+            <div className="text-xl font-black">6–0</div>
             <div className="text-[11px] mt-1 opacity-80">{amounts.winnerAmount || "–"}</div>
           </button>
 
@@ -329,7 +368,7 @@ const Homepage = () => {
                 : "bg-yellow-500 text-black hover:bg-yellow-400"
             }`}
           >
-            <div className="text-2xl font-black">5–0</div>
+            <div className="text-xl font-black">5–0</div>
             <div className="text-[11px] mt-1 opacity-80">{zeroAmounts.winnerAmount || "–"}</div>
           </button>
 
@@ -341,7 +380,7 @@ const Homepage = () => {
                 : "bg-orange-400 text-black hover:bg-orange-300"
             }`}
           >
-            <div className="text-2xl font-black">5–1</div>
+            <div className="text-xl font-black">5–1</div>
             <div className="text-[11px] mt-1 opacity-80">{oneAmounts.winnerAmount || "–"}</div>
           </button>
 
@@ -353,13 +392,25 @@ const Homepage = () => {
                 : "bg-purple-500 text-white hover:bg-purple-400"
             }`}
           >
-            <div className="text-2xl font-black">4–2</div>
+            <div className="text-xl font-black">4–2</div>
             <div className="text-[11px] mt-1 opacity-80">{twoAmounts.winnerAmount || "–"}</div>
+          </button>
+
+          <button
+            onClick={handleThreeJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("three")
+                ? "bg-white text-pink-600 ring-2 ring-pink-500"
+                : "bg-pink-500 text-white hover:bg-pink-400"
+            }`}
+          >
+            <div className="text-xl font-black">3–3</div>
+            <div className="text-[11px] mt-1 opacity-80">{threeAmounts.winnerAmount || "–"}</div>
           </button>
 
         </div>
 
-        {/* ── HDA ROW — always active when fixture loaded ── */}
+        {/* ── HDA ROW ── */}
         <div className="grid grid-cols-3 gap-3">
 
           <button
@@ -412,22 +463,24 @@ const Homepage = () => {
         {/* ── PER-LINE BREAKDOWN ── */}
         {fixture && (
           <div className="bg-white/5 rounded-2xl p-4 text-[11px] text-center">
-            <div className="grid grid-cols-4 gap-2 mb-2">
+            <div className="grid grid-cols-5 gap-2 mb-2">
               <div className="font-bold text-yellow-300">6-0</div>
               <div className="font-bold text-yellow-400">5-0</div>
               <div className="font-bold text-orange-400">5-1</div>
               <div className="font-bold text-purple-400">4-2</div>
+              <div className="font-bold text-pink-400">3-3</div>
             </div>
             {[
-              ["H", amounts.homeAmount, zeroAmounts.homeAmount, oneAmounts.homeAmount, twoAmounts.homeAmount],
-              ["D", amounts.drawAmount, zeroAmounts.drawAmount, oneAmounts.drawAmount, twoAmounts.drawAmount],
-              ["A", amounts.awayAmount, zeroAmounts.awayAmount, oneAmounts.awayAmount, twoAmounts.awayAmount],
-            ].map(([label, a, b, c, d]) => (
-              <div key={label} className="grid grid-cols-4 gap-2 py-1 border-t border-white/10">
+              ["H", amounts.homeAmount,  zeroAmounts.homeAmount,  oneAmounts.homeAmount,  twoAmounts.homeAmount,  threeAmounts.homeAmount],
+              ["D", amounts.drawAmount,  zeroAmounts.drawAmount,  oneAmounts.drawAmount,  twoAmounts.drawAmount,  threeAmounts.drawAmount],
+              ["A", amounts.awayAmount,  zeroAmounts.awayAmount,  oneAmounts.awayAmount,  twoAmounts.awayAmount,  threeAmounts.awayAmount],
+            ].map(([label, a, b, c, d, e]) => (
+              <div key={label} className="grid grid-cols-5 gap-2 py-1 border-t border-white/10">
                 <div className="text-gray-300">{a || "–"}</div>
                 <div className="text-gray-300">{b || "–"}</div>
                 <div className="text-gray-300">{c || "–"}</div>
                 <div className="text-gray-300">{d || "–"}</div>
+                <div className="text-gray-300">{e || "–"}</div>
               </div>
             ))}
           </div>
@@ -504,12 +557,8 @@ const Homepage = () => {
             <strong className="text-purple-400">{twoDeficit}</strong>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Small Def</span>
-            <strong className="text-blue-400">{smallDeficit}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Bank</span>
-            <strong className="text-emerald-400">{bank}</strong>
+            <span className="text-gray-400">3-3 Def</span>
+            <strong className="text-pink-400">{threeDeficit}</strong>
           </div>
           {fixture && (
             <div className="col-span-2 pt-2 border-t border-white/10 text-center">
