@@ -130,10 +130,11 @@ const Homepage = () => {
     const newStakes = [];
 
     /* LINE 1: 6-0 */
-    const newBase6  = baseStake + deficit + genDef;
+    const newBase6  = baseStake + deficit ;
     setBaseStake(newBase6);
     setDeficit(0);
-    let sixWinner = Math.round(newBase6 / found.winner);
+    const base = newBase6 + smallDeficit
+    let sixWinner = Math.round(base / found.winner);
     sixWinner = Math.max(sixWinner, 10);
 
     if (isSmall) {
@@ -155,7 +156,7 @@ const Homepage = () => {
     }
 
     /* LINE 2: 5-0 */
-    const base50     = baseDeficit + zeroDeficit + genDef;
+    const base50     = baseDeficit + zeroDeficit ;
     let zeroWinner   = Math.round(base50 / found.fiveZero);
     zeroWinner       = Math.max(zeroWinner, 10);
     const res50      = buildLadder(zeroWinner, "5-0");
@@ -163,7 +164,7 @@ const Homepage = () => {
     setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
 
     /* LINE 3: 5-1 */
-    const base51   = baseDeficit + oneDeficit + genDef;
+    const base51   = baseDeficit + oneDeficit;
     let oneWinner  = Math.round(base51 / found.fiveOne);
     oneWinner      = Math.max(oneWinner, 10);
     const res51    = buildLadder(oneWinner, "5-1");
@@ -171,7 +172,7 @@ const Homepage = () => {
     setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
 
     /* LINE 4: 4-2 */
-    const base42   = smallDeficit + twoDeficit + genDef;
+    const base42   = smallDeficit + twoDeficit ;
     let twoWinner  = Math.round(base42 / found.fourTwo);
     twoWinner      = Math.max(twoWinner, 10);
     const res42    = buildLadder(twoWinner, "4-2");
@@ -179,7 +180,7 @@ const Homepage = () => {
     setTwoAmounts({ winnerAmount: twoWinner, homeAmount: res42.homeAmount, drawAmount: res42.drawAmount, awayAmount: res42.awayAmount });
 
         /* LINE 5: 3-3 */
-    const base33   = smallDeficit + twoDeficit + genDef;
+    const base33   = smallDeficit + twoDeficit ;
     let threeWinner  = Math.round(base33 / found.threeThree);
     threeWinner      = Math.max(threeWinner, 10);
     const res33    = buildLadder(twoWinner, "3-3");
@@ -225,7 +226,7 @@ const Homepage = () => {
     setBaseStake(10000);
     setBaseDeficit(0);
     setDeficit(0);
-    setGenDef(0);
+    setSmallDeficit(0);
     
   };
 
@@ -235,7 +236,6 @@ const Homepage = () => {
     setBaseDeficit(oneDeficit);
     setOneDeficit(0);
     setZeroDeficit(0);
-    setGenDef(0);
   };
 
   const handleOneJackpot = () => {
@@ -244,22 +244,19 @@ const Homepage = () => {
     setBaseDeficit(zeroDeficit);
     setZeroDeficit(0);
     setOneDeficit(0);
-    setGenDef(0);
   };
 
   const handleTwoJackpot = () => {
     setClicked((prev) => new Set([...prev, "two"]));
     setTwoDeficit(0);
-    setSmallDeficit(0);
-    setGenDef(threeDeficit);
+    setSmallDeficit(threeDeficit);
     setThreeDeficit(0);
   };
   
 const handleThreeJackpot = () => {
     setClicked((prev) => new Set([...prev, "two"]));
     setThreeDeficit(0);
-    setSmallDeficit(0);
-    setGenDef(twoDeficit);
+    setSmallDeficit(twoDeficit);
     setTwoDeficit(0);
   };
   /* ================================================================
