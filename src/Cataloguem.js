@@ -534,6 +534,10 @@ const handleThreeJackpot = () => {
             <strong className="text-purple-400">{twoDeficit}</strong>
           </div>
           <div className="flex justify-between">
+            <span className="text-gray-400">3-3 Def</span>
+            <strong className="text-purple-400">{threeDeficit}</strong>
+          </div>
+          <div className="flex justify-between">
             <span className="text-gray-400">Small Def</span>
             <strong className="text-blue-400">{smallDeficit}</strong>
           </div>
