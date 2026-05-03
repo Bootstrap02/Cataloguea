@@ -330,7 +330,7 @@ const handleThreeJackpot = () => {
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
         {/* ── JACKPOT ROW ── */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-3">
 
           <button
             onClick={handleJackpot}
@@ -340,7 +340,7 @@ const handleThreeJackpot = () => {
                 : "bg-yellow-400 text-black hover:bg-yellow-300"
             }`}
           >
-            <div className="text-2xl font-black">6–0</div>
+            <div className="text-xl font-black">6–0</div>
             <div className="text-[11px] mt-1 opacity-80">{amounts.winnerAmount || "–"}</div>
           </button>
 
@@ -352,7 +352,7 @@ const handleThreeJackpot = () => {
                 : "bg-yellow-500 text-black hover:bg-yellow-400"
             }`}
           >
-            <div className="text-2xl font-black">5–0</div>
+            <div className="text-xl font-black">5–0</div>
             <div className="text-[11px] mt-1 opacity-80">{zeroAmounts.winnerAmount || "–"}</div>
           </button>
 
@@ -364,7 +364,7 @@ const handleThreeJackpot = () => {
                 : "bg-orange-400 text-black hover:bg-orange-300"
             }`}
           >
-            <div className="text-2xl font-black">5–1</div>
+            <div className="text-xl font-black">5–1</div>
             <div className="text-[11px] mt-1 opacity-80">{oneAmounts.winnerAmount || "–"}</div>
           </button>
 
@@ -376,7 +376,7 @@ const handleThreeJackpot = () => {
                 : "bg-purple-500 text-white hover:bg-purple-400"
             }`}
           >
-            <div className="text-2xl font-black">4–2</div>
+            <div className="text-xl font-black">4–2</div>
             <div className="text-[11px] mt-1 opacity-80">{twoAmounts.winnerAmount || "–"}</div>
           </button>
 <button
@@ -387,7 +387,7 @@ const handleThreeJackpot = () => {
                 : "bg-purple-500 text-white hover:bg-purple-400"
             }`}
           >
-            <div className="text-2xl font-black">3-3</div>
+            <div className="text-xl font-black">3-3</div>
             <div className="text-[11px] mt-1 opacity-80">{threeAmounts.winnerAmount || "–"}</div>
           </button>
         </div>
