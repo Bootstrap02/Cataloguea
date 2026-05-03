@@ -155,7 +155,7 @@ const Homepage = () => {
     }
 
     /* LINE 2: 5-0 */
-    const base50     = baseDeficit + zero Deficit + genDef;
+    const base50     = baseDeficit + zeroDeficit + genDef;
     let zeroWinner   = Math.round(base50 / found.fiveZero);
     zeroWinner       = Math.max(zeroWinner, 10);
     const res50      = buildLadder(zeroWinner, "5-0");
