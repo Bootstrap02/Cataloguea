@@ -541,10 +541,6 @@ const handleThreeJackpot = () => {
             <span className="text-gray-400">Bank</span>
             <strong className="text-emerald-400">{bank}</strong>
           </div>
-<div className="flex justify-between">
-            <span className="text-gray-400">GenDef</span>
-            <strong className="text-emerald-400">{genDef}</strong>
-          </div>
           {fixture && (
             <div className="col-span-2 pt-2 border-t border-white/10 text-center">
               <span className="text-white font-bold uppercase">{teamA}</span>
