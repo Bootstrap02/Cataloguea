@@ -27,8 +27,7 @@ const Homepage = () => {
   const [twoDeficit,   setTwoDeficit]   = useState(0);
   const [threeDeficit,   setThreeDeficit]   = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(230);
-  const [genDef, setGenDef] = useState(0);
-  const [bank,         setBank]         = useState(230);
+  const [bank, setBank] = useState(230);
 
   /* ---------- STAKES PER LINE ---------- */
   const [amounts,       setAmounts]       = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
