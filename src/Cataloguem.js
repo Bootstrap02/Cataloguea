@@ -323,10 +323,7 @@ const Homepage = () => {
      ================================================================ */
   
 
-
-
-
-  const resolveResult = (step) => {
+const resolveResult = (step) => {
   if (!fixture) return;
 
   setClicked((prev) => new Set([...prev, step]));
@@ -338,24 +335,35 @@ const Homepage = () => {
     return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
   };
 
-  // ================= ORIGINAL LINES =================
-  if (!isSmallOddsGame) {
-    const mainLoss = calcLoss("6-0");
-    setDeficit(mainLoss);
-    setBaseDeficit((prev) => prev + mainLoss);
+  /* ===================== 6-0 (FIXED) ===================== */
+  let mainLoss = 0;
+
+  if (isSmallOddsGame) {
+    // ✅ No HDA → use direct stake
+    mainLoss = amounts.winnerAmount || 0;
+  } else {
+    // ✅ Normal → use ladder loss
+    mainLoss = calcLoss("6-0");
   }
 
-  setZeroDeficit((prev) => prev + calcLoss("5-0"));
-  setOneDeficit((prev) => prev + calcLoss("5-1"));
+  setDeficit(mainLoss);
+  setBaseDeficit((prev) => prev + mainLoss);
 
-  // ================= ARRAYED ASSETS (FIXED CORE BUG) =================
+  /* ===================== 5-0 & 5-1 (UNCHANGED LOGIC) ===================== */
+  // These ALWAYS use ladder loss
+  const zeroLoss = calcLoss("5-0");
+  const oneLoss = calcLoss("5-1");
+
+  setZeroDeficit((prev) => prev + zeroLoss);
+  setOneDeficit((prev) => prev + oneLoss);
+
+  /* ===================== ARRAYED ASSETS ===================== */
   setArrayDeficits((prev) => {
     const updated = { ...prev };
 
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
-      // ✅ USE winnerAmount NOT totalStaked
       const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
 
       if (stakeAmount > 0) {
@@ -368,6 +376,10 @@ const Homepage = () => {
 
   clearForNext();
 };
+
+
+  const resolveResult = (step) => {
+  
   const resolveArrayAssetWin = (asset) => {
   if (!fixture) return;
 
