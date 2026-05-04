@@ -249,20 +249,6 @@ const Homepage = () => {
         const totalTarget = smallDeficit + arrayDeficits[asset];
         let winnerAmount = Math.round(totalTarget / assetOdd);
         winnerAmount = Math.max(winnerAmount, 10);
-        
-        if (isSmall) {
-          newArrayStakes[asset] = { winnerAmount, homeAmount: 0, drawAmount: 0, awayAmount: 0, totalStaked: 0 };
-        } else {
-          const result = buildLadder(winnerAmount, asset, code, oddsMap);
-          newStakes.push(...result.ladder);
-          newArrayStakes[asset] = {
-            winnerAmount,
-            homeAmount: result.homeAmount,
-            drawAmount: result.drawAmount,
-            awayAmount: result.awayAmount,
-            totalStaked: result.totalStaked
-          };
-        }
       }
     }
     
@@ -309,18 +295,17 @@ const Homepage = () => {
 
     setZeroDeficit((prev) => prev + calcLoss("5-0"));
     setOneDeficit((prev) => prev + calcLoss("5-1"));
-
-    // Arrayed assets loss calculation - add to their individual deficits
+    
     const newArrayDeficits = { ...arrayDeficits };
-    for (const asset of arrayedAssets) {
-      if (wonArrayAssets.has(asset)) continue;
-      const loss = calcLoss(asset);
-      if (loss > 0) {
-        newArrayDeficits[asset] = (newArrayDeficits[asset] || 0) + loss;
-      }
-    }
-    setArrayDeficits(newArrayDeficits);
-
+for (const asset of arrayedAssets) {
+  if (wonArrayAssets.has(asset)) continue;
+  // Get the stake amount for this asset directly from arrayStakes
+  const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
+  if (stakeAmount > 0) {
+    newArrayDeficits[asset] = (newArrayDeficits[asset] || 0) + stakeAmount;
+  }
+}
+setArrayDeficits(newArrayDeficits);
     clearForNext();
   };
 
