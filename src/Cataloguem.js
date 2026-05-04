@@ -378,7 +378,8 @@ const Homepage = () => {
     }));
 
     setWonArrayAssets((prev) => new Set([...prev, asset]));
-    setSmallDeficit(0);
+    setSmallDeficit(230);
+    setBank(230);
 
     const residue = stakeData.winnerAmount || 0;
 
