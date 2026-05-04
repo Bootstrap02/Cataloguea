@@ -376,9 +376,6 @@ const resolveResult = (step) => {
 
   clearForNext();
 };
-
-
-  const resolveResult = (step) => {
   
   const resolveArrayAssetWin = (asset) => {
   if (!fixture) return;
