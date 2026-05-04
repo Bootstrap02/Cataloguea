@@ -10,8 +10,16 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 52.4, 
-    threeThree: 51.1
+    fourTwo: 52.4,
+    threeThree: 51.1,
+    f0: 55.2,
+    e0: 52.8,
+    e1: 53.4,
+    oneThree: 54.6,
+    zeroThree: 56.1,
+    twoThree: 51.9,
+    oneTwo: 57.3,
+    twoOne: 58.7
   },
   {
     id: "chenew",
@@ -24,8 +32,16 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 52.4, 
-    threeThree: 51.1
+    fourTwo: 52.4,
+    threeThree: 51.1,
+    f0: 55.2,
+    e0: 52.8,
+    e1: 53.4,
+    oneThree: 54.6,
+    zeroThree: 56.1,
+    twoThree: 51.9,
+    oneTwo: 57.3,
+    twoOne: 58.7
   },
   {
     id: "chears",
@@ -38,8 +54,16 @@ export const odds = [
     fiveZero: 98.5,
     fiveOne: 86.1,
     code: "ADH",
-    fourTwo: 52.4, 
-    threeThree: 51.1
+    fourTwo: 52.4,
+    threeThree: 51.1,
+    f0: 55.2,
+    e0: 52.8,
+    e1: 53.4,
+    oneThree: 54.6,
+    zeroThree: 56.1,
+    twoThree: 51.9,
+    oneTwo: 57.3,
+    twoOne: 58.7
   },
   {
     id: "fulche",
@@ -52,8 +76,16 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 51.3, 
-    threeThree: 69.9
+    fourTwo: 51.3,
+    threeThree: 69.9,
+    f0: 89.5,
+    e0: 72.4,
+    e1: 78.2,
+    oneThree: 65.8,
+    zeroThree: 71.3,
+    twoThree: 64.7,
+    oneTwo: 82.1,
+    twoOne: 79.6
   },
   {
     id: "whuche",
@@ -66,8 +98,16 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 51.3, 
-    threeThree: 69.9
+    fourTwo: 51.3,
+    threeThree: 69.9,
+    f0: 89.5,
+    e0: 72.4,
+    e1: 78.2,
+    oneThree: 65.8,
+    zeroThree: 71.3,
+    twoThree: 64.7,
+    oneTwo: 82.1,
+    twoOne: 79.6
   },
   {
     id: "mncche",
@@ -80,8 +120,16 @@ export const odds = [
     fiveZero: 211,
     fiveOne: 156,
     code: "HDA",
-    fourTwo: 68.4, 
-    threeThree: 168
+    fourTwo: 68.4,
+    threeThree: 168,
+    f0: 112.5,
+    e0: 95.3,
+    e1: 98.7,
+    oneThree: 82.4,
+    zeroThree: 88.6,
+    twoThree: 79.2,
+    oneTwo: 104.8,
+    twoOne: 101.3
   },
   {
     id: "wolche",
@@ -94,8 +142,16 @@ export const odds = [
     fiveZero: 211,
     fiveOne: 156,
     code: "HDA",
-    fourTwo: 68.4, 
-    threeThree: 168
+    fourTwo: 68.4,
+    threeThree: 168,
+    f0: 112.5,
+    e0: 95.3,
+    e1: 98.7,
+    oneThree: 82.4,
+    zeroThree: 88.6,
+    twoThree: 79.2,
+    oneTwo: 104.8,
+    twoOne: 101.3
   },
   {
     id: "notche",
@@ -108,8 +164,16 @@ export const odds = [
     fiveZero: 109,
     fiveOne: 93,
     code: "HDA",
-    fourTwo: 51.3, 
-    threeThree: 69.9
+    fourTwo: 51.3,
+    threeThree: 69.9,
+    f0: 89.5,
+    e0: 72.4,
+    e1: 78.2,
+    oneThree: 65.8,
+    zeroThree: 71.3,
+    twoThree: 64.7,
+    oneTwo: 82.1,
+    twoOne: 79.6
   },
   {
     id: "chewol",
@@ -122,8 +186,16 @@ export const odds = [
     fiveZero: 71.2,
     fiveOne: 67.3,
     code: "ADH",
-    fourTwo: 49, 
-    threeThree: 60.5
+    fourTwo: 49,
+    threeThree: 60.5,
+    f0: 52.3,
+    e0: 50.8,
+    e1: 51.6,
+    oneThree: 53.2,
+    zeroThree: 54.7,
+    twoThree: 50.4,
+    oneTwo: 55.9,
+    twoOne: 56.8
   },
   {
     id: "chemnc",
@@ -136,8 +208,16 @@ export const odds = [
     fiveZero: 71.2,
     fiveOne: 67.3,
     code: "ADH",
-    fourTwo: 49, 
-    threeThree: 60.5
+    fourTwo: 49,
+    threeThree: 60.5,
+    f0: 52.3,
+    e0: 50.8,
+    e1: 51.6,
+    oneThree: 53.2,
+    zeroThree: 54.7,
+    twoThree: 50.4,
+    oneTwo: 55.9,
+    twoOne: 56.8
   },
   {
     id: "mnuche",
@@ -151,7 +231,15 @@ export const odds = [
     fiveOne: 118,
     code: "HDA",
     fourTwo: 59.3,
-    threeThree: 62.8
+    threeThree: 62.8,
+    f0: 76.4,
+    e0: 68.2,
+    e1: 71.5,
+    oneThree: 61.7,
+    zeroThree: 64.3,
+    twoThree: 60.8,
+    oneTwo: 73.6,
+    twoOne: 75.1
   },
   {
     id: "burche",
@@ -165,7 +253,15 @@ export const odds = [
     fiveOne: 118,
     code: "HDA",
     fourTwo: 59.3,
-    threeThree: 62.8
+    threeThree: 62.8,
+    f0: 76.4,
+    e0: 68.2,
+    e1: 71.5,
+    oneThree: 61.7,
+    zeroThree: 64.3,
+    twoThree: 60.8,
+    oneTwo: 73.6,
+    twoOne: 75.1
   },
   {
     id: "bhache",
@@ -178,8 +274,16 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 41.9, 
-    threeThree: 66.9
+    fourTwo: 41.9,
+    threeThree: 66.9,
+    f0: 62.5,
+    e0: 55.3,
+    e1: 58.7,
+    oneThree: 51.4,
+    zeroThree: 53.6,
+    twoThree: 50.2,
+    oneTwo: 60.8,
+    twoOne: 59.3
   },
   {
     id: "eveche",
@@ -192,8 +296,16 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 41.9, 
-    threeThree: 66.9
+    fourTwo: 41.9,
+    threeThree: 66.9,
+    f0: 62.5,
+    e0: 55.3,
+    e1: 58.7,
+    oneThree: 51.4,
+    zeroThree: 53.6,
+    twoThree: 50.2,
+    oneTwo: 60.8,
+    twoOne: 59.3
   },
   {
     id: "leeche",
@@ -206,8 +318,16 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 41.9, 
-    threeThree: 66.9
+    fourTwo: 41.9,
+    threeThree: 66.9,
+    f0: 62.5,
+    e0: 55.3,
+    e1: 58.7,
+    oneThree: 51.4,
+    zeroThree: 53.6,
+    twoThree: 50.2,
+    oneTwo: 60.8,
+    twoOne: 59.3
   },
   {
     id: "sunche",
@@ -220,8 +340,16 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 41.9, 
-    threeThree: 66.9
+    fourTwo: 41.9,
+    threeThree: 66.9,
+    f0: 62.5,
+    e0: 55.3,
+    e1: 58.7,
+    oneThree: 51.4,
+    zeroThree: 53.6,
+    twoThree: 50.2,
+    oneTwo: 60.8,
+    twoOne: 59.3
   },
   {
     id: "cryche",
@@ -234,8 +362,16 @@ export const odds = [
     fiveZero: 78.7,
     fiveOne: 68.8,
     code: "HDA",
-    fourTwo: 41.9, 
-    threeThree: 66.9
+    fourTwo: 41.9,
+    threeThree: 66.9,
+    f0: 62.5,
+    e0: 55.3,
+    e1: 58.7,
+    oneThree: 51.4,
+    zeroThree: 53.6,
+    twoThree: 50.2,
+    oneTwo: 60.8,
+    twoOne: 59.3
   },
   {
     id: "astche",
@@ -248,8 +384,16 @@ export const odds = [
     fiveZero: 288,
     fiveOne: 202,
     code: "DHA",
-    fourTwo: 79.3, 
-    threeThree: 54.7
+    fourTwo: 79.3,
+    threeThree: 54.7,
+    f0: 95.6,
+    e0: 82.4,
+    e1: 87.3,
+    oneThree: 71.8,
+    zeroThree: 74.2,
+    twoThree: 69.5,
+    oneTwo: 91.2,
+    twoOne: 88.7
   },
   {
     id: "livche",
@@ -262,8 +406,16 @@ export const odds = [
     fiveZero: 288,
     fiveOne: 202,
     code: "DHA",
-    fourTwo: 79.3, 
-    threeThree: 54.7
+    fourTwo: 79.3,
+    threeThree: 54.7,
+    f0: 95.6,
+    e0: 82.4,
+    e1: 87.3,
+    oneThree: 71.8,
+    zeroThree: 74.2,
+    twoThree: 69.5,
+    oneTwo: 91.2,
+    twoOne: 88.7
   },
   {
     id: "chebur",
@@ -276,8 +428,16 @@ export const odds = [
     fiveZero: 52,
     fiveOne: 51.3,
     code: "ADH",
-    fourTwo: 42.4, 
-    threeThree: 168
+    fourTwo: 42.4,
+    threeThree: 168,
+    f0: 50.2,
+    e0: 49.8,
+    e1: 50.5,
+    oneThree: 51.6,
+    zeroThree: 52.3,
+    twoThree: 49.5,
+    oneTwo: 53.1,
+    twoOne: 52.7
   },
   {
     id: "chemnu",
@@ -290,8 +450,16 @@ export const odds = [
     fiveZero: 52,
     fiveOne: 51.3,
     code: "ADH",
-    fourTwo: 42.4, 
-    threeThree: 168
+    fourTwo: 42.4,
+    threeThree: 168,
+    f0: 50.2,
+    e0: 49.8,
+    e1: 50.5,
+    oneThree: 51.6,
+    zeroThree: 52.3,
+    twoThree: 49.5,
+    oneTwo: 53.1,
+    twoOne: 52.7
   },
   {
     id: "cheliv",
@@ -304,8 +472,16 @@ export const odds = [
     fiveZero: 157,
     fiveOne: 126,
     code: "ADH",
-    fourTwo: 65.5,  
-    threeThree: 48.9
+    fourTwo: 65.5,
+    threeThree: 48.9,
+    f0: 68.4,
+    e0: 62.3,
+    e1: 64.7,
+    oneThree: 58.2,
+    zeroThree: 56.8,
+    twoThree: 55.6,
+    oneTwo: 66.1,
+    twoOne: 67.5
   },
   {
     id: "cheast",
@@ -318,8 +494,16 @@ export const odds = [
     fiveZero: 157,
     fiveOne: 126,
     code: "ADH",
-    fourTwo: 65.5,  
-    threeThree: 48.9
+    fourTwo: 65.5,
+    threeThree: 48.9,
+    f0: 68.4,
+    e0: 62.3,
+    e1: 64.7,
+    oneThree: 58.2,
+    zeroThree: 56.8,
+    twoThree: 55.6,
+    oneTwo: 66.1,
+    twoOne: 67.5
   },
   {
     id: "breche",
@@ -332,8 +516,16 @@ export const odds = [
     fiveZero: 269,
     fiveOne: 183,
     code: "DHA",
-    fourTwo: 72.8, 
-    threeThree: 61.2
+    fourTwo: 72.8,
+    threeThree: 61.2,
+    f0: 88.5,
+    e0: 75.3,
+    e1: 79.6,
+    oneThree: 65.4,
+    zeroThree: 68.2,
+    twoThree: 63.8,
+    oneTwo: 84.1,
+    twoOne: 82.6
   },
   {
     id: "newche",
@@ -346,8 +538,16 @@ export const odds = [
     fiveZero: 269,
     fiveOne: 183,
     code: "DHA",
-    fourTwo: 72.8, 
-    threeThree: 61.2
+    fourTwo: 72.8,
+    threeThree: 61.2,
+    f0: 88.5,
+    e0: 75.3,
+    e1: 79.6,
+    oneThree: 65.4,
+    zeroThree: 68.2,
+    twoThree: 63.8,
+    oneTwo: 84.1,
+    twoOne: 82.6
   },
   {
     id: "arsche",
@@ -360,8 +560,16 @@ export const odds = [
     fiveZero: 269,
     fiveOne: 183,
     code: "DHA",
-    fourTwo: 72.8, 
-    threeThree: 61.2
+    fourTwo: 72.8,
+    threeThree: 61.2,
+    f0: 88.5,
+    e0: 75.3,
+    e1: 79.6,
+    oneThree: 65.4,
+    zeroThree: 68.2,
+    twoThree: 63.8,
+    oneTwo: 84.1,
+    twoOne: 82.6
   },
 ];
 
@@ -377,8 +585,16 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 46.3, 
-    threeThree: 83.5
+    fourTwo: 46.3,
+    threeThree: 83.5,
+    f0: 49.2,
+    e0: 48.7,
+    e1: 49.5,
+    oneThree: 50.2,
+    zeroThree: 51.8,
+    twoThree: 49.3,
+    oneTwo: 52.4,
+    twoOne: 51.6
   },
   {
     id: "chenot",
@@ -391,8 +607,16 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 46.3, 
-    threeThree: 83.5
+    fourTwo: 46.3,
+    threeThree: 83.5,
+    f0: 49.2,
+    e0: 48.7,
+    e1: 49.5,
+    oneThree: 50.2,
+    zeroThree: 51.8,
+    twoThree: 49.3,
+    oneTwo: 52.4,
+    twoOne: 51.6
   },
   {
     id: "chewhu",
@@ -405,9 +629,17 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    fourTwo: 46.3, 
-    threeThree: 83.5
-  }, 
+    fourTwo: 46.3,
+    threeThree: 83.5,
+    f0: 49.2,
+    e0: 48.7,
+    e1: 49.5,
+    oneThree: 50.2,
+    zeroThree: 51.8,
+    twoThree: 49.3,
+    oneTwo: 52.4,
+    twoOne: 51.6
+  },
   {
     id: "chelee",
     home: "che",
@@ -419,8 +651,16 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 41.3, 
-    threeThree: 98.8
+    fourTwo: 41.3,
+    threeThree: 98.8,
+    f0: 52.5,
+    e0: 51.2,
+    e1: 52.8,
+    oneThree: 54.3,
+    zeroThree: 55.6,
+    twoThree: 53.1,
+    oneTwo: 56.7,
+    twoOne: 55.9
   },
   {
     id: "chebha",
@@ -433,8 +673,16 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 41.3, 
-    threeThree: 98.8
+    fourTwo: 41.3,
+    threeThree: 98.8,
+    f0: 52.5,
+    e0: 51.2,
+    e1: 52.8,
+    oneThree: 54.3,
+    zeroThree: 55.6,
+    twoThree: 53.1,
+    oneTwo: 56.7,
+    twoOne: 55.9
   },
   {
     id: "chesun",
@@ -447,8 +695,16 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 41.3, 
-    threeThree: 98.8
+    fourTwo: 41.3,
+    threeThree: 98.8,
+    f0: 52.5,
+    e0: 51.2,
+    e1: 52.8,
+    oneThree: 54.3,
+    zeroThree: 55.6,
+    twoThree: 53.1,
+    oneTwo: 56.7,
+    twoOne: 55.9
   },
   {
     id: "cheeve",
@@ -461,8 +717,16 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 41.3, 
-    threeThree: 98.8
+    fourTwo: 41.3,
+    threeThree: 98.8,
+    f0: 52.5,
+    e0: 51.2,
+    e1: 52.8,
+    oneThree: 54.3,
+    zeroThree: 55.6,
+    twoThree: 53.1,
+    oneTwo: 56.7,
+    twoOne: 55.9
   },
   {
     id: "checry",
@@ -475,8 +739,16 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    fourTwo: 41.3, 
-    threeThree: 98.8
+    fourTwo: 41.3,
+    threeThree: 98.8,
+    f0: 52.5,
+    e0: 51.2,
+    e1: 52.8,
+    oneThree: 54.3,
+    zeroThree: 55.6,
+    twoThree: 53.1,
+    oneTwo: 56.7,
+    twoOne: 55.9
   },
   {
     id: "chetot",
@@ -490,7 +762,15 @@ export const smallOdds = [
     fiveOne: 31.9,
     code: "ADH",
     fourTwo: 51.3,
-    threeThree: 168
+    threeThree: 168,
+    f0: 58.4,
+    e0: 55.7,
+    e1: 57.2,
+    oneThree: 59.6,
+    zeroThree: 61.3,
+    twoThree: 56.8,
+    oneTwo: 62.5,
+    twoOne: 60.9
   },
   {
     id: "chebou",
@@ -504,7 +784,15 @@ export const smallOdds = [
     fiveOne: 31.9,
     code: "ADH",
     fourTwo: 51.3,
-    threeThree: 168
+    threeThree: 168,
+    f0: 58.4,
+    e0: 55.7,
+    e1: 57.2,
+    oneThree: 59.6,
+    zeroThree: 61.3,
+    twoThree: 56.8,
+    oneTwo: 62.5,
+    twoOne: 60.9
   },
   {
     id: "bouche",
@@ -517,8 +805,16 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    fourTwo: 45.1, 
-    threeThree: 168
+    fourTwo: 45.1,
+    threeThree: 168,
+    f0: 68.3,
+    e0: 62.4,
+    e1: 65.1,
+    oneThree: 57.8,
+    zeroThree: 59.2,
+    twoThree: 56.4,
+    oneTwo: 66.7,
+    twoOne: 64.9
   },
   {
     id: "totche",
@@ -531,7 +827,15 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    fourTwo: 45.1, 
-    threeThree: 168
+    fourTwo: 45.1,
+    threeThree: 168,
+    f0: 68.3,
+    e0: 62.4,
+    e1: 65.1,
+    oneThree: 57.8,
+    zeroThree: 59.2,
+    twoThree: 56.4,
+    oneTwo: 66.7,
+    twoOne: 64.9
   }
 ];
