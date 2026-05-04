@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -70,7 +71,18 @@ const Homepage = () => {
   };
 
   // Map arrayed asset names to odds keys
-  
+  const assetToOddsKey = {
+    "f0": "f0",
+    "e0": "e0",
+    "e1": "e1",
+    "4-2": "fourTwo",
+    "3-3": "threeThree",
+    "1-3": "oneThree",
+    "0-3": "zeroThree",
+    "2-3": "twoThree",
+    "12": "oneTwo",
+    "21": "twoOne"
+  };
 
   /* ================================================================
      API
@@ -213,18 +225,108 @@ const Homepage = () => {
       awayAmount: res6.awayAmount,
     });
 
-    
+    totalHomeAmount += res6.homeAmount;
+    totalDrawAmount += res6.drawAmount;
+    totalAwayAmount += res6.awayAmount;
   }
-  };
+
   /* ===================== 5-0 ===================== */
   const base50 = baseDeficit + zeroDeficit;
   let zeroWinner = Math.round(base50 / found.fiveZero);
   zeroWinner = Math.max(zeroWinner, 10);
-   
+
+  const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
+
+  if (!isSmall) newStakes.push(...res50.ladder);
+
+  setZeroAmounts({
+    winnerAmount: zeroWinner,
+    homeAmount: res50.homeAmount,
+    drawAmount: res50.drawAmount,
+    awayAmount: res50.awayAmount,
+  });
+
+  totalHomeAmount += res50.homeAmount;
+  totalDrawAmount += res50.drawAmount;
+  totalAwayAmount += res50.awayAmount;
+
+  /* ===================== 5-1 ===================== */
+  const base51 = baseDeficit + oneDeficit;
+  let oneWinner = Math.round(base51 / found.fiveOne);
+  oneWinner = Math.max(oneWinner, 10);
+
+  const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
+
+  if (!isSmall) newStakes.push(...res51.ladder);
+
+  setOneAmounts({
+    winnerAmount: oneWinner,
+    homeAmount: res51.homeAmount,
+    drawAmount: res51.drawAmount,
+    awayAmount: res51.awayAmount,
+  });
+
+  totalHomeAmount += res51.homeAmount;
+  totalDrawAmount += res51.drawAmount;
+  totalAwayAmount += res51.awayAmount;
+
+  /* ===================== ARRAYED ASSETS ===================== */
+  const newArrayStakes = {};
+
+  for (const asset of arrayedAssets) {
+    if (wonArrayAssets.has(asset)) continue;
+
+    const oddsKey = assetToOddsKey[asset];
+    const assetOdd = found[oddsKey];
+
+    if (assetOdd && assetOdd > 1.01) {
+      const totalTarget = smallDeficit + arrayDeficits[asset];
+
+      let winnerAmount = Math.round(totalTarget / assetOdd - 1);
+      winnerAmount = Math.max(winnerAmount, 10);
+
+      if (isSmall) {
+        newArrayStakes[asset] = {
+          winnerAmount,
+          homeAmount: 0,
+          drawAmount: 0,
+          awayAmount: 0,
+          totalStaked: 0,
+        };
+      } else {
+        const result = buildLadder(winnerAmount, asset, code, oddsMap);
+        newStakes.push(...result.ladder);
+
+        newArrayStakes[asset] = {
+          winnerAmount,
+          homeAmount: result.homeAmount,
+          drawAmount: result.drawAmount,
+          awayAmount: result.awayAmount,
+          totalStaked: result.totalStaked,
+        };
+      }
+    }
+  }
+
+  setArrayStakes(newArrayStakes);
+  setOrderedStakes(newStakes);
+
+  /* ===================== FINAL HDA TOTAL ===================== */
+  setAmounts((prev) => ({
+    ...prev,
+    homeAmount: totalHomeAmount,
+    drawAmount: totalDrawAmount,
+    awayAmount: totalAwayAmount,
+  }));
+};
   /* ================================================================
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
   
+
+
+
+
   const resolveResult = (step) => {
   if (!fixture) return;
 
@@ -243,7 +345,7 @@ const Homepage = () => {
     setDeficit(mainLoss);
     setBaseDeficit((prev) => prev + mainLoss);
   }
-  // ❌ small odds → skip entirely
+  // ❌ SMALL ODDS → ignore 6-0 completely
 
   /* ===================== 5-0 ===================== */
   const zeroLoss = calcLoss("5-0");
@@ -272,6 +374,7 @@ const Homepage = () => {
 
   clearForNext();
 };
+  
   const resolveArrayAssetWin = (asset) => {
   if (!fixture) return;
 
