@@ -70,18 +70,7 @@ const Homepage = () => {
   };
 
   // Map arrayed asset names to odds keys
-  const assetToOddsKey = {
-    "f0": "f0",
-    "e0": "e0",
-    "e1": "e1",
-    "4-2": "fourTwo",
-    "3-3": "threeThree",
-    "1-3": "oneThree",
-    "0-3": "zeroThree",
-    "2-3": "twoThree",
-    "12": "oneTwo",
-    "21": "twoOne"
-  };
+  
 
   /* ================================================================
      API
@@ -224,16 +213,14 @@ const Homepage = () => {
       awayAmount: res6.awayAmount,
     });
 
-    totalHomeAmount += res6.homeAmount;
-    totalDrawAmount += res6.drawAmount;
-    totalAwayAmount += res6.awayAmount;
+    
   }
-
+  };
   /* ===================== 5-0 ===================== */
   const base50 = baseDeficit + zeroDeficit;
   let zeroWinner = Math.round(base50 / found.fiveZero);
   zeroWinner = Math.max(zeroWinner, 10);
-   } ;
+   
   /* ================================================================
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
