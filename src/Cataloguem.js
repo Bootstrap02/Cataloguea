@@ -188,7 +188,7 @@ const Homepage = () => {
   setBaseStake(newBase6);
   setDeficit(0);
 
-  const base = newBase6 + smallDeficit;
+  const base = newBase6;
   let sixWinner = Math.round(base / found.winner);
   sixWinner = Math.max(sixWinner, 10);
 
@@ -281,7 +281,7 @@ const Homepage = () => {
     if (assetOdd && assetOdd > 1.01) {
       const totalTarget = smallDeficit + arrayDeficits[asset];
 
-      let winnerAmount = Math.round(totalTarget / assetOdd);
+      let winnerAmount = Math.round(totalTarget / assetOdd - 1);
       winnerAmount = Math.max(winnerAmount, 10);
 
       if (isSmall) {
@@ -321,6 +321,11 @@ const Homepage = () => {
   /* ================================================================
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
+  
+
+
+
+
   const resolveResult = (step) => {
   if (!fixture) return;
 
@@ -343,17 +348,17 @@ const Homepage = () => {
   setZeroDeficit((prev) => prev + calcLoss("5-0"));
   setOneDeficit((prev) => prev + calcLoss("5-1"));
 
-  // ================= ARRAYED ASSETS (FIXED) =================
+  // ================= ARRAYED ASSETS (FIXED CORE BUG) =================
   setArrayDeficits((prev) => {
     const updated = { ...prev };
 
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
-      const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
+      // ✅ USE winnerAmount NOT totalStaked
+      const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
 
       if (stakeAmount > 0) {
-        // ✅ KEEP PILING
         updated[asset] = (updated[asset] || 0) + stakeAmount;
       }
     }
@@ -363,7 +368,6 @@ const Homepage = () => {
 
   clearForNext();
 };
-
   const resolveArrayAssetWin = (asset) => {
   if (!fixture) return;
 
@@ -378,14 +382,15 @@ const Homepage = () => {
     [asset]: 0,
   }));
 
-  // ✅ Mark as won (removes button)
+  // ✅ Mark as won
   setWonArrayAssets((prev) => new Set([...prev, asset]));
 
   // ✅ Reset small deficit
   setSmallDeficit(0);
 
-  // ✅ Add residue to base
-  const residue = stakeData.totalStaked || 0;
+  // ✅ Add ONLY actual stake (NOT ladder total)
+  const residue = stakeData.winnerAmount || 0;
+
   if (residue > 0) {
     setBaseStake((prev) => prev + residue);
   }
