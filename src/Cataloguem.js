@@ -322,72 +322,76 @@ const Homepage = () => {
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
   const resolveResult = (step) => {
-    if (!fixture) return;
+  if (!fixture) return;
 
-    setClicked((prev) => new Set([...prev, step]));
+  setClicked((prev) => new Set([...prev, step]));
 
-    const calcLoss = (type) => {
-      const stakes = orderedStakes.filter((s) => s.type === type);
-      const idx = stakes.findIndex((s) => s.step === step);
-      if (idx === -1) return 0;
-      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
-    };
+  const calcLoss = (type) => {
+    const stakes = orderedStakes.filter((s) => s.type === type);
+    const idx = stakes.findIndex((s) => s.step === step);
+    if (idx === -1) return 0;
+    return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+  };
 
-    // Original lines loss calculation
-    if (!isSmallOddsGame) {
-      const mainLoss = calcLoss("6-0");
-      setDeficit(mainLoss);
-      setBaseDeficit((prev) => prev + mainLoss);
-    }
-
-    setZeroDeficit((prev) => prev + calcLoss("5-0"));
-    setOneDeficit((prev) => prev + calcLoss("5-1"));
-    
-    const newArrayDeficits = { ...arrayDeficits };
-for (const asset of arrayedAssets) {
-  if (wonArrayAssets.has(asset)) continue;
-  // Get the stake amount for this asset directly from arrayStakes
-  const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
-  if (stakeAmount > 0) {
-    newArrayDeficits[asset] = (newArrayDeficits[asset] || 0) + stakeAmount;
+  // ================= ORIGINAL LINES =================
+  if (!isSmallOddsGame) {
+    const mainLoss = calcLoss("6-0");
+    setDeficit(mainLoss);
+    setBaseDeficit((prev) => prev + mainLoss);
   }
-}
-setArrayDeficits(newArrayDeficits);
-    clearForNext();
-  };
 
-  /* ================================================================
-     RESOLVE ARRAYED ASSET WIN (click on arrayed button)
-     ================================================================ */
-  const resolveArrayAssetWin = (asset) => {
-    if (!fixture) return;
-    
-    const stakeData = arrayStakes[asset];
-    if (!stakeData) return;
-    
-    setClicked((prev) => new Set([...prev, asset]));
-    
-    // On win: set this asset's deficit to 0 and mark as won
-    setArrayDeficits(prev => ({
-      ...prev,
-      [asset]: 0
-    }));
-    
-    // Mark as won - button will be removed
-    setWonArrayAssets(prev => new Set([...prev, asset]));
-    
-    // Small deficit is set to 0 as per requirement
-    setSmallDeficit(0);
-    
-    // Any residue from this asset's stakes gets added to base
-    const residue = stakeData.totalStaked || 0;
-    if (residue > 0) {
-      setBaseStake(prev => prev + residue);
+  setZeroDeficit((prev) => prev + calcLoss("5-0"));
+  setOneDeficit((prev) => prev + calcLoss("5-1"));
+
+  // ================= ARRAYED ASSETS (FIXED) =================
+  setArrayDeficits((prev) => {
+    const updated = { ...prev };
+
+    for (const asset of arrayedAssets) {
+      if (wonArrayAssets.has(asset)) continue;
+
+      const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
+
+      if (stakeAmount > 0) {
+        // ✅ KEEP PILING
+        updated[asset] = (updated[asset] || 0) + stakeAmount;
+      }
     }
-    
-    clearForNext();
-  };
 
+    return updated;
+  });
+
+  clearForNext();
+};
+
+  const resolveArrayAssetWin = (asset) => {
+  if (!fixture) return;
+
+  const stakeData = arrayStakes[asset];
+  if (!stakeData) return;
+
+  setClicked((prev) => new Set([...prev, asset]));
+
+  // ✅ Reset ONLY this asset deficit
+  setArrayDeficits((prev) => ({
+    ...prev,
+    [asset]: 0,
+  }));
+
+  // ✅ Mark as won (removes button)
+  setWonArrayAssets((prev) => new Set([...prev, asset]));
+
+  // ✅ Reset small deficit
+  setSmallDeficit(0);
+
+  // ✅ Add residue to base
+  const residue = stakeData.totalStaked || 0;
+  if (residue > 0) {
+    setBaseStake((prev) => prev + residue);
+  }
+
+  clearForNext();
+};
   /* ================================================================
      JACKPOT HANDLERS (Original - UNTOUCHED)
      ================================================================ */
