@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -31,16 +30,12 @@ const Homepage = () => {
   /* ---------- ARRAYED ASSETS (f0, e0, e1, 4-2, 3-3, 1-3, 0-3, 2-3, 12, 21) ---------- */
   const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "12", "21"];
   
-  // Individual deficits for each arrayed asset
   const [arrayDeficits, setArrayDeficits] = useState({
     "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
     "1-3": 0, "0-3": 0, "2-3": 0, "12": 0, "21": 0
   });
   
-  // Stakes for arrayed assets
   const [arrayStakes, setArrayStakes] = useState({});
-  
-  // Track which arrayed assets have been won (to remove button)
   const [wonArrayAssets, setWonArrayAssets] = useState(new Set());
 
   /* ---------- STAKES PER LINE (Original untouched) ---------- */
@@ -56,7 +51,6 @@ const Homepage = () => {
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  // Asset labels for display
   const assetLabels = {
     "f0": "F0",
     "e0": "E0", 
@@ -70,7 +64,6 @@ const Homepage = () => {
     "21": "2-1"
   };
 
-  // Map arrayed asset names to odds keys
   const assetToOddsKey = {
     "f0": "f0",
     "e0": "e0",
@@ -132,7 +125,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     BUILD LADDER FOR HDA (Original untouched)
+     BUILD LADDER FOR HDA
      ================================================================ */
   const buildLadder = (startTotal, type, code, oddsMap) => {
     let runningTotal = startTotal;
@@ -157,255 +150,247 @@ const Homepage = () => {
      HANDLE SUBMIT
      ================================================================ */
   const handleSubmit = (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const home = sanitizeTeam(inputA) || "che";
-  const away = sanitizeTeam(inputB) || "che";
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
 
-  let found = smallOdds.find((o) => o.home === home && o.away === away);
-  const isSmall = !!found;
-  if (!found) found = odds.find((o) => o.home === home && o.away === away);
+    let found = smallOdds.find((o) => o.home === home && o.away === away);
+    const isSmall = !!found;
+    if (!found) found = odds.find((o) => o.home === home && o.away === away);
 
-  if (!found) {
-    alert(`No odds found for "${home}" vs "${away}"`);
-    return;
-  }
-
-  setIsSmallOddsGame(isSmall);
-  setFixture(found);
-  setClicked(new Set());
-
-  const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-  const code = found.code || "";
-  const newStakes = [];
-
-  // ✅ LOCAL TOTALS (fix async bug)
-  let totalHomeAmount = 0;
-  let totalDrawAmount = 0;
-  let totalAwayAmount = 0;
-
-  /* ===================== 6-0 ===================== */
-  const newBase6 = baseStake + deficit;
-  setBaseStake(newBase6);
-  setDeficit(0);
-
-  const base = newBase6;
-  let sixWinner = Math.round(base / found.winner);
-  sixWinner = Math.max(sixWinner, 10);
-
-  if (isSmall) {
-    // No HDA for 6-0 in small odds
-    let bankNow = bank;
-    let sdNow = smallDeficit;
-
-    if (bankNow >= sixWinner) {
-      bankNow -= sixWinner;
-    } else {
-      sdNow += sixWinner - bankNow;
-      bankNow = 0;
+    if (!found) {
+      alert(`No odds found for "${home}" vs "${away}"`);
+      return;
     }
 
-    setBank(bankNow);
-    setSmallDeficit(sdNow);
+    setIsSmallOddsGame(isSmall);
+    setFixture(found);
+    setClicked(new Set());
 
-    setAmounts({
-      winnerAmount: sixWinner,
-      homeAmount: 0,
-      drawAmount: 0,
-      awayAmount: 0,
-    });
-  } else {
-    const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
-    newStakes.push(...res6.ladder);
+    const oddsMap = { H: found.win, D: found.draw, A: found.lose };
+    const code = found.code || "";
+    const newStakes = [];
 
-    setAmounts({
-      winnerAmount: sixWinner,
-      homeAmount: res6.homeAmount,
-      drawAmount: res6.drawAmount,
-      awayAmount: res6.awayAmount,
-    });
+    let totalHomeAmount = 0;
+    let totalDrawAmount = 0;
+    let totalAwayAmount = 0;
 
-    totalHomeAmount += res6.homeAmount;
-    totalDrawAmount += res6.drawAmount;
-    totalAwayAmount += res6.awayAmount;
-  }
+    /* ===================== 6-0 ===================== */
+    const newBase6 = baseStake + deficit;
+    setBaseStake(newBase6);
+    setDeficit(0);
 
-  /* ===================== 5-0 ===================== */
-  const base50 = baseDeficit + zeroDeficit;
-  let zeroWinner = Math.round(base50 / found.fiveZero);
-  zeroWinner = Math.max(zeroWinner, 10);
+    const base = newBase6;
+    let sixWinner = Math.round(base / found.winner);
+    sixWinner = Math.max(sixWinner, 10);
 
-  const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
+    if (isSmall) {
+      // No HDA for 6-0 in small odds
+      let bankNow = bank;
+      let sdNow = smallDeficit;
 
-  if (!isSmall) newStakes.push(...res50.ladder);
-
-  setZeroAmounts({
-    winnerAmount: zeroWinner,
-    homeAmount: res50.homeAmount,
-    drawAmount: res50.drawAmount,
-    awayAmount: res50.awayAmount,
-  });
-
-  totalHomeAmount += res50.homeAmount;
-  totalDrawAmount += res50.drawAmount;
-  totalAwayAmount += res50.awayAmount;
-
-  /* ===================== 5-1 ===================== */
-  const base51 = baseDeficit + oneDeficit;
-  let oneWinner = Math.round(base51 / found.fiveOne);
-  oneWinner = Math.max(oneWinner, 10);
-
-  const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
-
-  if (!isSmall) newStakes.push(...res51.ladder);
-
-  setOneAmounts({
-    winnerAmount: oneWinner,
-    homeAmount: res51.homeAmount,
-    drawAmount: res51.drawAmount,
-    awayAmount: res51.awayAmount,
-  });
-
-  totalHomeAmount += res51.homeAmount;
-  totalDrawAmount += res51.drawAmount;
-  totalAwayAmount += res51.awayAmount;
-
-  /* ===================== ARRAYED ASSETS ===================== */
-  const newArrayStakes = {};
-
-  for (const asset of arrayedAssets) {
-    if (wonArrayAssets.has(asset)) continue;
-
-    const oddsKey = assetToOddsKey[asset];
-    const assetOdd = found[oddsKey];
-
-    if (assetOdd && assetOdd > 1.01) {
-      const totalTarget = smallDeficit + arrayDeficits[asset];
-
-      let winnerAmount = Math.round(totalTarget / assetOdd - 1);
-      winnerAmount = Math.max(winnerAmount, 10);
-
-      if (isSmall) {
-        newArrayStakes[asset] = {
-          winnerAmount,
-          homeAmount: 0,
-          drawAmount: 0,
-          awayAmount: 0,
-          totalStaked: 0,
-        };
+      if (bankNow >= sixWinner) {
+        bankNow -= sixWinner;
       } else {
-        const result = buildLadder(winnerAmount, asset, code, oddsMap);
-        newStakes.push(...result.ladder);
-
-        newArrayStakes[asset] = {
-          winnerAmount,
-          homeAmount: result.homeAmount,
-          drawAmount: result.drawAmount,
-          awayAmount: result.awayAmount,
-          totalStaked: result.totalStaked,
-        };
+        sdNow += sixWinner - bankNow;
+        bankNow = 0;
       }
+
+      setBank(bankNow);
+      setSmallDeficit(sdNow);
+
+      setAmounts({
+        winnerAmount: sixWinner,
+        homeAmount: 0,
+        drawAmount: 0,
+        awayAmount: 0,
+      });
+    } else {
+      const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
+      newStakes.push(...res6.ladder);
+
+      setAmounts({
+        winnerAmount: sixWinner,
+        homeAmount: res6.homeAmount,
+        drawAmount: res6.drawAmount,
+        awayAmount: res6.awayAmount,
+      });
+
+      totalHomeAmount += res6.homeAmount;
+      totalDrawAmount += res6.drawAmount;
+      totalAwayAmount += res6.awayAmount;
     }
-  }
 
-  setArrayStakes(newArrayStakes);
-  setOrderedStakes(newStakes);
+    /* ===================== 5-0 ===================== */
+    const base50 = baseDeficit + zeroDeficit;
+    let zeroWinner = Math.round(base50 / found.fiveZero);
+    zeroWinner = Math.max(zeroWinner, 10);
 
-  /* ===================== FINAL HDA TOTAL ===================== */
-  setAmounts((prev) => ({
-    ...prev,
-    homeAmount: totalHomeAmount,
-    drawAmount: totalDrawAmount,
-    awayAmount: totalAwayAmount,
-  }));
-};
-  /* ================================================================
-     RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
-     ================================================================ */
-  
+    const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
+    newStakes.push(...res50.ladder); // ✅ Always push — no isSmall gate
 
+    setZeroAmounts({
+      winnerAmount: zeroWinner,
+      homeAmount: res50.homeAmount,
+      drawAmount: res50.drawAmount,
+      awayAmount: res50.awayAmount,
+    });
 
+    totalHomeAmount += res50.homeAmount;
+    totalDrawAmount += res50.drawAmount;
+    totalAwayAmount += res50.awayAmount;
 
+    /* ===================== 5-1 ===================== */
+    const base51 = baseDeficit + oneDeficit;
+    let oneWinner = Math.round(base51 / found.fiveOne);
+    oneWinner = Math.max(oneWinner, 10);
 
-  const resolveResult = (step) => {
-  if (!fixture) return;
+    const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
+    newStakes.push(...res51.ladder); // ✅ Always push — no isSmall gate
 
-  setClicked((prev) => new Set([...prev, step]));
+    setOneAmounts({
+      winnerAmount: oneWinner,
+      homeAmount: res51.homeAmount,
+      drawAmount: res51.drawAmount,
+      awayAmount: res51.awayAmount,
+    });
 
-  const calcLoss = (type) => {
-    const stakes = orderedStakes.filter((s) => s.type === type);
-    const idx = stakes.findIndex((s) => s.step === step);
-    if (idx === -1) return 0;
-    return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
-  };
+    totalHomeAmount += res51.homeAmount;
+    totalDrawAmount += res51.drawAmount;
+    totalAwayAmount += res51.awayAmount;
 
-  /* ===================== 6-0 ===================== */
-  if (!isSmallOddsGame) {
-    const mainLoss = calcLoss("6-0");
-    setDeficit(mainLoss);
-    setBaseDeficit((prev) => prev + mainLoss);
-  }
-  // ❌ SMALL ODDS → ignore 6-0 completely
-
-  /* ===================== 5-0 ===================== */
-  const zeroLoss = calcLoss("5-0");
-  setZeroDeficit((prev) => prev + zeroLoss);
-
-  /* ===================== 5-1 ===================== */
-  const oneLoss = calcLoss("5-1");
-  setOneDeficit((prev) => prev + oneLoss);
-
-  /* ===================== ARRAYED ASSETS ===================== */
-  setArrayDeficits((prev) => {
-    const updated = { ...prev };
+    /* ===================== ARRAYED ASSETS ===================== */
+    const newArrayStakes = {};
 
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
-      const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
+      const oddsKey = assetToOddsKey[asset];
+      const assetOdd = found[oddsKey];
 
-      if (stakeAmount > 0) {
-        updated[asset] = (updated[asset] || 0) + stakeAmount;
+      if (assetOdd && assetOdd > 1.01) {
+        const totalTarget = smallDeficit + arrayDeficits[asset];
+
+        let winnerAmount = Math.round(totalTarget / assetOdd - 1);
+        winnerAmount = Math.max(winnerAmount, 10);
+
+        if (isSmall) {
+          newArrayStakes[asset] = {
+            winnerAmount,
+            homeAmount: 0,
+            drawAmount: 0,
+            awayAmount: 0,
+            totalStaked: 0,
+          };
+        } else {
+          const result = buildLadder(winnerAmount, asset, code, oddsMap);
+          newStakes.push(...result.ladder);
+
+          newArrayStakes[asset] = {
+            winnerAmount,
+            homeAmount: result.homeAmount,
+            drawAmount: result.drawAmount,
+            awayAmount: result.awayAmount,
+            totalStaked: result.totalStaked,
+          };
+        }
       }
     }
 
-    return updated;
-  });
+    setArrayStakes(newArrayStakes);
+    setOrderedStakes(newStakes);
 
-  clearForNext();
-};
-  
-  const resolveArrayAssetWin = (asset) => {
-  if (!fixture) return;
+    /* ===================== FINAL HDA TOTAL ===================== */
+    setAmounts((prev) => ({
+      ...prev,
+      homeAmount: totalHomeAmount,
+      drawAmount: totalDrawAmount,
+      awayAmount: totalAwayAmount,
+    }));
+  };
 
-  const stakeData = arrayStakes[asset];
-  if (!stakeData) return;
-
-  setClicked((prev) => new Set([...prev, asset]));
-
-  // ✅ Reset ONLY this asset deficit
-  setArrayDeficits((prev) => ({
-    ...prev,
-    [asset]: 0,
-  }));
-
-  // ✅ Mark as won
-  setWonArrayAssets((prev) => new Set([...prev, asset]));
-
-  // ✅ Reset small deficit
-  setSmallDeficit(0);
-
-  // ✅ Add ONLY actual stake (NOT ladder total)
-  const residue = stakeData.winnerAmount || 0;
-
-  if (residue > 0) {
-    setBaseStake((prev) => prev + residue);
-  }
-
-  clearForNext();
-};
   /* ================================================================
-     JACKPOT HANDLERS (Original - UNTOUCHED)
+     RESOLVE RESULT FOR HDA
+     ================================================================ */
+  const resolveResult = (step) => {
+    if (!fixture) return;
+
+    setClicked((prev) => new Set([...prev, step]));
+
+    const calcLoss = (type) => {
+      const stakes = orderedStakes.filter((s) => s.type === type);
+      const idx = stakes.findIndex((s) => s.step === step);
+      if (idx === -1) return 0;
+      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+    };
+
+    /* ===================== 6-0 ===================== */
+    if (!isSmallOddsGame) {
+      const mainLoss = calcLoss("6-0");
+      setDeficit(mainLoss);
+      setBaseDeficit((prev) => prev + mainLoss);
+    }
+    // Small odds → skip 6-0 entirely
+
+    /* ===================== 5-0 ===================== */
+    const zeroLoss = calcLoss("5-0");
+    setZeroDeficit((prev) => prev + zeroLoss);
+
+    /* ===================== 5-1 ===================== */
+    const oneLoss = calcLoss("5-1");
+    setOneDeficit((prev) => prev + oneLoss);
+
+    /* ===================== ARRAYED ASSETS ===================== */
+    setArrayDeficits((prev) => {
+      const updated = { ...prev };
+
+      for (const asset of arrayedAssets) {
+        if (wonArrayAssets.has(asset)) continue;
+
+        const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
+
+        if (stakeAmount > 0) {
+          updated[asset] = (updated[asset] || 0) + stakeAmount;
+        }
+      }
+
+      return updated;
+    });
+
+    clearForNext();
+  };
+
+  /* ================================================================
+     RESOLVE ARRAY ASSET WIN
+     ================================================================ */
+  const resolveArrayAssetWin = (asset) => {
+    if (!fixture) return;
+
+    const stakeData = arrayStakes[asset];
+    if (!stakeData) return;
+
+    setClicked((prev) => new Set([...prev, asset]));
+
+    setArrayDeficits((prev) => ({
+      ...prev,
+      [asset]: 0,
+    }));
+
+    setWonArrayAssets((prev) => new Set([...prev, asset]));
+    setSmallDeficit(0);
+
+    const residue = stakeData.winnerAmount || 0;
+
+    if (residue > 0) {
+      setBaseStake((prev) => prev + residue);
+    }
+
+    clearForNext();
+  };
+
+  /* ================================================================
+     JACKPOT HANDLERS
      ================================================================ */
   const handleJackpot = () => {
     setClicked((prev) => new Set([...prev, "six"]));
@@ -498,7 +483,7 @@ const Homepage = () => {
       {/* ── SCROLLABLE CONTENT ── */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
-        {/* ── JACKPOT ROW (Original 6-0, 5-0, 5-1 only) ── */}
+        {/* ── JACKPOT ROW ── */}
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={handleJackpot}
@@ -537,10 +522,9 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── ARRAYED ASSETS ROW (f0, e0, e1, 4-2, 3-3, 1-3, 0-3, 2-3, 12, 21) ── */}
+        {/* ── ARRAYED ASSETS ROW ── */}
         <div className="grid grid-cols-5 gap-3">
           {arrayedAssets.map((asset) => {
-            // Don't show if already won
             if (wonArrayAssets.has(asset)) return null;
             
             const stakeAmount = arrayStakes[asset]?.winnerAmount;
@@ -548,7 +532,6 @@ const Homepage = () => {
             const isActive = fixture && stakeAmount;
             
             if (isActive) {
-              // Active asset with stake - clickable to win
               return (
                 <button
                   key={asset}
@@ -567,7 +550,6 @@ const Homepage = () => {
                 </button>
               );
             } else {
-              // Inactive - show deficit if any
               return (
                 <button
                   key={asset}
