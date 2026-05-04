@@ -379,7 +379,7 @@ const Homepage = () => {
 
     setWonArrayAssets((prev) => new Set([...prev, asset]));
     setSmallDeficit(230);
-    setBank(230);
+    setBank((prev) => prev + 230);
 
     const residue = stakeData.winnerAmount || 0;
 
@@ -387,7 +387,7 @@ const Homepage = () => {
       setBaseStake((prev) => prev + residue);
     }
 
-    clearForNext();
+    
   };
 
   /* ================================================================
