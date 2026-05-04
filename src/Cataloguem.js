@@ -322,7 +322,6 @@ const Homepage = () => {
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
   
-
 const resolveResult = (step) => {
   if (!fixture) return;
 
@@ -335,26 +334,27 @@ const resolveResult = (step) => {
     return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
   };
 
-  /* ===================== 6-0 (FIXED) ===================== */
-  let mainLoss = 0;
-
-  if (isSmallOddsGame) {
-    // ✅ No HDA → use direct stake
-    mainLoss = amounts.winnerAmount || 0;
-  } else {
-    // ✅ Normal → use ladder loss
-    mainLoss = calcLoss("6-0");
+  /* ===================== 6-0 ===================== */
+  if (!isSmallOddsGame) {
+    // ✅ ONLY normal games
+    const mainLoss = calcLoss("6-0");
+    setDeficit(mainLoss);
+    setBaseDeficit((prev) => prev + mainLoss);
   }
+  // ❌ SMALL ODDS → ABSOLUTELY NOTHING HERE
 
-  setDeficit(mainLoss);
-  setBaseDeficit((prev) => prev + mainLoss);
-
-  /* ===================== 5-0 & 5-1 (UNCHANGED LOGIC) ===================== */
-  // These ALWAYS use ladder loss
-  const zeroLoss = calcLoss("5-0");
-  const oneLoss = calcLoss("5-1");
+  /* ===================== 5-0 ===================== */
+  const zeroLoss = isSmallOddsGame
+    ? (zeroAmounts.winnerAmount || 0)   // ✅ direct stake
+    : calcLoss("5-0");                 // ✅ ladder
 
   setZeroDeficit((prev) => prev + zeroLoss);
+
+  /* ===================== 5-1 ===================== */
+  const oneLoss = isSmallOddsGame
+    ? (oneAmounts.winnerAmount || 0)   // ✅ direct stake
+    : calcLoss("5-1");                // ✅ ladder
+
   setOneDeficit((prev) => prev + oneLoss);
 
   /* ===================== ARRAYED ASSETS ===================== */
