@@ -233,7 +233,7 @@ const Homepage = () => {
   const base50 = baseDeficit + zeroDeficit;
   let zeroWinner = Math.round(base50 / found.fiveZero);
   zeroWinner = Math.max(zeroWinner, 10);
-
+   } ;
   /* ================================================================
      RESOLVE RESULT FOR HDA (affects arrayed assets deficits)
      ================================================================ */
