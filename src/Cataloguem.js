@@ -189,8 +189,21 @@ const Homepage = () => {
     sixWinner = Math.max(sixWinner, 10);
 
     if (isSmall) { 
+
+        /* Small-odds: bank absorbs winner, overflow → smallDeficit. No HDA ladder. */
+      let bankNow  = bank;
+      let sdNow    = smallDeficit;
+
+      if (bankNow >= sixWinner) {
+        bankNow -= sixWinner;
+      } else {
+        sdNow   += sixWinner - bankNow;
+        bankNow  = 0;
+      }
+
+      setBank(bankNow);
+      setSmallDeficit(sdNow);
       setAmounts({ winnerAmount: sixWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-      setSmallDeficit((prev) => prev + sixWinner) 
     } else {
       const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
       newStakes.push(...res6.ladder);
