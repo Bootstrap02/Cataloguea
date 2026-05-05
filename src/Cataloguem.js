@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -141,6 +142,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(runningTotal / (odd - 1));
+      stake = Math.max(stake, 10);
 
       ladder.push({ step, stake, type });
       if (step === "H") homeAmount = stake;
@@ -352,7 +354,9 @@ const Homepage = () => {
       const updated = { ...prev };
       for (const asset of arrayedAssets) {
         if (wonArrayAssets.has(asset)) continue;
-        const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
+        // FIXED: Use winnerAmount instead of totalStaked
+        // winnerAmount is always set for both small and normal games
+        const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
         if (stakeAmount > 0) {
           updated[asset] = (updated[asset] || 0) + stakeAmount;
         }
