@@ -30,12 +30,12 @@ const Homepage = () => {
   const [smallDeficit, setSmallDeficit] = useState(230);
   const [bank, setBank] = useState(230);
 
-  /* ---------- ARRAYED ASSETS ---------- */
-  const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
+  /* ---------- ARRAYED ASSETS (10 new assets) ---------- */
+  const arrayedAssets = ["oneX", "twoX", "x2", "zeroGoals", "sixGoals", "ht12", "ht21", "ht30", "ft40", "ft41"];
 
   const [arrayDeficits, setArrayDeficits] = useState({
-    "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
-    "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
+    "oneX": 0, "twoX": 0, "x2": 0, "zeroGoals": 0, "sixGoals": 0,
+    "ht12": 0, "ht21": 0, "ht30": 0, "ft40": 0, "ft41": 0
   });
 
   const [arrayStakes, setArrayStakes] = useState({});
@@ -55,35 +55,29 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   const assetLabels = {
-    "f0": "F0",
-    "e0": "E0",
-    "e1": "E1",
-    "4-2": "4-2",
-    "3-3": "3-3",
-    "1-3": "1-3",
-    "0-3": "0-3",
-    "2-3": "2-3",
-    "0-4": "0-4",
-    "1-4": "1-4",
-    "2-4": "2-4",
-    "12": "1-2",
-    "21": "2-1"
+    "oneX": "1X",
+    "twoX": "2X",
+    "x2": "X2",
+    "zeroGoals": "0 GOALS",
+    "sixGoals": "6 GOALS",
+    "ht12": "HT 1-2",
+    "ht21": "HT 2-1",
+    "ht30": "HT 3-0",
+    "ft40": "FT 4-0",
+    "ft41": "FT 4-1"
   };
 
   const assetToOddsKey = {
-    "f0": "f0",
-    "e0": "e0",
-    "e1": "e1",
-    "4-2": "fourTwo",
-    "3-3": "threeThree",
-    "1-3": "oneThree",
-    "0-3": "zeroThree",
-    "2-3": "twoThree",
-    "0-4": "zeroFour",
-    "1-4": "oneFour",
-    "2-4": "twoFour",
-    "12": "oneTwo",
-    "21": "twoOne"
+    "oneX": "oneX",
+    "twoX": "twoX",
+    "x2": "x2",
+    "zeroGoals": "zeroGoals",
+    "sixGoals": "sixGoals",
+    "ht12": "ht12",
+    "ht21": "ht21",
+    "ht30": "ht30",
+    "ft40": "ft40",
+    "ft41": "ft41"
   };
 
   /* ================================================================
@@ -103,8 +97,8 @@ const Homepage = () => {
         setBank(res.data.bank ?? 230);
         setWeek(res.data.week || 0);
         setArrayDeficits(res.data.arrayDeficits || {
-          "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
-          "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
+          "oneX": 0, "twoX": 0, "x2": 0, "zeroGoals": 0, "sixGoals": 0,
+          "ht12": 0, "ht21": 0, "ht30": 0, "ft40": 0, "ft41": 0
         });
         setWonArrayAssets(new Set(res.data.wonArrayAssets || []));
       }
@@ -273,7 +267,7 @@ const Homepage = () => {
     totalDrawAmount += res51.drawAmount;
     totalAwayAmount += res51.awayAmount;
 
-    /* ===================== ARRAYED ASSETS ===================== */
+    /* ===================== ARRAYED ASSETS (10 new assets) ===================== */
     const newArrayStakes = {};
 
     for (const asset of arrayedAssets) {
@@ -285,7 +279,7 @@ const Homepage = () => {
       if (assetOdd && assetOdd > 1.01) {
         const totalTarget = smallDeficit + arrayDeficits[asset];
 
-        let winnerAmount = Math.round(totalTarget / assetOdd - 1);
+        let winnerAmount = Math.round(totalTarget / (assetOdd - 1));
         winnerAmount = Math.max(winnerAmount, 10);
 
         if (isSmall) {
@@ -358,7 +352,7 @@ const Homepage = () => {
       const updated = { ...prev };
       for (const asset of arrayedAssets) {
         if (wonArrayAssets.has(asset)) continue;
-        const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
+        const stakeAmount = arrayStakes[asset]?.totalStaked || 0;
         if (stakeAmount > 0) {
           updated[asset] = (updated[asset] || 0) + stakeAmount;
         }
@@ -371,9 +365,6 @@ const Homepage = () => {
 
   /* ================================================================
      RESOLVE ARRAY ASSET WIN
-     — At week 38: pile remaining unwon deficits into baseDeficit &
-       baseStake, reset all array deficits to 0, clear wonArrayAssets,
-       reset week to 0.
      ================================================================ */
   const resolveArrayAssetWin = (asset) => {
     if (!fixture) return;
@@ -403,7 +394,6 @@ const Homepage = () => {
         let totalUnwonDeficit = 0;
 
         for (const a of arrayedAssets) {
-          // Skip the asset just won and any already in wonArrayAssets
           if (a === asset || newWonSet.has(a)) continue;
           totalUnwonDeficit += prev[a] || 0;
           updated[a] = 0;
@@ -559,7 +549,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── ARRAYED ASSETS ROW ── */}
+        {/* ── ARRAYED ASSETS ROW (10 new assets) ── */}
         <div className="grid grid-cols-5 gap-3">
           {arrayedAssets.map((asset) => {
             if (wonArrayAssets.has(asset)) return null;
