@@ -24,8 +24,8 @@ const Homepage = () => {
   const [deficit, setDeficit] = useState(0);
   const [zeroDeficit, setZeroDeficit] = useState(0);
   const [oneDeficit, setOneDeficit] = useState(0);
-  const [smallDeficit, setSmallDeficit] = useState(230);
-  const [bank, setBank] = useState(230);
+  const [smallDeficit, setSmallDeficit] = useState(0);
+  const [bank, setBank] = useState(0);
 
   /* ---------- STAKES PER LINE ---------- */
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
@@ -255,7 +255,7 @@ const Homepage = () => {
 
     /* ===================== COP (new) ===================== */
     let copStake = Math.round(smallDeficit / found.winner);
-    copStake = Math.max(copStake, 10);
+
     setCopAmount(copStake);
 
     setAmounts((prev) => ({
