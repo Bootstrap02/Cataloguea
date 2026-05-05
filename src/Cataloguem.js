@@ -9,6 +9,7 @@ const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 const Homepage = () => {
+
   /* ---------- INPUTS ---------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
@@ -24,14 +25,19 @@ const Homepage = () => {
   const [deficit, setDeficit] = useState(0);
   const [zeroDeficit, setZeroDeficit] = useState(0);
   const [oneDeficit, setOneDeficit] = useState(0);
-  const [smallDeficit, setSmallDeficit] = useState(0);
-  const [bank, setBank] = useState(0);
+  const [smallDeficit, setSmallDeficit] = useState(230);
+  
+  // New COP state - just the stake amount
+  const [copStake, setCopStake] = useState(0);
+  
+  // Track if COP has been clicked this game
+  const [copClicked, setCopClicked] = useState(false);
 
   /* ---------- STAKES PER LINE ---------- */
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [zeroAmounts, setZeroAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [oneAmounts, setOneAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-  const [copAmount, setCopAmount] = useState(0); // New COP stake
+  const [orderedStakes, setOrderedStakes] = useState([]);
 
   /* ---------- CLICK INDICATORS ---------- */
   const [clicked, setClicked] = useState(new Set());
@@ -48,13 +54,12 @@ const Homepage = () => {
     try {
       const res = await axios.get(API_BASE);
       if (res.data) {
-        setBaseStake(res.data.base || 0);
+        setBaseStake(res.data.base || 10000);
         setBaseDeficit(res.data.baseDeficit || 0);
         setDeficit(res.data.deficit || 0);
         setZeroDeficit(res.data.zeroDeficit || 0);
         setOneDeficit(res.data.oneDeficit || 0);
         setSmallDeficit(res.data.smallDeficit ?? 230);
-        setBank(res.data.bank ?? 230);
       }
     } catch (err) {
       console.error("❌ fetch failed:", err.message);
@@ -72,13 +77,16 @@ const Homepage = () => {
         zeroDeficit,
         oneDeficit,
         smallDeficit,
-        bank,
       });
       console.log("✅ Saved");
     } catch (err) {
       console.error("❌ Save failed:", err.message);
     }
   };
+
+  useEffect(() => {
+    fetchBase();
+  }, []);
 
   /* ================================================================
      BUILD LADDER FOR HDA
@@ -117,16 +125,18 @@ const Homepage = () => {
     if (!found) found = odds.find((o) => o.home === home && o.away === away);
 
     if (!found) {
-      alert(`No odds found for "${home}" vs " ${away}"`);
+      alert(`No odds found for "${home}" vs "${away}"`);
       return;
     }
 
     setIsSmallOddsGame(isSmall);
     setFixture(found);
     setClicked(new Set());
+    setCopClicked(false); // Reset COP click state for new game
 
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
     const code = found.code || "";
+    const newStakes = [];
 
     let totalHomeAmount = 0;
     let totalDrawAmount = 0;
@@ -142,17 +152,9 @@ const Homepage = () => {
     sixWinner = Math.max(sixWinner, 10);
 
     if (isSmall) {
-      let bankNow = bank;
+      // Small odds: 6-0 stake goes to smallDeficit
       let sdNow = smallDeficit;
-
-      if (bankNow >= sixWinner) {
-        bankNow -= sixWinner;
-      } else {
-        sdNow += sixWinner - bankNow;
-        bankNow = 0;
-      }
-
-      setBank(bankNow);
+      sdNow += sixWinner;
       setSmallDeficit(sdNow);
 
       setAmounts({
@@ -163,6 +165,7 @@ const Homepage = () => {
       });
     } else {
       const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
+      newStakes.push(...res6.ladder);
       setAmounts({
         winnerAmount: sixWinner,
         homeAmount: res6.homeAmount,
@@ -181,17 +184,9 @@ const Homepage = () => {
     zeroWinner = Math.max(zeroWinner, 10);
 
     if (isSmall) {
-      let bankNow = bank;
+      // Small odds: 5-0 stake goes to smallDeficit
       let sdNow = smallDeficit;
-
-      if (bankNow >= zeroWinner) {
-        bankNow -= zeroWinner;
-      } else {
-        sdNow += zeroWinner - bankNow;
-        bankNow = 0;
-      }
-
-      setBank(bankNow);
+      sdNow += zeroWinner;
       setSmallDeficit(sdNow);
 
       setZeroAmounts({
@@ -202,6 +197,7 @@ const Homepage = () => {
       });
     } else {
       const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
+      newStakes.push(...res50.ladder);
       setZeroAmounts({
         winnerAmount: zeroWinner,
         homeAmount: res50.homeAmount,
@@ -220,17 +216,9 @@ const Homepage = () => {
     oneWinner = Math.max(oneWinner, 10);
 
     if (isSmall) {
-      let bankNow = bank;
+      // Small odds: 5-1 stake goes to smallDeficit
       let sdNow = smallDeficit;
-
-      if (bankNow >= oneWinner) {
-        bankNow -= oneWinner;
-      } else {
-        sdNow += oneWinner - bankNow;
-        bankNow = 0;
-      }
-
-      setBank(bankNow);
+      sdNow += oneWinner;
       setSmallDeficit(sdNow);
 
       setOneAmounts({
@@ -241,6 +229,7 @@ const Homepage = () => {
       });
     } else {
       const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
+      newStakes.push(...res51.ladder);
       setOneAmounts({
         winnerAmount: oneWinner,
         homeAmount: res51.homeAmount,
@@ -253,10 +242,12 @@ const Homepage = () => {
       totalAwayAmount += res51.awayAmount;
     }
 
-    /* ===================== COP (new) ===================== */
-    let copStake = Math.round(smallDeficit / found.winner);
+    /* ===================== COP STAKE ===================== */
+    // COP uses the same winner odds - always calculated, no ladder
+    const copAmount = Math.round(smallDeficit / found.winner);
+    setCopStake(copAmount);
 
-    setCopAmount(copStake);
+    setOrderedStakes(newStakes);
 
     setAmounts((prev) => ({
       ...prev,
@@ -275,10 +266,10 @@ const Homepage = () => {
     setClicked((prev) => new Set([...prev, step]));
 
     const calcLoss = (type) => {
-      // Note: Since we removed orderedStakes for simplicity, 
-      // you may want to re-add ladder tracking if full loss calc is needed.
-      // For now, basic deficit handling is kept from original.
-      return 0; // Placeholder - enhance if needed
+      const stakes = orderedStakes.filter((s) => s.type === type);
+      const idx = stakes.findIndex((s) => s.step === step);
+      if (idx === -1) return 0;
+      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
     };
 
     /* ===================== 6-0 ===================== */
@@ -288,34 +279,40 @@ const Homepage = () => {
       setBaseDeficit((prev) => prev + mainLoss);
     }
 
-    /* ===================== 5-0 / 5-1 ===================== */
-    if (!isSmallOddsGame) {
-      // Add logic if needed for zero/one deficits on loss
-    }
+    /* ===================== 5-0 ===================== */
+    const zeroLoss = calcLoss("5-0");
+    setZeroDeficit((prev) => prev + zeroLoss);
+
+    /* ===================== 5-1 ===================== */
+    const oneLoss = calcLoss("5-1");
+    setOneDeficit((prev) => prev + oneLoss);
 
     clearForNext();
   };
 
   /* ================================================================
-     COP HANDLER (win or loss)
+     COP HANDLER - Always clicked after result, determines win/loss
      ================================================================ */
   const handleCop = () => {
-    if (!fixture) return;
+    if (!fixture || copClicked) return;
 
+    setCopClicked(true);
     setClicked((prev) => new Set([...prev, "cop"]));
 
-    // Always feed COP stake into baseDeficit
-    setBaseDeficit((prev) => prev + copAmount);
-    setBaseStake((prev) => prev + copAmount);
+    // COP stake ALWAYS goes to baseStake and baseDeficit regardless of win/loss
+    setBaseStake((prev) => prev + copStake);
+    setBaseDeficit((prev) => prev + copStake);
 
-    // Only reset smallDeficit on "win" - user decides by clicking after win
-    // For loss, user still clicks COP but smallDeficit is NOT reset
-    // (The distinction is manual - user clicks COP in both cases)
-    setSmallDeficit(230);
-    setBank((prev) => prev + (smallDeficit - copAmount > 0 ? smallDeficit - copAmount : 0)); // rough bank recovery
+    // User knows if COP won - they decide to reset smallDeficit or not
+    // For now, we'll assume user clicks COP after a win to reset smallDeficit
+    // This requires manual judgment by the user
+  };
 
-    // Optional: clear fixture after COP
-    // clearForNext();
+  /* ================================================================
+     RESET SMALL DEFICIT (Called when COP wins)
+     ================================================================ */
+  const resetSmallDeficit = () => {
+    setSmallDeficit(0);
   };
 
   /* ================================================================
@@ -354,11 +351,13 @@ const Homepage = () => {
     setInputB("");
     setFixture(null);
     setIsSmallOddsGame(false);
+    setOrderedStakes([]);
+    setClicked(new Set());
+    setCopClicked(false);
+    setCopStake(0);
     setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setCopAmount(0);
-    setClicked(new Set());
     saveBase();
   };
 
@@ -380,6 +379,7 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
+      {/* TOP BAR */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
         <h1 className="text-base font-extrabold text-red-400 tracking-tight leading-tight">
           Virtual EPL
@@ -407,9 +407,10 @@ const Homepage = () => {
         </div>
       </div>
 
+      {/* SCROLLABLE CONTENT */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
-        {/* Jackpots */}
+        {/* JACKPOT ROW */}
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={handleJackpot}
@@ -448,23 +449,35 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* COP Button */}
+        {/* COP BUTTON */}
         <div className="flex justify-center">
           <button
             onClick={handleCop}
-            disabled={!fixture || clicked.has("cop")}
+            disabled={!fixture || copClicked}
             className={`w-full max-w-xs py-6 rounded-3xl font-extrabold text-lg transition active:scale-95 shadow border-2 border-cyan-400 ${
-              clicked.has("cop")
+              copClicked
                 ? "bg-cyan-900 text-cyan-300"
                 : "bg-cyan-500 hover:bg-cyan-400 text-black"
             }`}
           >
             COP
-            <div className="text-sm mt-1 opacity-90">{copAmount || "–"}</div>
+            <div className="text-sm mt-1 opacity-90">{copStake || "–"}</div>
           </button>
         </div>
 
-        {/* HDA */}
+        {/* COP WIN RESET BUTTON (only shows after COP is clicked) */}
+        {copClicked && (
+          <div className="flex justify-center">
+            <button
+              onClick={resetSmallDeficit}
+              className="w-full max-w-xs py-3 rounded-2xl font-bold text-sm transition active:scale-95 shadow bg-green-600 hover:bg-green-500 text-white"
+            >
+              ✓ COP WON - Reset Small Deficit
+            </button>
+          </div>
+        )}
+
+        {/* HDA ROW */}
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={() => resolveResult("H")}
@@ -512,6 +525,7 @@ const Homepage = () => {
           </button>
         </div>
 
+        {/* INPUTS + ACTIONS */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <input
@@ -555,7 +569,7 @@ const Homepage = () => {
           </div>
         </div>
 
-        {/* Stats Panel */}
+        {/* STATS */}
         <div className="bg-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2">
           <div className="flex justify-between">
             <span className="text-gray-400">Base</span>
@@ -582,12 +596,8 @@ const Homepage = () => {
             <strong className="text-blue-400">{smallDeficit}</strong>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Bank</span>
-            <strong className="text-emerald-400">{bank}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">COP</span>
-            <strong className="text-cyan-400">{copAmount}</strong>
+            <span className="text-gray-400">COP Stake</span>
+            <strong className="text-cyan-400">{copStake}</strong>
           </div>
           {fixture && (
             <div className="col-span-2 pt-2 border-t border-white/10 text-center">
@@ -600,6 +610,7 @@ const Homepage = () => {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
