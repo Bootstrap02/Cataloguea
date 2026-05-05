@@ -18,6 +18,9 @@ export const odds = [
     oneThree: 54.6,
     zeroThree: 56.1,
     twoThree: 51.9,
+    zeroFour: 68.5,
+    oneFour: 72.3,
+    twoFour: 65.7,
     oneTwo: 57.3,
     twoOne: 58.7
   },
@@ -40,6 +43,9 @@ export const odds = [
     oneThree: 54.6,
     zeroThree: 56.1,
     twoThree: 51.9,
+    zeroFour: 68.5,
+    oneFour: 72.3,
+    twoFour: 65.7,
     oneTwo: 57.3,
     twoOne: 58.7
   },
@@ -62,6 +68,9 @@ export const odds = [
     oneThree: 54.6,
     zeroThree: 56.1,
     twoThree: 51.9,
+    zeroFour: 68.5,
+    oneFour: 72.3,
+    twoFour: 65.7,
     oneTwo: 57.3,
     twoOne: 58.7
   },
@@ -84,6 +93,9 @@ export const odds = [
     oneThree: 65.8,
     zeroThree: 71.3,
     twoThree: 64.7,
+    zeroFour: 85.6,
+    oneFour: 91.2,
+    twoFour: 78.9,
     oneTwo: 82.1,
     twoOne: 79.6
   },
@@ -106,6 +118,9 @@ export const odds = [
     oneThree: 65.8,
     zeroThree: 71.3,
     twoThree: 64.7,
+    zeroFour: 85.6,
+    oneFour: 91.2,
+    twoFour: 78.9,
     oneTwo: 82.1,
     twoOne: 79.6
   },
@@ -128,6 +143,9 @@ export const odds = [
     oneThree: 82.4,
     zeroThree: 88.6,
     twoThree: 79.2,
+    zeroFour: 105.8,
+    oneFour: 112.4,
+    twoFour: 96.3,
     oneTwo: 104.8,
     twoOne: 101.3
   },
@@ -150,6 +168,9 @@ export const odds = [
     oneThree: 82.4,
     zeroThree: 88.6,
     twoThree: 79.2,
+    zeroFour: 105.8,
+    oneFour: 112.4,
+    twoFour: 96.3,
     oneTwo: 104.8,
     twoOne: 101.3
   },
@@ -172,6 +193,9 @@ export const odds = [
     oneThree: 65.8,
     zeroThree: 71.3,
     twoThree: 64.7,
+    zeroFour: 85.6,
+    oneFour: 91.2,
+    twoFour: 78.9,
     oneTwo: 82.1,
     twoOne: 79.6
   },
@@ -194,6 +218,9 @@ export const odds = [
     oneThree: 53.2,
     zeroThree: 54.7,
     twoThree: 50.4,
+    zeroFour: 63.5,
+    oneFour: 66.2,
+    twoFour: 61.8,
     oneTwo: 55.9,
     twoOne: 56.8
   },
@@ -216,6 +243,9 @@ export const odds = [
     oneThree: 53.2,
     zeroThree: 54.7,
     twoThree: 50.4,
+    zeroFour: 63.5,
+    oneFour: 66.2,
+    twoFour: 61.8,
     oneTwo: 55.9,
     twoOne: 56.8
   },
@@ -238,6 +268,9 @@ export const odds = [
     oneThree: 61.7,
     zeroThree: 64.3,
     twoThree: 60.8,
+    zeroFour: 78.9,
+    oneFour: 83.4,
+    twoFour: 74.2,
     oneTwo: 73.6,
     twoOne: 75.1
   },
@@ -260,6 +293,9 @@ export const odds = [
     oneThree: 61.7,
     zeroThree: 64.3,
     twoThree: 60.8,
+    zeroFour: 78.9,
+    oneFour: 83.4,
+    twoFour: 74.2,
     oneTwo: 73.6,
     twoOne: 75.1
   },
@@ -282,6 +318,9 @@ export const odds = [
     oneThree: 51.4,
     zeroThree: 53.6,
     twoThree: 50.2,
+    zeroFour: 65.8,
+    oneFour: 69.3,
+    twoFour: 62.4,
     oneTwo: 60.8,
     twoOne: 59.3
   },
@@ -304,6 +343,9 @@ export const odds = [
     oneThree: 51.4,
     zeroThree: 53.6,
     twoThree: 50.2,
+    zeroFour: 65.8,
+    oneFour: 69.3,
+    twoFour: 62.4,
     oneTwo: 60.8,
     twoOne: 59.3
   },
@@ -326,6 +368,9 @@ export const odds = [
     oneThree: 51.4,
     zeroThree: 53.6,
     twoThree: 50.2,
+    zeroFour: 65.8,
+    oneFour: 69.3,
+    twoFour: 62.4,
     oneTwo: 60.8,
     twoOne: 59.3
   },
@@ -348,6 +393,9 @@ export const odds = [
     oneThree: 51.4,
     zeroThree: 53.6,
     twoThree: 50.2,
+    zeroFour: 65.8,
+    oneFour: 69.3,
+    twoFour: 62.4,
     oneTwo: 60.8,
     twoOne: 59.3
   },
@@ -370,6 +418,9 @@ export const odds = [
     oneThree: 51.4,
     zeroThree: 53.6,
     twoThree: 50.2,
+    zeroFour: 65.8,
+    oneFour: 69.3,
+    twoFour: 62.4,
     oneTwo: 60.8,
     twoOne: 59.3
   },
@@ -392,6 +443,9 @@ export const odds = [
     oneThree: 71.8,
     zeroThree: 74.2,
     twoThree: 69.5,
+    zeroFour: 92.7,
+    oneFour: 98.5,
+    twoFour: 86.4,
     oneTwo: 91.2,
     twoOne: 88.7
   },
@@ -414,6 +468,9 @@ export const odds = [
     oneThree: 71.8,
     zeroThree: 74.2,
     twoThree: 69.5,
+    zeroFour: 92.7,
+    oneFour: 98.5,
+    twoFour: 86.4,
     oneTwo: 91.2,
     twoOne: 88.7
   },
@@ -436,6 +493,9 @@ export const odds = [
     oneThree: 51.6,
     zeroThree: 52.3,
     twoThree: 49.5,
+    zeroFour: 61.2,
+    oneFour: 63.8,
+    twoFour: 59.6,
     oneTwo: 53.1,
     twoOne: 52.7
   },
@@ -458,6 +518,9 @@ export const odds = [
     oneThree: 51.6,
     zeroThree: 52.3,
     twoThree: 49.5,
+    zeroFour: 61.2,
+    oneFour: 63.8,
+    twoFour: 59.6,
     oneTwo: 53.1,
     twoOne: 52.7
   },
@@ -480,6 +543,9 @@ export const odds = [
     oneThree: 58.2,
     zeroThree: 56.8,
     twoThree: 55.6,
+    zeroFour: 71.5,
+    oneFour: 74.8,
+    twoFour: 68.3,
     oneTwo: 66.1,
     twoOne: 67.5
   },
@@ -502,6 +568,9 @@ export const odds = [
     oneThree: 58.2,
     zeroThree: 56.8,
     twoThree: 55.6,
+    zeroFour: 71.5,
+    oneFour: 74.8,
+    twoFour: 68.3,
     oneTwo: 66.1,
     twoOne: 67.5
   },
@@ -524,6 +593,9 @@ export const odds = [
     oneThree: 65.4,
     zeroThree: 68.2,
     twoThree: 63.8,
+    zeroFour: 85.9,
+    oneFour: 90.6,
+    twoFour: 80.2,
     oneTwo: 84.1,
     twoOne: 82.6
   },
@@ -546,6 +618,9 @@ export const odds = [
     oneThree: 65.4,
     zeroThree: 68.2,
     twoThree: 63.8,
+    zeroFour: 85.9,
+    oneFour: 90.6,
+    twoFour: 80.2,
     oneTwo: 84.1,
     twoOne: 82.6
   },
@@ -568,6 +643,9 @@ export const odds = [
     oneThree: 65.4,
     zeroThree: 68.2,
     twoThree: 63.8,
+    zeroFour: 85.9,
+    oneFour: 90.6,
+    twoFour: 80.2,
     oneTwo: 84.1,
     twoOne: 82.6
   },
@@ -593,6 +671,9 @@ export const smallOdds = [
     oneThree: 50.2,
     zeroThree: 51.8,
     twoThree: 49.3,
+    zeroFour: 61.5,
+    oneFour: 63.2,
+    twoFour: 59.8,
     oneTwo: 52.4,
     twoOne: 51.6
   },
@@ -615,6 +696,9 @@ export const smallOdds = [
     oneThree: 50.2,
     zeroThree: 51.8,
     twoThree: 49.3,
+    zeroFour: 61.5,
+    oneFour: 63.2,
+    twoFour: 59.8,
     oneTwo: 52.4,
     twoOne: 51.6
   },
@@ -637,6 +721,9 @@ export const smallOdds = [
     oneThree: 50.2,
     zeroThree: 51.8,
     twoThree: 49.3,
+    zeroFour: 61.5,
+    oneFour: 63.2,
+    twoFour: 59.8,
     oneTwo: 52.4,
     twoOne: 51.6
   },
@@ -659,6 +746,9 @@ export const smallOdds = [
     oneThree: 54.3,
     zeroThree: 55.6,
     twoThree: 53.1,
+    zeroFour: 64.8,
+    oneFour: 67.5,
+    twoFour: 62.3,
     oneTwo: 56.7,
     twoOne: 55.9
   },
@@ -681,6 +771,9 @@ export const smallOdds = [
     oneThree: 54.3,
     zeroThree: 55.6,
     twoThree: 53.1,
+    zeroFour: 64.8,
+    oneFour: 67.5,
+    twoFour: 62.3,
     oneTwo: 56.7,
     twoOne: 55.9
   },
@@ -703,6 +796,9 @@ export const smallOdds = [
     oneThree: 54.3,
     zeroThree: 55.6,
     twoThree: 53.1,
+    zeroFour: 64.8,
+    oneFour: 67.5,
+    twoFour: 62.3,
     oneTwo: 56.7,
     twoOne: 55.9
   },
@@ -725,6 +821,9 @@ export const smallOdds = [
     oneThree: 54.3,
     zeroThree: 55.6,
     twoThree: 53.1,
+    zeroFour: 64.8,
+    oneFour: 67.5,
+    twoFour: 62.3,
     oneTwo: 56.7,
     twoOne: 55.9
   },
@@ -747,6 +846,9 @@ export const smallOdds = [
     oneThree: 54.3,
     zeroThree: 55.6,
     twoThree: 53.1,
+    zeroFour: 64.8,
+    oneFour: 67.5,
+    twoFour: 62.3,
     oneTwo: 56.7,
     twoOne: 55.9
   },
@@ -769,6 +871,9 @@ export const smallOdds = [
     oneThree: 59.6,
     zeroThree: 61.3,
     twoThree: 56.8,
+    zeroFour: 70.5,
+    oneFour: 73.8,
+    twoFour: 67.9,
     oneTwo: 62.5,
     twoOne: 60.9
   },
@@ -791,6 +896,9 @@ export const smallOdds = [
     oneThree: 59.6,
     zeroThree: 61.3,
     twoThree: 56.8,
+    zeroFour: 70.5,
+    oneFour: 73.8,
+    twoFour: 67.9,
     oneTwo: 62.5,
     twoOne: 60.9
   },
@@ -813,6 +921,9 @@ export const smallOdds = [
     oneThree: 57.8,
     zeroThree: 59.2,
     twoThree: 56.4,
+    zeroFour: 72.6,
+    oneFour: 76.5,
+    twoFour: 69.8,
     oneTwo: 66.7,
     twoOne: 64.9
   },
@@ -835,6 +946,9 @@ export const smallOdds = [
     oneThree: 57.8,
     zeroThree: 59.2,
     twoThree: 56.4,
+    zeroFour: 72.6,
+    oneFour: 76.5,
+    twoFour: 69.8,
     oneTwo: 66.7,
     twoOne: 64.9
   }
