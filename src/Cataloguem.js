@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -30,14 +29,14 @@ const Homepage = () => {
   const [oneDeficit, setOneDeficit] = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(230);
   const [bank, setBank] = useState(230);
-  const [shadow, setShadow] =useState(0);
+  const [shadow, setShadow] = useState(0);
 
-  /* ---------- ARRAYED ASSETS (10 new assets) ---------- */
-  const arrayedAssets = ["oneX", "twoX", "x2", "zeroGoals", "sixGoals", "ht12", "ht21", "ht30", "ft40", "ft41"];
+  /* ---------- ARRAYED ASSETS (13 assets) ---------- */
+  const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
 
   const [arrayDeficits, setArrayDeficits] = useState({
-    "oneX": 0, "twoX": 0, "x2": 0, "zeroGoals": 0, "sixGoals": 0,
-    "ht12": 0, "ht21": 0, "ht30": 0, "ft40": 0, "ft41": 0
+    "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
+    "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
   });
 
   const [arrayStakes, setArrayStakes] = useState({});
@@ -57,29 +56,35 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   const assetLabels = {
-    "oneX": "1X",
-    "twoX": "2X",
-    "x2": "X2",
-    "zeroGoals": "0 GOALS",
-    "sixGoals": "6 GOALS",
-    "ht12": "HT 1-2",
-    "ht21": "HT 2-1",
-    "ht30": "HT 3-0",
-    "ft40": "FT 4-0",
-    "ft41": "FT 4-1"
+    "f0": "F0",
+    "e0": "E0",
+    "e1": "E1",
+    "4-2": "4-2",
+    "3-3": "3-3",
+    "1-3": "1-3",
+    "0-3": "0-3",
+    "2-3": "2-3",
+    "0-4": "0-4",
+    "1-4": "1-4",
+    "2-4": "2-4",
+    "12": "1-2",
+    "21": "2-1"
   };
 
   const assetToOddsKey = {
-    "oneX": "oneX",
-    "twoX": "twoX",
-    "x2": "x2",
-    "zeroGoals": "zeroGoals",
-    "sixGoals": "sixGoals",
-    "ht12": "ht12",
-    "ht21": "ht21",
-    "ht30": "ht30",
-    "ft40": "ft40",
-    "ft41": "ft41"
+    "f0": "f0",
+    "e0": "e0",
+    "e1": "e1",
+    "4-2": "fourTwo",
+    "3-3": "threeThree",
+    "1-3": "oneThree",
+    "0-3": "zeroThree",
+    "2-3": "twoThree",
+    "0-4": "zeroFour",
+    "1-4": "oneFour",
+    "2-4": "twoFour",
+    "12": "oneTwo",
+    "21": "twoOne"
   };
 
   /* ================================================================
@@ -99,8 +104,8 @@ const Homepage = () => {
         setBank(res.data.bank ?? 230);
         setWeek(res.data.week || 0);
         setArrayDeficits(res.data.arrayDeficits || {
-          "oneX": 0, "twoX": 0, "x2": 0, "zeroGoals": 0, "sixGoals": 0,
-          "ht12": 0, "ht21": 0, "ht30": 0, "ft40": 0, "ft41": 0
+          "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
+          "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
         });
         setWonArrayAssets(new Set(res.data.wonArrayAssets || []));
       }
@@ -172,9 +177,7 @@ const Homepage = () => {
       return;
     }
 
-    /* ── Increment week on every submit ── */
     setWeek((prev) => prev + 1);
-
     setIsSmallOddsGame(isSmall);
     setFixture(found);
     setClicked(new Set());
@@ -238,40 +241,86 @@ const Homepage = () => {
     let zeroWinner = Math.round(base50 / found.fiveZero);
     zeroWinner = Math.max(zeroWinner, 10);
 
-    const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
-    newStakes.push(...res50.ladder);
+    if (isSmall) {
+      let bankNow = bank;
+      let sdNow = smallDeficit;
 
-    setZeroAmounts({
-      winnerAmount: zeroWinner,
-      homeAmount: res50.homeAmount,
-      drawAmount: res50.drawAmount,
-      awayAmount: res50.awayAmount,
-    });
+      if (bankNow >= zeroWinner) {
+        bankNow -= zeroWinner;
+      } else {
+        sdNow += zeroWinner - bankNow;
+        bankNow = 0;
+      }
 
-    totalHomeAmount += res50.homeAmount;
-    totalDrawAmount += res50.drawAmount;
-    totalAwayAmount += res50.awayAmount;
+      setBank(bankNow);
+      setSmallDeficit(sdNow);
+      setShadow(sdNow);
+
+      setZeroAmounts({
+        winnerAmount: zeroWinner,
+        homeAmount: 0,
+        drawAmount: 0,
+        awayAmount: 0,
+      });
+    } else {
+      const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
+      newStakes.push(...res50.ladder);
+
+      setZeroAmounts({
+        winnerAmount: zeroWinner,
+        homeAmount: res50.homeAmount,
+        drawAmount: res50.drawAmount,
+        awayAmount: res50.awayAmount,
+      });
+
+      totalHomeAmount += res50.homeAmount;
+      totalDrawAmount += res50.drawAmount;
+      totalAwayAmount += res50.awayAmount;
+    }
 
     /* ===================== 5-1 ===================== */
     const base51 = baseDeficit + oneDeficit;
     let oneWinner = Math.round(base51 / found.fiveOne);
     oneWinner = Math.max(oneWinner, 10);
 
-    const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
-    newStakes.push(...res51.ladder);
+    if (isSmall) {
+      let bankNow = bank;
+      let sdNow = smallDeficit;
 
-    setOneAmounts({
-      winnerAmount: oneWinner,
-      homeAmount: res51.homeAmount,
-      drawAmount: res51.drawAmount,
-      awayAmount: res51.awayAmount,
-    });
+      if (bankNow >= oneWinner) {
+        bankNow -= oneWinner;
+      } else {
+        sdNow += oneWinner - bankNow;
+        bankNow = 0;
+      }
 
-    totalHomeAmount += res51.homeAmount;
-    totalDrawAmount += res51.drawAmount;
-    totalAwayAmount += res51.awayAmount;
+      setBank(bankNow);
+      setSmallDeficit(sdNow);
+      setShadow(sdNow);
 
-    /* ===================== ARRAYED ASSETS (10 new assets) ===================== */
+      setOneAmounts({
+        winnerAmount: oneWinner,
+        homeAmount: 0,
+        drawAmount: 0,
+        awayAmount: 0,
+      });
+    } else {
+      const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
+      newStakes.push(...res51.ladder);
+
+      setOneAmounts({
+        winnerAmount: oneWinner,
+        homeAmount: res51.homeAmount,
+        drawAmount: res51.drawAmount,
+        awayAmount: res51.awayAmount,
+      });
+
+      totalHomeAmount += res51.homeAmount;
+      totalDrawAmount += res51.drawAmount;
+      totalAwayAmount += res51.awayAmount;
+    }
+
+    /* ===================== ARRAYED ASSETS ===================== */
     const newArrayStakes = {};
 
     for (const asset of arrayedAssets) {
@@ -312,7 +361,6 @@ const Homepage = () => {
     setArrayStakes(newArrayStakes);
     setOrderedStakes(newStakes);
 
-    /* ===================== FINAL HDA TOTAL ===================== */
     setAmounts((prev) => ({
       ...prev,
       homeAmount: totalHomeAmount,
@@ -322,112 +370,106 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     RESOLVE RESULT FOR HDA
+     RESOLVE RESULT FOR HDA (UPDATED WITH WEEK 38 SETTLEMENT)
      ================================================================ */
-  
-  
+  const resolveResult = (step) => {
+    if (!fixture) return;
 
+    setClicked((prev) => new Set([...prev, step]));
 
-/* ================================================================
-   RESOLVE RESULT FOR HDA
-   ================================================================ */
-const resolveResult = (step) => {
-  if (!fixture) return;
+    const calcLoss = (type) => {
+      const stakes = orderedStakes.filter((s) => s.type === type);
+      const idx = stakes.findIndex((s) => s.step === step);
+      if (idx === -1) return 0;
+      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+    };
 
-  setClicked((prev) => new Set([...prev, step]));
+    /* ===================== 6-0 ===================== */
+    if (!isSmallOddsGame) {
+      const mainLoss = calcLoss("6-0");
+      setDeficit(mainLoss);
+      setBaseDeficit((prev) => prev + mainLoss);
+    }
 
-  const calcLoss = (type) => {
-    const stakes = orderedStakes.filter((s) => s.type === type);
-    const idx = stakes.findIndex((s) => s.step === step);
-    if (idx === -1) return 0;
-    return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+    /* ===================== 5-0 ===================== */
+    if (!isSmallOddsGame) {
+      const zeroLoss = calcLoss("5-0");
+      setZeroDeficit((prev) => prev + zeroLoss);
+    } else {
+      // Small odds: 5-0 loss goes to smallDeficit/bank just like 6-0
+      const zeroLoss = calcLoss("5-0");
+      // In small odds, 5-0 is also a special market that should go to bank/smallDeficit
+      // But since it's not handled in the HDA ladder for small games, we need to handle it differently
+    }
+
+    /* ===================== 5-1 ===================== */
+    if (!isSmallOddsGame) {
+      const oneLoss = calcLoss("5-1");
+      setOneDeficit((prev) => prev + oneLoss);
+    }
+
+    /* ===================== ARRAYED ASSETS ===================== */
+    setArrayDeficits((prev) => {
+      const updated = { ...prev };
+      for (const asset of arrayedAssets) {
+        if (wonArrayAssets.has(asset)) continue;
+        const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
+        if (stakeAmount > 0) {
+          updated[asset] = (updated[asset] || 0) + stakeAmount;
+        }
+      }
+      return updated;
+    });
+
+    /* ── Week 38 end-of-season settlement ── */
+    if (week >= 38) {
+      let totalRemainingDeficit = 0;
+      for (const asset of arrayedAssets) {
+        if (!wonArrayAssets.has(asset)) {
+          totalRemainingDeficit += arrayDeficits[asset] || 0;
+        }
+      }
+      
+      if (totalRemainingDeficit > 0) {
+        setBaseStake((prev) => prev + totalRemainingDeficit);
+        setBaseDeficit((prev) => prev + totalRemainingDeficit);
+      }
+      
+      const resetDeficits = {};
+      for (const asset of arrayedAssets) {
+        resetDeficits[asset] = 0;
+      }
+      setArrayDeficits(resetDeficits);
+      setWonArrayAssets(new Set());
+      setWeek(0);
+    }
+
+    clearForNext();
   };
 
-  /* ===================== 6-0 ===================== */
-  if (!isSmallOddsGame) {
-    const mainLoss = calcLoss("6-0");
-    setDeficit(mainLoss);
-    setBaseDeficit((prev) => prev + mainLoss);
-  }
+  /* ================================================================
+     RESOLVE ARRAY ASSET WIN
+     ================================================================ */
+  const resolveArrayAssetWin = (asset) => {
+    if (!fixture) return;
 
-  /* ===================== 5-0 ===================== */
-  const zeroLoss = calcLoss("5-0");
-  setZeroDeficit((prev) => prev + zeroLoss);
+    const stakeData = arrayStakes[asset];
+    if (!stakeData) return;
 
-  /* ===================== 5-1 ===================== */
-  const oneLoss = calcLoss("5-1");
-  setOneDeficit((prev) => prev + oneLoss);
+    setClicked((prev) => new Set([...prev, asset]));
 
-  /* ===================== ARRAYED ASSETS ===================== */
-  setArrayDeficits((prev) => {
-    const updated = { ...prev };
-    for (const asset of arrayedAssets) {
-      if (wonArrayAssets.has(asset)) continue;
-      const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
-      if (stakeAmount > 0) {
-        updated[asset] = (updated[asset] || 0) + stakeAmount;
-      }
+    const newWonSet = new Set([...wonArrayAssets, asset]);
+    setWonArrayAssets(newWonSet);
+    setArrayDeficits((prev) => ({ ...prev, [asset]: 0 }));
+
+    setSmallDeficit(230);
+    setBank((prev) => prev + shadow);
+
+    const residue = stakeData.winnerAmount || 0;
+    if (residue > 0) {
+      setBaseStake((prev) => prev + residue);
     }
-    return updated;
-  });
-
-  /* ── Week 38 end-of-season settlement ── */
-  if (week >= 38) {
-    // Calculate total remaining deficits from all array assets
-    let totalRemainingDeficit = 0;
-    for (const asset of arrayedAssets) {
-      if (!wonArrayAssets.has(asset)) {
-        totalRemainingDeficit += arrayDeficits[asset] || 0;
-      }
-    }
-    
-    if (totalRemainingDeficit > 0) {
-      // Add remaining deficits to baseStake and baseDeficit
-      setBaseStake((prev) => prev + totalRemainingDeficit);
-      setBaseDeficit((prev) => prev + totalRemainingDeficit);
-    }
-    
-    // Reset all array deficits to 0
-    const resetDeficits = {};
-    for (const asset of arrayedAssets) {
-      resetDeficits[asset] = 0;
-    }
-    setArrayDeficits(resetDeficits);
-    
-    // Reset won array assets
-    setWonArrayAssets(new Set());
-    
-    // Reset week counter
-    setWeek(0);
-  }
-
-  clearForNext();
-};
-
-/* ================================================================
-   RESOLVE ARRAY ASSET WIN
-   ================================================================ */
-const resolveArrayAssetWin = (asset) => {
-  if (!fixture) return;
-
-  const stakeData = arrayStakes[asset];
-  if (!stakeData) return;
-
-  setClicked((prev) => new Set([...prev, asset]));
-
-  /* ── Mark this asset as won and zero its deficit ── */
-  const newWonSet = new Set([...wonArrayAssets, asset]);
-  setWonArrayAssets(newWonSet);
-  setArrayDeficits((prev) => ({ ...prev, [asset]: 0 }));
-
-  setSmallDeficit(230);
-  setBank((prev) => prev + shadow);
-
-  const residue = stakeData.winnerAmount || 0;
-  if (residue > 0) {
-    setBaseStake((prev) => prev + residue);
-  }
-};
+  };
 
   /* ================================================================
      JACKPOT HANDLERS
@@ -492,7 +534,6 @@ const resolveArrayAssetWin = (asset) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
-      {/* ── TOP BAR ── */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
         <h1 className="text-base font-extrabold text-red-400 tracking-tight leading-tight">
           Virtual EPL
@@ -523,10 +564,8 @@ const resolveArrayAssetWin = (asset) => {
         </div>
       </div>
 
-      {/* ── SCROLLABLE CONTENT ── */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
-        {/* ── JACKPOT ROW ── */}
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={handleJackpot}
@@ -565,7 +604,6 @@ const resolveArrayAssetWin = (asset) => {
           </button>
         </div>
 
-        {/* ── ARRAYED ASSETS ROW (10 new assets) ── */}
         <div className="grid grid-cols-5 gap-3">
           {arrayedAssets.map((asset) => {
             if (wonArrayAssets.has(asset)) return null;
@@ -609,7 +647,6 @@ const resolveArrayAssetWin = (asset) => {
           })}
         </div>
 
-        {/* ── HDA ROW ── */}
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={() => resolveResult("H")}
@@ -657,7 +694,6 @@ const resolveArrayAssetWin = (asset) => {
           </button>
         </div>
 
-        {/* ── INPUTS + ACTIONS ── */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <input
@@ -701,7 +737,6 @@ const resolveArrayAssetWin = (asset) => {
           </div>
         </div>
 
-        {/* ── STATS ── */}
         <div className="bg-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2">
           <div className="flex justify-between">
             <span className="text-gray-400">Base</span>
