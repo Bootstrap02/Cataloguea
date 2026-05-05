@@ -117,7 +117,7 @@ const Homepage = () => {
     if (!found) found = odds.find((o) => o.home === home && o.away === away);
 
     if (!found) {
-      alert(No odds found for "${home}" vs " ${away}");
+      alert(`No odds found for "${home}" vs " ${away}"`);
       return;
     }
 
