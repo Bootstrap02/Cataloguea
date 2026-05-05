@@ -30,6 +30,7 @@ const Homepage = () => {
   const [oneDeficit, setOneDeficit] = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(230);
   const [bank, setBank] = useState(230);
+  const [shadow, setShadow] =useState(0);
 
   /* ---------- ARRAYED ASSETS (10 new assets) ---------- */
   const arrayedAssets = ["oneX", "twoX", "x2", "zeroGoals", "sixGoals", "ht12", "ht21", "ht30", "ft40", "ft41"];
@@ -208,6 +209,7 @@ const Homepage = () => {
 
       setBank(bankNow);
       setSmallDeficit(sdNow);
+      setShadow(sdNow);
 
       setAmounts({
         winnerAmount: sixWinner,
@@ -322,100 +324,110 @@ const Homepage = () => {
   /* ================================================================
      RESOLVE RESULT FOR HDA
      ================================================================ */
-  const resolveResult = (step) => {
-    if (!fixture) return;
+  
+  
 
-    setClicked((prev) => new Set([...prev, step]));
 
-    const calcLoss = (type) => {
-      const stakes = orderedStakes.filter((s) => s.type === type);
-      const idx = stakes.findIndex((s) => s.step === step);
-      if (idx === -1) return 0;
-      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
-    };
+/* ================================================================
+   RESOLVE RESULT FOR HDA
+   ================================================================ */
+const resolveResult = (step) => {
+  if (!fixture) return;
 
-    /* ===================== 6-0 ===================== */
-    if (!isSmallOddsGame) {
-      const mainLoss = calcLoss("6-0");
-      setDeficit(mainLoss);
-      setBaseDeficit((prev) => prev + mainLoss);
-    }
+  setClicked((prev) => new Set([...prev, step]));
 
-    /* ===================== 5-0 ===================== */
-    const zeroLoss = calcLoss("5-0");
-    setZeroDeficit((prev) => prev + zeroLoss);
+  const calcLoss = (type) => {
+    const stakes = orderedStakes.filter((s) => s.type === type);
+    const idx = stakes.findIndex((s) => s.step === step);
+    if (idx === -1) return 0;
+    return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+  };
 
-    /* ===================== 5-1 ===================== */
-    const oneLoss = calcLoss("5-1");
-    setOneDeficit((prev) => prev + oneLoss);
+  /* ===================== 6-0 ===================== */
+  if (!isSmallOddsGame) {
+    const mainLoss = calcLoss("6-0");
+    setDeficit(mainLoss);
+    setBaseDeficit((prev) => prev + mainLoss);
+  }
 
-    /* ===================== ARRAYED ASSETS ===================== */
-    setArrayDeficits((prev) => {
-      const updated = { ...prev };
-      for (const asset of arrayedAssets) {
-        if (wonArrayAssets.has(asset)) continue;
-        // FIXED: Use winnerAmount instead of totalStaked
-        // winnerAmount is always set for both small and normal games
-        const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
-        if (stakeAmount > 0) {
-          updated[asset] = (updated[asset] || 0) + stakeAmount;
-        }
+  /* ===================== 5-0 ===================== */
+  const zeroLoss = calcLoss("5-0");
+  setZeroDeficit((prev) => prev + zeroLoss);
+
+  /* ===================== 5-1 ===================== */
+  const oneLoss = calcLoss("5-1");
+  setOneDeficit((prev) => prev + oneLoss);
+
+  /* ===================== ARRAYED ASSETS ===================== */
+  setArrayDeficits((prev) => {
+    const updated = { ...prev };
+    for (const asset of arrayedAssets) {
+      if (wonArrayAssets.has(asset)) continue;
+      const stakeAmount = arrayStakes[asset]?.winnerAmount || 0;
+      if (stakeAmount > 0) {
+        updated[asset] = (updated[asset] || 0) + stakeAmount;
       }
-      return updated;
-    });
-
-    clearForNext();
-  };
-
-  /* ================================================================
-     RESOLVE ARRAY ASSET WIN
-     ================================================================ */
-  const resolveArrayAssetWin = (asset) => {
-    if (!fixture) return;
-
-    const stakeData = arrayStakes[asset];
-    if (!stakeData) return;
-
-    setClicked((prev) => new Set([...prev, asset]));
-
-    /* ── Mark this asset as won and zero its deficit ── */
-    const newWonSet = new Set([...wonArrayAssets, asset]);
-    setWonArrayAssets(newWonSet);
-    setArrayDeficits((prev) => ({ ...prev, [asset]: 0 }));
-
-    setSmallDeficit(230);
-    setBank((prev) => prev + 230);
-
-    const residue = stakeData.winnerAmount || 0;
-    if (residue > 0) {
-      setBaseStake((prev) => prev + residue);
     }
+    return updated;
+  });
 
-    /* ── Week 38 end-of-season settlement ── */
-    if (week >= 38) {
-      setArrayDeficits((prev) => {
-        const updated = { ...prev };
-        let totalUnwonDeficit = 0;
-
-        for (const a of arrayedAssets) {
-          if (a === asset || newWonSet.has(a)) continue;
-          totalUnwonDeficit += prev[a] || 0;
-          updated[a] = 0;
-        }
-
-        if (totalUnwonDeficit > 0) {
-          setBaseDeficit((bd) => bd + totalUnwonDeficit);
-          setBaseStake((bs) => bs + totalUnwonDeficit);
-        }
-
-        return updated;
-      });
-
-      // Reset won set and week counter — new season starts
-      setWonArrayAssets(new Set());
-      setWeek(0);
+  /* ── Week 38 end-of-season settlement ── */
+  if (week >= 38) {
+    // Calculate total remaining deficits from all array assets
+    let totalRemainingDeficit = 0;
+    for (const asset of arrayedAssets) {
+      if (!wonArrayAssets.has(asset)) {
+        totalRemainingDeficit += arrayDeficits[asset] || 0;
+      }
     }
-  };
+    
+    if (totalRemainingDeficit > 0) {
+      // Add remaining deficits to baseStake and baseDeficit
+      setBaseStake((prev) => prev + totalRemainingDeficit);
+      setBaseDeficit((prev) => prev + totalRemainingDeficit);
+    }
+    
+    // Reset all array deficits to 0
+    const resetDeficits = {};
+    for (const asset of arrayedAssets) {
+      resetDeficits[asset] = 0;
+    }
+    setArrayDeficits(resetDeficits);
+    
+    // Reset won array assets
+    setWonArrayAssets(new Set());
+    
+    // Reset week counter
+    setWeek(0);
+  }
+
+  clearForNext();
+};
+
+/* ================================================================
+   RESOLVE ARRAY ASSET WIN
+   ================================================================ */
+const resolveArrayAssetWin = (asset) => {
+  if (!fixture) return;
+
+  const stakeData = arrayStakes[asset];
+  if (!stakeData) return;
+
+  setClicked((prev) => new Set([...prev, asset]));
+
+  /* ── Mark this asset as won and zero its deficit ── */
+  const newWonSet = new Set([...wonArrayAssets, asset]);
+  setWonArrayAssets(newWonSet);
+  setArrayDeficits((prev) => ({ ...prev, [asset]: 0 }));
+
+  setSmallDeficit(230);
+  setBank((prev) => prev + shadow);
+
+  const residue = stakeData.winnerAmount || 0;
+  if (residue > 0) {
+    setBaseStake((prev) => prev + residue);
+  }
+};
 
   /* ================================================================
      JACKPOT HANDLERS
