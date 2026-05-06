@@ -137,11 +137,16 @@ const Homepage = () => {
     let sixWinner = Math.round(base / found.winner);
     sixWinner = Math.max(sixWinner, 10);
 
-    // Track smallDeficit locally so COP reads the correct updated value
+    // Track smallDeficit locally so COP reads updated value immediately
     let currentSmallDeficit = smallDeficit;
 
+    // Accumulators for combined H/D/A display across all ladders
+    let totalH = 0;
+    let totalD = 0;
+    let totalA = 0;
+
     if (isSmall) {
-      // Small odds: 6-0 stake goes into smallDeficit, no HDA
+      // Small odds: 6-0 no HDA — stake goes into smallDeficit
       currentSmallDeficit = smallDeficit + sixWinner;
       setSmallDeficit(currentSmallDeficit);
 
@@ -155,13 +160,16 @@ const Homepage = () => {
       const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
       newStakes.push(...res6.ladder);
 
-      // HDA buttons show ONLY 6-0 ladder amounts
       setAmounts({
         winnerAmount: sixWinner,
         homeAmount: res6.homeAmount,
         drawAmount: res6.drawAmount,
         awayAmount: res6.awayAmount,
       });
+
+      totalH += res6.homeAmount;
+      totalD += res6.drawAmount;
+      totalA += res6.awayAmount;
     }
 
     /* ===================== 5-0 — always HDA ===================== */
@@ -179,6 +187,10 @@ const Homepage = () => {
       awayAmount: res50.awayAmount,
     });
 
+    totalH += res50.homeAmount;
+    totalD += res50.drawAmount;
+    totalA += res50.awayAmount;
+
     /* ===================== 5-1 — always HDA ===================== */
     const base51 = baseDeficit + oneDeficit;
     let oneWinner = Math.round(base51 / found.fiveOne);
@@ -194,9 +206,19 @@ const Homepage = () => {
       awayAmount: res51.awayAmount,
     });
 
+    totalH += res51.homeAmount;
+    totalD += res51.drawAmount;
+    totalA += res51.awayAmount;
+
+    // Set combined H/D/A totals for display on the HDA buttons
+    setAmounts((prev) => ({
+      ...prev,
+      homeAmount: totalH,
+      drawAmount: totalD,
+      awayAmount: totalA,
+    }));
+
     /* ===================== COP ===================== */
-    // Uses local currentSmallDeficit so it reflects the stake just added
-    // for small odds games — activates immediately on the same game
     let cop = currentSmallDeficit > 0 ? Math.round(currentSmallDeficit / found.winner) : 0;
     cop = cop > 0 ? Math.max(cop, 1) : 0;
     setCopAmount(cop);
