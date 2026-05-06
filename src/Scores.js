@@ -22,7 +22,8 @@ export const smallOdds = [
     oneFour: 63.2,
     twoFour: 59.8,
     oneTwo: 52.4,
-    twoOne: 51.6
+    twoOne: 51.6,
+    ht30: 14.9
   },
   {
     id: "chenot",
@@ -46,7 +47,8 @@ export const smallOdds = [
     oneFour: 63.2,
     twoFour: 59.8,
     oneTwo: 52.4,
-    twoOne: 51.6
+    twoOne: 51.6,
+    ht30: 14.9
   },
   {
     id: "chewhu",
@@ -70,7 +72,8 @@ export const smallOdds = [
     oneFour: 63.2,
     twoFour: 59.8,
     oneTwo: 52.4,
-    twoOne: 51.6
+    twoOne: 51.6,
+    ht30: 14.9
   },
   {
     id: "chelee",
@@ -94,7 +97,8 @@ export const smallOdds = [
     oneFour: 67.5,
     twoFour: 62.3,
     oneTwo: 56.7,
-    twoOne: 55.9
+    twoOne: 55.9,
+    ht30: 11.3
   },
   {
     id: "chebha",
@@ -118,7 +122,8 @@ export const smallOdds = [
     oneFour: 67.5,
     twoFour: 62.3,
     oneTwo: 56.7,
-    twoOne: 55.9
+    twoOne: 55.9,
+    ht30: 11.3
   },
   {
     id: "chesun",
@@ -142,7 +147,8 @@ export const smallOdds = [
     oneFour: 67.5,
     twoFour: 62.3,
     oneTwo: 56.7,
-    twoOne: 55.9
+    twoOne: 55.9,
+    ht30: 11.3
   },
   {
     id: "cheeve",
@@ -166,7 +172,8 @@ export const smallOdds = [
     oneFour: 67.5,
     twoFour: 62.3,
     oneTwo: 56.7,
-    twoOne: 55.9
+    twoOne: 55.9,
+    ht30: 11.3
   },
   {
     id: "checry",
@@ -190,7 +197,8 @@ export const smallOdds = [
     oneFour: 67.5,
     twoFour: 62.3,
     oneTwo: 56.7,
-    twoOne: 55.9
+    twoOne: 55.9,
+    ht30: 11.3
   },
   {
     id: "chetot",
@@ -214,7 +222,8 @@ export const smallOdds = [
     oneFour: 73.8,
     twoFour: 67.9,
     oneTwo: 62.5,
-    twoOne: 60.9
+    twoOne: 60.9,
+    ht30: 9.63
   },
   {
     id: "chebou",
@@ -238,7 +247,8 @@ export const smallOdds = [
     oneFour: 73.8,
     twoFour: 67.9,
     oneTwo: 62.5,
-    twoOne: 60.9
+    twoOne: 60.9,
+    ht30: 9.63
   },
   {
     id: "bouche",
@@ -262,7 +272,8 @@ export const smallOdds = [
     oneFour: 76.5,
     twoFour: 69.8,
     oneTwo: 66.7,
-    twoOne: 64.9
+    twoOne: 64.9,
+    ht30: 17.7
   },
   {
     id: "totche",
@@ -286,7 +297,8 @@ export const smallOdds = [
     oneFour: 76.5,
     twoFour: 69.8,
     oneTwo: 66.7,
-    twoOne: 64.9
+    twoOne: 64.9,
+    ht30: 17.7
   }
 ];
 
@@ -313,7 +325,8 @@ export const mediumOdds = [
     oneFour: 72.3,
     twoFour: 65.7,
     oneTwo: 57.3,
-    twoOne: 58.7
+    twoOne: 58.7,
+    ht30: 26.2
   },
   {
     id: "chenew",
@@ -337,7 +350,8 @@ export const mediumOdds = [
     oneFour: 72.3,
     twoFour: 65.7,
     oneTwo: 57.3,
-    twoOne: 58.7
+    twoOne: 58.7,
+    ht30: 26.2
   },
   {
     id: "chears",
@@ -361,7 +375,8 @@ export const mediumOdds = [
     oneFour: 72.3,
     twoFour: 65.7,
     oneTwo: 57.3,
-    twoOne: 58.7
+    twoOne: 58.7,
+    ht30: 26.2
   },
   {
     id: "fulche",
@@ -385,7 +400,8 @@ export const mediumOdds = [
     oneFour: 91.2,
     twoFour: 78.9,
     oneTwo: 82.1,
-    twoOne: 79.6
+    twoOne: 79.6,
+    ht30: 26.8
   },
   {
     id: "whuche",
@@ -409,7 +425,8 @@ export const mediumOdds = [
     oneFour: 91.2,
     twoFour: 78.9,
     oneTwo: 82.1,
-    twoOne: 79.6
+    twoOne: 79.6,
+    ht30: 26.8
   },
   {
     id: "notche",
@@ -433,7 +450,8 @@ export const mediumOdds = [
     oneFour: 91.2,
     twoFour: 78.9,
     oneTwo: 82.1,
-    twoOne: 79.6
+    twoOne: 79.6,
+    ht30: 26.8
   },
   {
     id: "chewol",
@@ -457,7 +475,8 @@ export const mediumOdds = [
     oneFour: 66.2,
     twoFour: 61.8,
     oneTwo: 55.9,
-    twoOne: 56.8
+    twoOne: 56.8,
+    ht30: 21.4
   },
   {
     id: "chemnc",
@@ -481,7 +500,8 @@ export const mediumOdds = [
     oneFour: 66.2,
     twoFour: 61.8,
     oneTwo: 55.9,
-    twoOne: 56.8
+    twoOne: 56.8,
+    ht30: 21.4
   },
   {
     id: "mnuche",
@@ -505,7 +525,8 @@ export const mediumOdds = [
     oneFour: 83.4,
     twoFour: 74.2,
     oneTwo: 73.6,
-    twoOne: 75.1
+    twoOne: 75.1,
+    ht30: 32.3
   },
   {
     id: "burche",
@@ -529,7 +550,8 @@ export const mediumOdds = [
     oneFour: 83.4,
     twoFour: 74.2,
     oneTwo: 73.6,
-    twoOne: 75.1
+    twoOne: 75.1,
+    ht30: 32.3
   },
   {
     id: "bhache",
@@ -553,7 +575,8 @@ export const mediumOdds = [
     oneFour: 69.3,
     twoFour: 62.4,
     oneTwo: 60.8,
-    twoOne: 59.3
+    twoOne: 59.3,
+    ht30: 21.2
   },
   {
     id: "eveche",
@@ -577,7 +600,8 @@ export const mediumOdds = [
     oneFour: 69.3,
     twoFour: 62.4,
     oneTwo: 60.8,
-    twoOne: 59.3
+    twoOne: 59.3,
+    ht30: 21.2
   },
   {
     id: "leeche",
@@ -601,7 +625,8 @@ export const mediumOdds = [
     oneFour: 69.3,
     twoFour: 62.4,
     oneTwo: 60.8,
-    twoOne: 59.3
+    twoOne: 59.3,
+    ht30: 21.2
   },
   {
     id: "sunche",
@@ -625,7 +650,8 @@ export const mediumOdds = [
     oneFour: 69.3,
     twoFour: 62.4,
     oneTwo: 60.8,
-    twoOne: 59.3
+    twoOne: 59.3,
+    ht30: 21.2
   },
   {
     id: "cryche",
@@ -649,7 +675,8 @@ export const mediumOdds = [
     oneFour: 69.3,
     twoFour: 62.4,
     oneTwo: 60.8,
-    twoOne: 59.3
+    twoOne: 59.3,
+    ht30: 21.2
   },
   {
     id: "chebur",
@@ -673,7 +700,8 @@ export const mediumOdds = [
     oneFour: 63.8,
     twoFour: 59.6,
     oneTwo: 53.1,
-    twoOne: 52.7
+    twoOne: 52.7,
+    ht30: 17
   },
   {
     id: "chemnu",
@@ -697,7 +725,8 @@ export const mediumOdds = [
     oneFour: 63.8,
     twoFour: 59.6,
     oneTwo: 53.1,
-    twoOne: 52.7
+    twoOne: 52.7,
+    ht30: 17
   },
   {
     id: "cheliv",
@@ -721,7 +750,8 @@ export const mediumOdds = [
     oneFour: 74.8,
     twoFour: 68.3,
     oneTwo: 66.1,
-    twoOne: 67.5
+    twoOne: 67.5,
+    ht30: 36.2
   },
   {
     id: "cheast",
@@ -745,7 +775,8 @@ export const mediumOdds = [
     oneFour: 74.8,
     twoFour: 68.3,
     oneTwo: 66.1,
-    twoOne: 67.5
+    twoOne: 67.5,
+    ht30: 36.2
   }
 ];
 
@@ -772,7 +803,8 @@ export const bigOdds = [
     oneFour: 90.6,
     twoFour: 80.2,
     oneTwo: 84.1,
-    twoOne: 82.6
+    twoOne: 82.6,
+    ht30: 46
   },
   {
     id: "breche",
@@ -796,7 +828,8 @@ export const bigOdds = [
     oneFour: 90.6,
     twoFour: 80.2,
     oneTwo: 84.1,
-    twoOne: 82.6
+    twoOne: 82.6,
+    ht30: 46
   },
   {
     id: "newche",
@@ -820,7 +853,8 @@ export const bigOdds = [
     oneFour: 90.6,
     twoFour: 80.2,
     oneTwo: 84.1,
-    twoOne: 82.6
+    twoOne: 82.6,
+    ht30: 46
   },
   {
     id: "astche",
@@ -844,7 +878,8 @@ export const bigOdds = [
     oneFour: 98.5,
     twoFour: 86.4,
     oneTwo: 91.2,
-    twoOne: 88.7
+    twoOne: 88.7,
+    ht30: 50.8
   },
   {
     id: "livche",
@@ -868,7 +903,8 @@ export const bigOdds = [
     oneFour: 98.5,
     twoFour: 86.4,
     oneTwo: 91.2,
-    twoOne: 88.7
+    twoOne: 88.7,
+    ht30: 50.8
   },
   {
     id: "wolche",
@@ -892,7 +928,8 @@ export const bigOdds = [
     oneFour: 112.4,
     twoFour: 96.3,
     oneTwo: 104.8,
-    twoOne: 101.3
+    twoOne: 101.3,
+    ht30: 40.2
   },
   {
     id: "mncche",
@@ -916,6 +953,7 @@ export const bigOdds = [
     oneFour: 112.4,
     twoFour: 96.3,
     oneTwo: 104.8,
-    twoOne: 101.3
+    twoOne: 101.3,
+    ht30: 40.2
   }
 ];
