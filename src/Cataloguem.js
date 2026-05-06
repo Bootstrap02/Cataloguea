@@ -100,7 +100,7 @@ const Homepage = () => {
     for (const step of code) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
-      const stake = Math.max(Math.round(running / (odd - 1)), 10);
+      const stake = Math.round(running / (odd - 1));
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -147,7 +147,7 @@ const Homepage = () => {
       const newBase  = newBases[asset.key] + assetDef;
       newBases[asset.key] = newBase;
 
-      let winnerAmt = Math.max(Math.round(newBase / assetOdds), 10);
+      let winnerAmt = Math.round(newBase / assetOdds);
       newStakeAmt[asset.key] = winnerAmt;
 
       const isGated = (isSmall && asset.smallGate) || (isBig && asset.bigGate);
@@ -173,7 +173,7 @@ const Homepage = () => {
 
     /* 5-0 */
     const base50 = baseDeficit + zeroDeficit;
-    const zeroWinner = Math.max(Math.round(base50 / found.fiveZero), 10);
+    const zeroWinner = Math.round(base50 / found.fiveZero);
     const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
     newStakes.push(...res50.ladder);
     setZeroWinnerAmt(zeroWinner);
@@ -181,7 +181,7 @@ const Homepage = () => {
 
     /* 5-1 */
     const base51 = baseDeficit + oneDeficit;
-    const oneWinner = Math.max(Math.round(base51 / found.fiveOne), 10);
+    const oneWinner = Math.round(base51 / found.fiveOne);
     const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
     newStakes.push(...res51.ladder);
     setOneWinnerAmt(oneWinner);
