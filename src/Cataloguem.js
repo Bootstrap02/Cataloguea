@@ -135,7 +135,6 @@ const Homepage = () => {
 
     const base = newBase6;
     let sixWinner = Math.round(base / found.winner);
-    sixWinner = Math.max(sixWinner, 10);
 
     // Track smallDeficit locally so COP reads updated value immediately
     let currentSmallDeficit = smallDeficit;
@@ -261,7 +260,7 @@ const Homepage = () => {
     /* ===================== COP auto-feeds baseStake ===================== */
     if (copAmount > 0) {
       
-      setDeficit((prev) => prev + copAmount);
+      setBaseDeficit((prev) => prev + copAmount);
     }
 
     clearForNext();
