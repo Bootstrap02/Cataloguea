@@ -260,8 +260,8 @@ const Homepage = () => {
 
     /* ===================== COP auto-feeds baseStake ===================== */
     if (copAmount > 0) {
-      setBaseStake((prev) => prev + copAmount);
-      setBaseDeficit((prev) => prev + copAmount);
+      
+      setDeficit((prev) => prev + copAmount);
     }
 
     clearForNext();
