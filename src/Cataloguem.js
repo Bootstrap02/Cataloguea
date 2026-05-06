@@ -173,7 +173,7 @@ const Homepage = () => {
 
     /* 5-0 */
     const base50 = baseDeficit + zeroDeficit;
-    const zeroWinner = Math.round(base50 / found.fiveZero);
+    const zeroWinner = Math.round(base50 / found.fiveZero) ;
     const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
     newStakes.push(...res50.ladder);
     setZeroWinnerAmt(zeroWinner);
@@ -213,6 +213,9 @@ const Homepage = () => {
       if (retiredAssets.has(asset.key)) continue;
       const loss = calcLoss(asset.key);
       newDeficits[asset.key] = (newDeficits[asset.key] || 0) + loss;
+
+      // Every asset's HDA loss piles into baseDeficit so 5-0/5-1 chase all losses
+      if (loss > 0) extraBaseDeficit += loss;
 
       // COP auto-feeds baseDeficit on every HDA click
       const cop = assetCops[asset.key] || 0;
