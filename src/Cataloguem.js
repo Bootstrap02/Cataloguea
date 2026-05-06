@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { odds, smallOdds, mediumOdds, bigOdds } from "./Scores";
+import { smallOdds, mediumOdds, bigOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 /* ---------------- UTILS ---------------- */
@@ -158,7 +158,7 @@ const Homepage = () => {
     let detectedType = "small";
     if (!found) { found = mediumOdds.find((o) => o.home === home && o.away === away); detectedType = "medium"; }
     if (!found) { found = bigOdds.find((o) => o.home === home && o.away === away); detectedType = "big"; }
-    if (!found) { found = odds.find((o) => o.home === home && o.away === away); detectedType = "normal"; }
+    
 
     if (!found) {
       alert(`No odds found for "${home}" vs "${away}"`);
