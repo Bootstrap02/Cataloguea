@@ -340,17 +340,7 @@ const Homepage = () => {
                     <span className="text-sm font-black text-yellow-400">{stakeAmt || "–"}</span>
                     {sdAmt > 0 && <div className="text-[8px] text-blue-400">SD:{sdAmt}</div>}
                   </div>
-                  <button
-                    onClick={() => handleCop(asset.key)}
-                    disabled={!fixture || copClicked || copAmt === 0}
-                    className={`w-full py-1 rounded-lg font-bold text-[9px] transition active:scale-95 ${
-                      copClicked ? "bg-white text-blue-600"
-                      : !fixture || copAmt === 0 ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
-                      : "bg-blue-500 text-white"
-                    }`}
-                  >
-                    COP {copAmt > 0 ? copAmt : "–"}
-                  </button>
+                  
                 </div>
               );
             })}
