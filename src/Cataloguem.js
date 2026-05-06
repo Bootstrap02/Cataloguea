@@ -128,10 +128,6 @@ const Homepage = () => {
     const code = found.code || "";
     const newStakes = [];
 
-    let totalHomeAmount = 0;
-    let totalDrawAmount = 0;
-    let totalAwayAmount = 0;
-
     /* ===================== 6-0 ===================== */
     const newBase6 = baseStake + deficit;
     setBaseStake(newBase6);
@@ -141,9 +137,13 @@ const Homepage = () => {
     let sixWinner = Math.round(base / found.winner);
     sixWinner = Math.max(sixWinner, 10);
 
+    // Track smallDeficit locally so COP reads the correct updated value
+    let currentSmallDeficit = smallDeficit;
+
     if (isSmall) {
       // Small odds: 6-0 stake goes into smallDeficit, no HDA
-      setSmallDeficit((prev) => prev + sixWinner);
+      currentSmallDeficit = smallDeficit + sixWinner;
+      setSmallDeficit(currentSmallDeficit);
 
       setAmounts({
         winnerAmount: sixWinner,
@@ -155,16 +155,13 @@ const Homepage = () => {
       const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
       newStakes.push(...res6.ladder);
 
+      // HDA buttons show ONLY 6-0 ladder amounts
       setAmounts({
         winnerAmount: sixWinner,
         homeAmount: res6.homeAmount,
         drawAmount: res6.drawAmount,
         awayAmount: res6.awayAmount,
       });
-
-      totalHomeAmount += res6.homeAmount;
-      totalDrawAmount += res6.drawAmount;
-      totalAwayAmount += res6.awayAmount;
     }
 
     /* ===================== 5-0 — always HDA ===================== */
@@ -182,10 +179,6 @@ const Homepage = () => {
       awayAmount: res50.awayAmount,
     });
 
-    totalHomeAmount += res50.homeAmount;
-    totalDrawAmount += res50.drawAmount;
-    totalAwayAmount += res50.awayAmount;
-
     /* ===================== 5-1 — always HDA ===================== */
     const base51 = baseDeficit + oneDeficit;
     let oneWinner = Math.round(base51 / found.fiveOne);
@@ -201,25 +194,14 @@ const Homepage = () => {
       awayAmount: res51.awayAmount,
     });
 
-    totalHomeAmount += res51.homeAmount;
-    totalDrawAmount += res51.drawAmount;
-    totalAwayAmount += res51.awayAmount;
-
     /* ===================== COP ===================== */
-    // Stake = smallDeficit / winner odds. 0 if smallDeficit is 0
-    let cop = smallDeficit > 0 ? Math.round(smallDeficit / found.winner) : 0;
+    // Uses local currentSmallDeficit so it reflects the stake just added
+    // for small odds games — activates immediately on the same game
+    let cop = currentSmallDeficit > 0 ? Math.round(currentSmallDeficit / found.winner) : 0;
     cop = cop > 0 ? Math.max(cop, 1) : 0;
     setCopAmount(cop);
 
     setOrderedStakes(newStakes);
-
-    /* ===================== FINAL HDA TOTAL ===================== */
-    setAmounts((prev) => ({
-      ...prev,
-      homeAmount: totalHomeAmount,
-      drawAmount: totalDrawAmount,
-      awayAmount: totalAwayAmount,
-    }));
   };
 
   /* ================================================================
@@ -326,6 +308,7 @@ const Homepage = () => {
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
+  // HDA buttons display only the 6-0 ladder amounts
   const displayAmounts = {
     homeAmount: amounts.homeAmount,
     drawAmount: amounts.drawAmount,
