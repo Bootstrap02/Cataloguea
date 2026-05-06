@@ -25,8 +25,7 @@ const Homepage = () => {
   const [deficit, setDeficit] = useState(0);
   const [zeroDeficit, setZeroDeficit] = useState(0);
   const [oneDeficit, setOneDeficit] = useState(0);
-  const [smallDeficit, setSmallDeficit] = useState(230);
-  const [bank, setBank] = useState(230);
+  const [smallDeficit, setSmallDeficit] = useState(0);
 
   /* ---------- STAKES PER LINE ---------- */
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
@@ -55,8 +54,7 @@ const Homepage = () => {
         setDeficit(res.data.deficit || 0);
         setZeroDeficit(res.data.zeroDeficit || 0);
         setOneDeficit(res.data.oneDeficit || 0);
-        setSmallDeficit(res.data.smallDeficit ?? 230);
-        setBank(res.data.bank ?? 230);
+        setSmallDeficit(res.data.smallDeficit || 0);
       }
     } catch (err) {
       console.error("❌ fetch failed:", err.message);
@@ -74,7 +72,6 @@ const Homepage = () => {
         zeroDeficit,
         oneDeficit,
         smallDeficit,
-        bank,
       });
       console.log("✅ Saved");
     } catch (err) {
@@ -145,18 +142,8 @@ const Homepage = () => {
     sixWinner = Math.max(sixWinner, 10);
 
     if (isSmall) {
-      let bankNow = bank;
-      let sdNow = smallDeficit;
-
-      if (bankNow >= sixWinner) {
-        bankNow -= sixWinner;
-      } else {
-        sdNow += sixWinner - bankNow;
-        bankNow = 0;
-      }
-
-      setBank(bankNow);
-      setSmallDeficit(sdNow);
+      // Small odds: 6-0 stake goes into smallDeficit, no HDA
+      setSmallDeficit((prev) => prev + sixWinner);
 
       setAmounts({
         winnerAmount: sixWinner,
@@ -180,7 +167,7 @@ const Homepage = () => {
       totalAwayAmount += res6.awayAmount;
     }
 
-    /* ===================== 5-0 ===================== */
+    /* ===================== 5-0 — always HDA ===================== */
     const base50 = baseDeficit + zeroDeficit;
     let zeroWinner = Math.round(base50 / found.fiveZero);
     zeroWinner = Math.max(zeroWinner, 10);
@@ -199,7 +186,7 @@ const Homepage = () => {
     totalDrawAmount += res50.drawAmount;
     totalAwayAmount += res50.awayAmount;
 
-    /* ===================== 5-1 ===================== */
+    /* ===================== 5-1 — always HDA ===================== */
     const base51 = baseDeficit + oneDeficit;
     let oneWinner = Math.round(base51 / found.fiveOne);
     oneWinner = Math.max(oneWinner, 10);
@@ -219,8 +206,9 @@ const Homepage = () => {
     totalAwayAmount += res51.awayAmount;
 
     /* ===================== COP ===================== */
-    let cop = Math.round(smallDeficit / found.winner);
-    cop = Math.max(cop, 10);
+    // Stake = smallDeficit / winner odds. 0 if smallDeficit is 0
+    let cop = smallDeficit > 0 ? Math.round(smallDeficit / found.winner) : 0;
+    cop = cop > 0 ? Math.max(cop, 1) : 0;
     setCopAmount(cop);
 
     setOrderedStakes(newStakes);
@@ -236,6 +224,8 @@ const Homepage = () => {
 
   /* ================================================================
      RESOLVE RESULT FOR HDA
+     — COP stake is ALWAYS auto-added to baseStake here regardless
+       of whether the COP button is clicked
      ================================================================ */
   const resolveResult = (step) => {
     if (!fixture) return;
@@ -264,29 +254,25 @@ const Homepage = () => {
     const oneLoss = calcLoss("5-1");
     setOneDeficit((prev) => prev + oneLoss);
 
+    /* ===================== COP auto-feeds baseStake ===================== */
+    if (copAmount > 0) {
+      setBaseStake((prev) => prev + copAmount);
+      setBaseDeficit((prev) => prev + copAmount);
+    }
+
     clearForNext();
   };
 
   /* ================================================================
      COP HANDLER
-     — Win: smallDeficit → 0, cop stake → baseDeficit
-     — Loss: cop stake → baseDeficit, smallDeficit stays
-     — Always clicked by user after result, always feeds baseDeficit
+     — Clicked manually when COP wins
+     — smallDeficit becomes 0
+     — cop stake already auto-added in resolveResult so no double-add
      ================================================================ */
-  const handleCop = (isWin) => {
+  const handleCop = () => {
     if (!fixture) return;
-
-    setClicked((prev) => new Set([...prev, isWin ? "copWin" : "copLoss"]));
-
-    if (isWin) {
-      setSmallDeficit(0);
-    }
-
-    // Cop stake always goes into baseDeficit regardless of win or loss
-    if (copAmount > 0) {
-      setBaseDeficit((prev) => prev + copAmount);
-      setBaseStake((prev) => prev + copAmount);
-    }
+    setClicked((prev) => new Set([...prev, "cop"]));
+    setSmallDeficit(0);
   };
 
   /* ================================================================
@@ -422,40 +408,22 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── COP ROW ── */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleCop(true)}
-            disabled={!fixture || clicked.has("copWin") || clicked.has("copLoss")}
-            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
-              clicked.has("copWin")
-                ? "bg-white text-blue-600 ring-2 ring-blue-500"
-                : !fixture
-                ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
-                : "bg-blue-500 text-white hover:bg-blue-400"
-            }`}
-          >
-            <div className="text-xl font-black">COP ✅</div>
-            <div className="text-[11px] mt-1 opacity-80">{copAmount || "–"}</div>
-            <div className="text-[9px] mt-0.5 opacity-60">Win → SD=0</div>
-          </button>
-
-          <button
-            onClick={() => handleCop(false)}
-            disabled={!fixture || clicked.has("copWin") || clicked.has("copLoss")}
-            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
-              clicked.has("copLoss")
-                ? "bg-white text-rose-600 ring-2 ring-rose-500"
-                : !fixture
-                ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
-                : "bg-rose-600 text-white hover:bg-rose-500"
-            }`}
-          >
-            <div className="text-xl font-black">COP ❌</div>
-            <div className="text-[11px] mt-1 opacity-80">{copAmount || "–"}</div>
-            <div className="text-[9px] mt-0.5 opacity-60">Loss → SD stays</div>
-          </button>
-        </div>
+        {/* ── COP BUTTON ── */}
+        <button
+          onClick={handleCop}
+          disabled={!fixture || clicked.has("cop") || copAmount === 0}
+          className={`w-full py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+            clicked.has("cop")
+              ? "bg-white text-blue-600 ring-2 ring-blue-500"
+              : !fixture || copAmount === 0
+              ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-blue-500 text-white hover:bg-blue-400"
+          }`}
+        >
+          <div className="text-xl font-black">COP</div>
+          <div className="text-[11px] mt-1 opacity-80">{copAmount || "–"}</div>
+          <div className="text-[9px] mt-0.5 opacity-60">Win → Small Def resets to 0</div>
+        </button>
 
         {/* ── HDA ROW ── */}
         <div className="grid grid-cols-3 gap-3">
@@ -574,10 +542,6 @@ const Homepage = () => {
           <div className="flex justify-between">
             <span className="text-gray-400">Small Def</span>
             <strong className="text-blue-400">{smallDeficit}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Bank</span>
-            <strong className="text-emerald-400">{bank}</strong>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-400">COP Stake</span>
