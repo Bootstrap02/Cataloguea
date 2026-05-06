@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { smallOdds, mediumOdds, bigOdds } from "./Scores";
@@ -231,24 +232,18 @@ const Homepage = () => {
     clearForNext();
   };
 
-  /* ── COP WIN — asset retires permanently ── */
-  const handleCop = (assetKey) => {
-    if (!fixture) return;
-
-    // Final COP stake → baseDeficit one last time
+  /* Any interaction with asset card — retires it permanently.
+     If it has a COP stake, that goes into baseDeficit one last time. */
+  const retireAsset = (assetKey) => {
     const cop = assetCops[assetKey] || 0;
+
     if (cop > 0) {
       setBaseDeficit((prev) => prev + cop);
       setAssetBases((prev) => ({ ...prev, [assetKey]: (prev[assetKey] || 0) + cop }));
     }
 
-    // Reset this asset's smallDef to 0
     setAssetSmallDef((prev) => ({ ...prev, [assetKey]: 0 }));
-
-    // Permanently retire this asset
     setRetiredAssets((prev) => new Set([...prev, assetKey]));
-
-    setClicked((prev) => new Set([...prev, `cop_${assetKey}`]));
   };
 
   /* ── JACKPOTS ── */
@@ -320,18 +315,21 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ASSET GRID */}
+        {/* ASSET GRID — only active (non-retired) assets */}
         {activeAssets.length > 0 && (
           <div className="grid grid-cols-3 gap-1.5 shrink-0">
             {activeAssets.map((asset) => {
-              const stakeAmt   = assetStakes[asset.key]   || 0;
-              const copAmt     = assetCops[asset.key]     || 0;
-              const defAmt     = assetDeficits[asset.key] || 0;
-              const sdAmt      = assetSmallDef[asset.key] || 0;
-              const copClicked = clicked.has(`cop_${asset.key}`);
+              const stakeAmt = assetStakes[asset.key]   || 0;
+              const copAmt   = assetCops[asset.key]     || 0;
+              const defAmt   = assetDeficits[asset.key] || 0;
+              const sdAmt    = assetSmallDef[asset.key] || 0;
 
               return (
-                <div key={asset.key} className="bg-white/5 rounded-xl p-2 flex flex-col gap-1">
+                <div
+                  key={asset.key}
+                  onClick={() => retireAsset(asset.key)}
+                  className="bg-white/5 rounded-xl p-2 flex flex-col gap-1 cursor-pointer active:scale-95 transition"
+                >
                   <div className="flex items-center justify-between">
                     <span className="font-extrabold text-[10px] text-white">{asset.label}</span>
                     {defAmt > 0 && <span className="text-[8px] text-red-400">D:{defAmt}</span>}
@@ -340,7 +338,11 @@ const Homepage = () => {
                     <span className="text-sm font-black text-yellow-400">{stakeAmt || "–"}</span>
                     {sdAmt > 0 && <div className="text-[8px] text-blue-400">SD:{sdAmt}</div>}
                   </div>
-                  
+                  {copAmt > 0 && (
+                    <div className="w-full py-1 rounded-lg bg-blue-500 text-white text-center font-bold text-[9px]">
+                      COP {copAmt}
+                    </div>
+                  )}
                 </div>
               );
             })}
