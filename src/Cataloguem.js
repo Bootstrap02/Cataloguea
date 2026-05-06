@@ -1,202 +1,239 @@
 
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { smallOdds, mediumOdds, bigOdds } from "./Scores";
+import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
+/* ---------------- UTILS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-
-const ASSETS = [
-  { key: "winner",     label: "6-0",   base: 10000, original: 10000, smallGate: true,  bigGate: false },
-  { key: "fourTwo",    label: "4-2",   base: 1500,  original: 1500,  smallGate: false, bigGate: false },
-  { key: "threeThree", label: "3-3",   base: 1500,  original: 1500,  smallGate: false, bigGate: false },
-  { key: "e0",         label: "E0",    base: 1500,  original: 1500,  smallGate: true,  bigGate: false },
-  { key: "e1",         label: "E1",    base: 1500,  original: 1500,  smallGate: true,  bigGate: false },
-  { key: "oneThree",   label: "1-3",   base: 700,   original: 700,   smallGate: false, bigGate: true  },
-  { key: "zeroThree",  label: "0-3",   base: 700,   original: 700,   smallGate: false, bigGate: true  },
-  { key: "twoThree",   label: "2-3",   base: 700,   original: 700,   smallGate: false, bigGate: true  },
-  { key: "zeroFour",   label: "0-4",   base: 10000, original: 10000, smallGate: false, bigGate: true  },
-  { key: "oneFour",    label: "1-4",   base: 4000,  original: 4000,  smallGate: false, bigGate: true  },
-  { key: "twoFour",    label: "2-4",   base: 6000,  original: 6000,  smallGate: false, bigGate: true  },
-  { key: "oneTwo",     label: "1-2",   base: 1000,  original: 1000,  smallGate: false, bigGate: true  },
-  { key: "twoOne",     label: "2-1",   base: 700,   original: 700,   smallGate: false, bigGate: true  },
-  { key: "ht30",       label: "HT3-0", base: 3500,  original: 3500,  smallGate: false, bigGate: true  },
-];
-
-const ASSET_KEYS = ASSETS.map((a) => a.key);
-const defaultMap  = () => Object.fromEntries(ASSET_KEYS.map((k) => [k, 0]));
-const defaultBases = () => Object.fromEntries(ASSETS.map((a) => [a.key, a.base]));
-
 const Homepage = () => {
+
+  /* ---------- INPUTS ---------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
 
-  const [fixture,  setFixture]  = useState(null);
-  const [gameType, setGameType] = useState("normal");
+  /* ---------- FIXTURE ---------- */
+  const [fixture, setFixture] = useState(null);
+  const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
-  const [assetBases,    setAssetBases]    = useState(defaultBases());
-  const [assetDeficits, setAssetDeficits] = useState(defaultMap());
-  const [assetStakes,   setAssetStakes]   = useState(defaultMap());
-  const [assetCops,     setAssetCops]     = useState(defaultMap());
-  const [assetSmallDef, setAssetSmallDef] = useState(defaultMap());
-  const [retiredAssets, setRetiredAssets] = useState(new Set()); // permanently gone
+  /* ---------- BASE & DEFICITS ---------- */
+  const [baseStake, setBaseStake] = useState(10000);
+  const [baseDeficit, setBaseDeficit] = useState(0);
+  const [deficit, setDeficit] = useState(0);
+  const [zeroDeficit, setZeroDeficit] = useState(0);
+  const [oneDeficit, setOneDeficit] = useState(0);
+  const [smallDeficit, setSmallDeficit] = useState(0);
 
-  const [baseDeficit,  setBaseDeficit]  = useState(0);
-  const [zeroDeficit,  setZeroDeficit]  = useState(0);
-  const [oneDeficit,   setOneDeficit]   = useState(0);
-
-  const [displayH, setDisplayH] = useState(0);
-  const [displayD, setDisplayD] = useState(0);
-  const [displayA, setDisplayA] = useState(0);
-
-  const [zeroWinnerAmt, setZeroWinnerAmt] = useState(0);
-  const [oneWinnerAmt,  setOneWinnerAmt]  = useState(0);
-
+  /* ---------- STAKES PER LINE ---------- */
+  const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [zeroAmounts, setZeroAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [oneAmounts, setOneAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [copAmount, setCopAmount] = useState(0);
   const [orderedStakes, setOrderedStakes] = useState([]);
+
+  /* ---------- CLICK INDICATORS ---------- */
   const [clicked, setClicked] = useState(new Set());
 
-  const basesRef = useRef(assetBases);
-  useEffect(() => { basesRef.current = assetBases; }, [assetBases]);
+  /* ---------- REF FOR AUTOSAVE ---------- */
+  const baseRef = useRef(baseStake);
+  useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  /* ── API ── */
+  /* ================================================================
+     API
+     ================================================================ */
   const fetchBase = async () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
       if (res.data) {
-        setAssetBases(res.data.assetBases || defaultBases());
-        setAssetDeficits(res.data.assetDeficits || defaultMap());
-        setAssetSmallDef(res.data.assetSmallDef || defaultMap());
-        setRetiredAssets(new Set(res.data.retiredAssets || []));
+        setBaseStake(res.data.base || 0);
         setBaseDeficit(res.data.baseDeficit || 0);
+        setDeficit(res.data.deficit || 0);
         setZeroDeficit(res.data.zeroDeficit || 0);
         setOneDeficit(res.data.oneDeficit || 0);
+        setSmallDeficit(res.data.smallDeficit || 0);
       }
-    } catch (err) { console.error("❌", err.message); }
-    finally { setIsReloading(false); }
+    } catch (err) {
+      console.error("❌ fetch failed:", err.message);
+    } finally {
+      setIsReloading(false);
+    }
   };
 
   const saveBase = async () => {
     try {
       await axios.put(API_BASE, {
-        assetBases: basesRef.current,
-        assetDeficits,
-        assetSmallDef,
-        retiredAssets: Array.from(retiredAssets),
+        base: baseRef.current,
         baseDeficit,
+        deficit,
         zeroDeficit,
         oneDeficit,
+        smallDeficit,
       });
-    } catch (err) { console.error("❌", err.message); }
+      console.log("✅ Saved");
+    } catch (err) {
+      console.error("❌ Save failed:", err.message);
+    }
   };
 
-  /* ── LADDER ── */
+  /* ================================================================
+     BUILD LADDER FOR HDA
+     ================================================================ */
   const buildLadder = (startTotal, type, code, oddsMap) => {
-    let running = startTotal;
+    let runningTotal = startTotal;
     const ladder = [];
-    let H = 0, D = 0, A = 0;
+    let homeAmount = 0, drawAmount = 0, awayAmount = 0;
+
     for (const step of code) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
-      const stake = Math.round(running / (odd - 1));
+      let stake = Math.round(runningTotal / (odd - 1));
+      
+
       ladder.push({ step, stake, type });
-      if (step === "H") H = stake;
-      if (step === "D") D = stake;
-      if (step === "A") A = stake;
-      running += stake;
+      if (step === "H") homeAmount = stake;
+      if (step === "D") drawAmount = stake;
+      if (step === "A") awayAmount = stake;
+      runningTotal += stake;
     }
-    return { ladder, homeAmount: H, drawAmount: D, awayAmount: A };
+    return { ladder, homeAmount, drawAmount, awayAmount, totalStaked: runningTotal - startTotal };
   };
 
-  /* ── SUBMIT ── */
+  /* ================================================================
+     HANDLE SUBMIT
+     ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
+
     const home = sanitizeTeam(inputA) || "che";
     const away = sanitizeTeam(inputB) || "che";
 
     let found = smallOdds.find((o) => o.home === home && o.away === away);
-    let detectedType = "small";
-    if (!found) { found = mediumOdds.find((o) => o.home === home && o.away === away); detectedType = "medium"; }
-    if (!found) { found = bigOdds.find((o) => o.home === home && o.away === away); detectedType = "big"; }
-    if (!found) { alert(`No odds found for "${home}" vs "${away}"`); return; }
+    const isSmall = !!found;
+    if (!found) found = odds.find((o) => o.home === home && o.away === away);
 
-    setGameType(detectedType);
+    if (!found) {
+      alert(`No odds found for "${home}" vs "${away}"`);
+      return;
+    }
+
+    setIsSmallOddsGame(isSmall);
     setFixture(found);
     setClicked(new Set());
 
-    const isSmall = detectedType === "small";
-    const isBig   = detectedType === "big";
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-    const code    = found.code || "";
+    const code = found.code || "";
     const newStakes = [];
-    let totalH = 0, totalD = 0, totalA = 0;
 
-    const newBases    = { ...assetBases };
-    const newSmallDef = { ...assetSmallDef };
-    const newStakeAmt = { ...assetStakes };
-    const newCops     = { ...assetCops };
+    /* ===================== 6-0 ===================== */
+    const newBase6 = baseStake + deficit;
+    setBaseStake(newBase6);
+    setDeficit(0);
 
-    for (const asset of ASSETS) {
-      if (retiredAssets.has(asset.key)) continue;
-      const assetOdds = found[asset.key];
-      if (!assetOdds || assetOdds <= 1) continue;
+    const base = newBase6;
+    let sixWinner = Math.round(base / found.winner);
 
-      const assetDef = assetDeficits[asset.key] || 0;
-      const newBase  = newBases[asset.key] + assetDef;
-      newBases[asset.key] = newBase;
+    // Track smallDeficit locally so COP reads updated value immediately
+    let currentSmallDeficit = smallDeficit;
 
-      let winnerAmt = Math.round(newBase / assetOdds);
-      newStakeAmt[asset.key] = winnerAmt;
+    // Accumulators for combined H/D/A display across all ladders
+    let totalH = 0;
+    let totalD = 0;
+    let totalA = 0;
 
-      const isGated = (isSmall && asset.smallGate) || (isBig && asset.bigGate);
-      if (isGated) {
-        newSmallDef[asset.key] = (newSmallDef[asset.key] || 0) + winnerAmt;
-      } else {
-        const res = buildLadder(winnerAmt, asset.key, code, oddsMap);
-        newStakes.push(...res.ladder);
-        totalH += res.homeAmount;
-        totalD += res.drawAmount;
-        totalA += res.awayAmount;
-      }
+    if (isSmall) {
+      // Small odds: 6-0 no HDA — stake goes into smallDeficit
+      currentSmallDeficit = smallDeficit + sixWinner;
+      setSmallDeficit(currentSmallDeficit);
 
-      const sd = newSmallDef[asset.key] || 0;
-      newCops[asset.key] = sd > 0 ? Math.max(1, Math.round(sd / assetOdds)) : 0;
+      setAmounts({
+        winnerAmount: sixWinner,
+        homeAmount: 0,
+        drawAmount: 0,
+        awayAmount: 0,
+      });
+    } else {
+      const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
+      newStakes.push(...res6.ladder);
+
+      setAmounts({
+        winnerAmount: sixWinner,
+        homeAmount: res6.homeAmount,
+        drawAmount: res6.drawAmount,
+        awayAmount: res6.awayAmount,
+      });
+
+      totalH += res6.homeAmount;
+      totalD += res6.drawAmount;
+      totalA += res6.awayAmount;
     }
 
-    setAssetDeficits(defaultMap());
-    setAssetBases(newBases);
-    setAssetSmallDef(newSmallDef);
-    setAssetStakes(newStakeAmt);
-    setAssetCops(newCops);
-
-    /* 5-0 */
+    /* ===================== 5-0 — always HDA ===================== */
     const base50 = baseDeficit + zeroDeficit;
-    const zeroWinner = Math.round(base50 / found.fiveZero) ;
+    let zeroWinner = Math.round(base50 / found.fiveZero);
+    zeroWinner = Math.max(zeroWinner, 10);
+
     const res50 = buildLadder(zeroWinner, "5-0", code, oddsMap);
     newStakes.push(...res50.ladder);
-    setZeroWinnerAmt(zeroWinner);
-    totalH += res50.homeAmount; totalD += res50.drawAmount; totalA += res50.awayAmount;
 
-    /* 5-1 */
+    setZeroAmounts({
+      winnerAmount: zeroWinner,
+      homeAmount: res50.homeAmount,
+      drawAmount: res50.drawAmount,
+      awayAmount: res50.awayAmount,
+    });
+
+    totalH += res50.homeAmount;
+    totalD += res50.drawAmount;
+    totalA += res50.awayAmount;
+
+    /* ===================== 5-1 — always HDA ===================== */
     const base51 = baseDeficit + oneDeficit;
-    const oneWinner = Math.round(base51 / found.fiveOne);
+    let oneWinner = Math.round(base51 / found.fiveOne);
+    oneWinner = Math.max(oneWinner, 10);
+
     const res51 = buildLadder(oneWinner, "5-1", code, oddsMap);
     newStakes.push(...res51.ladder);
-    setOneWinnerAmt(oneWinner);
-    totalH += res51.homeAmount; totalD += res51.drawAmount; totalA += res51.awayAmount;
+
+    setOneAmounts({
+      winnerAmount: oneWinner,
+      homeAmount: res51.homeAmount,
+      drawAmount: res51.drawAmount,
+      awayAmount: res51.awayAmount,
+    });
+
+    totalH += res51.homeAmount;
+    totalD += res51.drawAmount;
+    totalA += res51.awayAmount;
+
+    // Set combined H/D/A totals for display on the HDA buttons
+    setAmounts((prev) => ({
+      ...prev,
+      homeAmount: totalH,
+      drawAmount: totalD,
+      awayAmount: totalA,
+    }));
+
+    /* ===================== COP ===================== */
+    let cop = currentSmallDeficit > 0 ? Math.round(currentSmallDeficit / found.winner) : 0;
+    cop = cop > 0 ? Math.max(cop, 1) : 0;
+    setCopAmount(cop);
 
     setOrderedStakes(newStakes);
-    setDisplayH(totalH);
-    setDisplayD(totalD);
-    setDisplayA(totalA);
   };
 
-  /* ── RESOLVE HDA ── */
+  /* ================================================================
+     RESOLVE RESULT FOR HDA
+     — COP stake is ALWAYS auto-added to baseStake here regardless
+       of whether the COP button is clicked
+     ================================================================ */
   const resolveResult = (step) => {
     if (!fixture) return;
+
     setClicked((prev) => new Set([...prev, step]));
 
     const calcLoss = (type) => {
@@ -206,216 +243,323 @@ const Homepage = () => {
       return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
     };
 
-    const newDeficits = { ...assetDeficits };
-    const newBases    = { ...assetBases };
-    let extraBaseDeficit = 0;
-
-    for (const asset of ASSETS) {
-      if (retiredAssets.has(asset.key)) continue;
-      const loss = calcLoss(asset.key);
-      newDeficits[asset.key] = (newDeficits[asset.key] || 0) + loss;
-
-      // Every asset's HDA loss piles into baseDeficit so 5-0/5-1 chase all losses
-      if (loss > 0) extraBaseDeficit += loss;
-
-      // COP auto-feeds baseDeficit on every HDA click
-      const cop = assetCops[asset.key] || 0;
-      if (cop > 0) {
-        newBases[asset.key] = (newBases[asset.key] || 0) + cop;
-        extraBaseDeficit += cop;
-      }
+    /* ===================== 6-0 ===================== */
+    if (!isSmallOddsGame) {
+      const mainLoss = calcLoss("6-0");
+      setDeficit(mainLoss);
+      setBaseDeficit((prev) => prev + mainLoss);
     }
 
-    setAssetDeficits(newDeficits);
-    setAssetBases(newBases);
-    if (extraBaseDeficit > 0) setBaseDeficit((prev) => prev + extraBaseDeficit);
+    /* ===================== 5-0 ===================== */
+    const zeroLoss = calcLoss("5-0");
+    setZeroDeficit((prev) => prev + zeroLoss);
 
-    setZeroDeficit((prev) => prev + calcLoss("5-0"));
-    setOneDeficit((prev)  => prev + calcLoss("5-1"));
+    /* ===================== 5-1 ===================== */
+    const oneLoss = calcLoss("5-1");
+    setOneDeficit((prev) => prev + oneLoss);
+
+    /* ===================== COP auto-feeds baseStake ===================== */
+    if (copAmount > 0) {
+      
+      setBaseDeficit((prev) => prev + copAmount);
+    }
 
     clearForNext();
   };
 
-  /* Any interaction with asset card — retires it permanently.
-     If it has a COP stake, that goes into baseDeficit one last time. */
-  const retireAsset = (assetKey) => {
-    const cop = assetCops[assetKey] || 0;
-    const base = assetBases[assetKey];
-    const original = assetBases[assetKey];
-    const debt = base - original 
-    setBaseDeficit((prev) => prev - debt)
-    if (cop > 0) {
-      setBaseDeficit((prev) => prev + cop);
-      setAssetBases((prev) => ({ ...prev, [assetKey]: (prev[assetKey] || 0) + cop }));
-    }
-
-    setAssetSmallDef((prev) => ({ ...prev, [assetKey]: 0 }));
-    setRetiredAssets((prev) => new Set([...prev, assetKey]));
+  /* ================================================================
+     COP HANDLER
+     — Clicked manually when COP wins
+     — smallDeficit becomes 0
+     — cop stake already auto-added in resolveResult so no double-add
+     ================================================================ */
+  const handleCop = () => {
+    if (!fixture) return;
+    setClicked((prev) => new Set([...prev, "cop"]));
+    setSmallDeficit(0);
   };
 
-  /* ── JACKPOTS ── */
+  /* ================================================================
+     JACKPOT HANDLERS
+     ================================================================ */
+  const handleJackpot = () => {
+    setClicked((prev) => new Set([...prev, "six"]));
+    setBaseStake(10000);
+    setBaseDeficit(0);
+    setDeficit(0);
+  };
+
   const handleZeroJackpot = () => {
     setClicked((prev) => new Set([...prev, "zero"]));
-    setBaseDeficit(oneDeficit);
-    setZeroDeficit(0);
+    const totalOtherDeficits = oneDeficit;
+    setBaseStake(10000 + totalOtherDeficits);
+    setBaseDeficit(totalOtherDeficits);
     setOneDeficit(0);
+    setZeroDeficit(0);
   };
 
   const handleOneJackpot = () => {
     setClicked((prev) => new Set([...prev, "one"]));
-    setBaseDeficit(zeroDeficit);
-    setZeroDeficit(0);
+    const totalOtherDeficits = zeroDeficit;
+    setBaseStake(10000 + totalOtherDeficits);
+    setBaseDeficit(totalOtherDeficits);
     setOneDeficit(0);
+    setZeroDeficit(0);
   };
 
-  /* ── CLEAR ── */
+  /* ================================================================
+     CLEAR FOR NEXT
+     ================================================================ */
   const clearForNext = () => {
-    setInputA(""); setInputB("");
-    setFixture(null); setGameType("normal");
-    setOrderedStakes([]); setClicked(new Set());
-    setAssetStakes(defaultMap()); setAssetCops(defaultMap());
-    setDisplayH(0); setDisplayD(0); setDisplayA(0);
-    setZeroWinnerAmt(0); setOneWinnerAmt(0);
+    setInputA("");
+    setInputB("");
+    setFixture(null);
+    setIsSmallOddsGame(false);
+    setOrderedStakes([]);
+    setCopAmount(0);
+    setClicked(new Set());
+    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     saveBase();
   };
 
-  const teamA    = sanitizeTeam(inputA) || "HME";
-  const teamB    = sanitizeTeam(inputB) || "AWY";
-  const gameLabel = gameType === "small" ? "SMALL" : gameType === "big" ? "BIG" : gameType === "medium" ? "MED" : null;
-  const activeAssets = ASSETS.filter((a) => !retiredAssets.has(a.key));
+  /* ================================================================
+     DERIVED
+     ================================================================ */
+  const teamA = sanitizeTeam(inputA) || "HME";
+  const teamB = sanitizeTeam(inputB) || "AWY";
 
+  // HDA buttons display only the 6-0 ladder amounts
+  const displayAmounts = {
+    homeAmount: amounts.homeAmount,
+    drawAmount: amounts.drawAmount,
+    awayAmount: amounts.awayAmount,
+  };
+
+  /* ================================================================
+     RENDER
+     ================================================================ */
   return (
-    <div className="h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
-      {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-        <h1 className="text-sm font-extrabold text-red-400 tracking-tight">
+      {/* ── TOP BAR ── */}
+      <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
+        <h1 className="text-base font-extrabold text-red-400 tracking-tight leading-tight">
           Virtual EPL
-          {gameLabel && fixture && (
-            <span className={`ml-2 text-[9px] px-1.5 py-0.5 rounded-full font-bold align-middle ${
-              gameType === "small" ? "bg-yellow-500 text-black" :
-              gameType === "big"   ? "bg-red-500 text-white" : "bg-orange-400 text-black"
-            }`}>{gameLabel}</span>
+          {isSmallOddsGame && fixture && (
+            <span className="ml-2 text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full font-bold align-middle">
+              SMALL ODDS
+            </span>
           )}
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={saveBase} className="px-3 py-1.5 bg-green-600 font-bold text-white text-[10px] hover:bg-green-700 transition">💾</button>
-          <button onClick={fetchBase} disabled={isReloading} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 font-bold text-white text-[10px] hover:bg-red-700 transition disabled:opacity-50">
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={10} />
+          <button
+            onClick={saveBase}
+            className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition"
+          >
+            💾 Save
+          </button>
+          <button
+            onClick={fetchBase}
+            disabled={isReloading}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 font-bold text-white text-xs hover:bg-red-700 transition disabled:opacity-50"
+          >
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
             {isReloading ? "…" : "Reload"}
           </button>
         </div>
       </div>
 
-      {/* SCROLLABLE BODY */}
-      <div className="flex-1 flex flex-col px-3 pb-3 gap-2 overflow-y-auto">
+      {/* ── SCROLLABLE CONTENT ── */}
+      <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
-        {/* 5-0 / 5-1 */}
-        <div className="grid grid-cols-2 gap-2 shrink-0">
-          <button onClick={handleZeroJackpot} className={`py-2 rounded-xl font-extrabold text-xs transition active:scale-95 shadow ${clicked.has("zero") ? "bg-white text-yellow-600 ring-2 ring-yellow-500" : "bg-yellow-500 text-black"}`}>
-            <div className="font-black">5–0</div>
-            <div className="text-[10px] opacity-80">{zeroWinnerAmt || "–"}</div>
+        {/* ── JACKPOT ROW ── */}
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={handleJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("six")
+                ? "bg-white text-yellow-500 ring-2 ring-yellow-400"
+                : "bg-yellow-400 text-black hover:bg-yellow-300"
+            }`}
+          >
+            <div className="text-xl font-black">6–0</div>
+            <div className="text-[11px] mt-1 opacity-80">{amounts.winnerAmount || "–"}</div>
           </button>
-          <button onClick={handleOneJackpot} className={`py-2 rounded-xl font-extrabold text-xs transition active:scale-95 shadow ${clicked.has("one") ? "bg-white text-orange-500 ring-2 ring-orange-400" : "bg-orange-400 text-black"}`}>
-            <div className="font-black">5–1</div>
-            <div className="text-[10px] opacity-80">{oneWinnerAmt || "–"}</div>
-          </button>
-        </div>
 
-        {/* ASSET GRID — only active (non-retired) assets */}
-        {activeAssets.length > 0 && (
-          <div className="grid grid-cols-3 gap-1.5 shrink-0">
-            {activeAssets.map((asset) => {
-              const stakeAmt = assetStakes[asset.key]   || 0;
-              const copAmt   = assetCops[asset.key]     || 0;
-              const defAmt   = assetDeficits[asset.key] || 0;
-              const sdAmt    = assetSmallDef[asset.key] || 0;
-
-              return (
-                <div
-                  key={asset.key}
-                  onClick={() => retireAsset(asset.key)}
-                  className="bg-white/5 rounded-xl p-2 flex flex-col gap-1 cursor-pointer active:scale-95 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-[10px] text-white">{asset.label}</span>
-                    {defAmt > 0 && <span className="text-[8px] text-red-400">D:{defAmt}</span>}
-                  </div>
-                  <div className="text-center">
-                    <span className="text-sm font-black text-yellow-400">{stakeAmt || "–"}</span>
-                    {sdAmt > 0 && <div className="text-[8px] text-blue-400">SD:{sdAmt}</div>}
-                  </div>
-                  {copAmt > 0 && (
-                    <div className="w-full py-1 rounded-lg bg-blue-500 text-white text-center font-bold text-[9px]">
-                      COP {copAmt}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* HDA */}
-        <div className="grid grid-cols-3 gap-2 shrink-0">
-          <button onClick={() => resolveResult("H")} disabled={!fixture}
-            className={`py-3 rounded-xl font-bold text-xs transition active:scale-95 shadow text-white ${clicked.has("H") ? "bg-white text-green-600 ring-2 ring-green-500" : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed" : "bg-green-500"}`}>
-            <div className="font-extrabold uppercase text-[10px]">{teamA}</div>
-            <div className="text-[10px] mt-0.5 opacity-80">{displayH || "–"}</div>
+          <button
+            onClick={handleZeroJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("zero")
+                ? "bg-white text-yellow-600 ring-2 ring-yellow-500"
+                : "bg-yellow-500 text-black hover:bg-yellow-400"
+            }`}
+          >
+            <div className="text-xl font-black">5–0</div>
+            <div className="text-[11px] mt-1 opacity-80">{zeroAmounts.winnerAmount || "–"}</div>
           </button>
-          <button onClick={() => resolveResult("D")} disabled={!fixture}
-            className={`py-3 rounded-xl font-bold text-xs transition active:scale-95 shadow text-white ${clicked.has("D") ? "bg-white text-gray-600 ring-2 ring-gray-400" : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed" : "bg-gray-400"}`}>
-            <div className="font-extrabold text-[10px]">DRAW</div>
-            <div className="text-[10px] mt-0.5 opacity-80">{displayD || "–"}</div>
-          </button>
-          <button onClick={() => resolveResult("A")} disabled={!fixture}
-            className={`py-3 rounded-xl font-bold text-xs transition active:scale-95 shadow text-white ${clicked.has("A") ? "bg-white text-red-600 ring-2 ring-red-500" : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed" : "bg-red-500"}`}>
-            <div className="font-extrabold uppercase text-[10px]">{teamB}</div>
-            <div className="text-[10px] mt-0.5 opacity-80">{displayA || "–"}</div>
+
+          <button
+            onClick={handleOneJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("one")
+                ? "bg-white text-orange-500 ring-2 ring-orange-400"
+                : "bg-orange-400 text-black hover:bg-orange-300"
+            }`}
+          >
+            <div className="text-xl font-black">5–1</div>
+            <div className="text-[11px] mt-1 opacity-80">{oneAmounts.winnerAmount || "–"}</div>
           </button>
         </div>
 
-        {/* INPUTS */}
-        <div className="shrink-0 space-y-2">
-          <div className="flex items-center gap-2">
-            <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home"
-              className="flex-1 min-w-0 px-2 py-2 border border-red-600 rounded-lg text-center text-xs bg-transparent text-white placeholder-red-400 focus:outline-none" />
-            <span className="font-black text-sm text-red-500 shrink-0">VS</span>
-            <input value={inputB} onChange={(e) => setInputB(e.target.value)} placeholder="Away"
-              className="flex-1 min-w-0 px-2 py-2 border border-red-600 rounded-lg text-center text-xs bg-transparent text-white placeholder-red-400 focus:outline-none" />
+        {/* ── COP BUTTON ── */}
+        <button
+          onClick={handleCop}
+          disabled={!fixture || clicked.has("cop") || copAmount === 0}
+          className={`w-full py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+            clicked.has("cop")
+              ? "bg-white text-blue-600 ring-2 ring-blue-500"
+              : !fixture || copAmount === 0
+              ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-blue-500 text-white hover:bg-blue-400"
+          }`}
+        >
+          <div className="text-xl font-black">COP</div>
+          <div className="text-[11px] mt-1 opacity-80">{copAmount || "–"}</div>
+          <div className="text-[9px] mt-0.5 opacity-60">Win → Small Def resets to 0</div>
+        </button>
+
+        {/* ── HDA ROW ── */}
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => resolveResult("H")}
+            disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("H")
+                ? "bg-white text-green-600 ring-2 ring-green-500"
+                : !fixture
+                ? "bg-gray-700 opacity-40 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-400"
+            }`}
+          >
+            <div className="text-base font-extrabold uppercase tracking-wide">{teamA}</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.homeAmount || "–"}</div>
+          </button>
+
+          <button
+            onClick={() => resolveResult("D")}
+            disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("D")
+                ? "bg-white text-gray-600 ring-2 ring-gray-400"
+                : !fixture
+                ? "bg-gray-700 opacity-40 cursor-not-allowed"
+                : "bg-gray-400 hover:bg-gray-300"
+            }`}
+          >
+            <div className="text-base font-extrabold">DRAW</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.drawAmount || "–"}</div>
+          </button>
+
+          <button
+            onClick={() => resolveResult("A")}
+            disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("A")
+                ? "bg-white text-red-600 ring-2 ring-red-500"
+                : !fixture
+                ? "bg-gray-700 opacity-40 cursor-not-allowed"
+                : "bg-red-500 hover:bg-red-400"
+            }`}
+          >
+            <div className="text-base font-extrabold uppercase tracking-wide">{teamB}</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.awayAmount || "–"}</div>
+          </button>
+        </div>
+
+        {/* ── INPUTS + ACTIONS ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              value={inputA}
+              onChange={(e) => setInputA(e.target.value)}
+              placeholder="Home"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+            />
+            <span className="font-black text-xl text-red-500 shrink-0">VS</span>
+            <input
+              value={inputB}
+              onChange={(e) => setInputB(e.target.value)}
+              placeholder="Away"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
+            />
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={!!fixture}
-              className={`flex-1 py-2.5 font-bold text-xs rounded-xl transition active:scale-95 shadow ${fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-red-700 text-white"}`}>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleSubmit}
+              disabled={!!fixture}
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${
+                fixture
+                  ? "bg-gray-700 opacity-50 cursor-not-allowed text-white"
+                  : "bg-red-700 hover:bg-red-600 text-white"
+              }`}
+            >
               CALCULATE
             </button>
-            <button onClick={clearForNext} disabled={!fixture}
-              className={`flex-1 py-2.5 font-bold text-xs rounded-xl transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-green-700 text-white"}`}>
+            <button
+              onClick={clearForNext}
+              disabled={!fixture}
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${
+                !fixture
+                  ? "bg-gray-700 opacity-50 cursor-not-allowed text-white"
+                  : "bg-green-700 hover:bg-green-600 text-white"
+              }`}
+            >
               NEXT
             </button>
           </div>
         </div>
 
-        {/* STATS */}
-        <div className="bg-white/5 rounded-xl p-3 text-[10px] grid grid-cols-3 gap-x-4 gap-y-1 shrink-0">
-          <div className="flex justify-between col-span-1">
-            <span className="text-gray-400">BaseDef</span>
+        {/* ── STATS ── */}
+        <div className="bg-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-400">Base</span>
+            <strong className="text-green-400">{baseStake}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Deficit</span>
+            <strong className="text-red-400">{deficit}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Base Def</span>
             <strong className="text-orange-400">{baseDeficit}</strong>
           </div>
-          <div className="flex justify-between col-span-1">
+          <div className="flex justify-between">
             <span className="text-gray-400">5-0 Def</span>
             <strong className="text-yellow-400">{zeroDeficit}</strong>
           </div>
-          <div className="flex justify-between col-span-1">
+          <div className="flex justify-between">
             <span className="text-gray-400">5-1 Def</span>
             <strong className="text-yellow-300">{oneDeficit}</strong>
           </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Small Def</span>
+            <strong className="text-blue-400">{smallDeficit}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">COP Stake</span>
+            <strong className="text-blue-300">{copAmount || "–"}</strong>
+          </div>
           {fixture && (
-            <div className="col-span-3 pt-1 border-t border-white/10 text-center">
+            <div className="col-span-2 pt-2 border-t border-white/10 text-center">
               <span className="text-white font-bold uppercase">{teamA}</span>
-              <span className="text-gray-400 mx-1">vs</span>
+              <span className="text-gray-400 mx-2">vs</span>
               <span className="text-white font-bold uppercase">{teamB}</span>
-              {gameLabel && <span className="ml-1 text-yellow-400 font-bold">· {gameLabel}</span>}
+              {isSmallOddsGame && (
+                <span className="ml-2 text-yellow-400 font-bold text-[10px]">· SMALL ODDS</span>
+              )}
             </div>
           )}
         </div>
