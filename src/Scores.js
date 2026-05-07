@@ -337,10 +337,7 @@ export const odds = [
     fiveOne: 183,
     code: "DHA",
     ht30: 46.0
-  }
-];
-
-export const smallOdds = [
+  }, 
   {
     id: "cheful",
     home: "che",
