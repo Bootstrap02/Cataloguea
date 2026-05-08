@@ -109,7 +109,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(running / (odd - 1));
-    
+      
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
