@@ -63,7 +63,7 @@ const Homepage = () => {
   const [badGamesDeficit,   setBadGamesDeficit]   = useState(0);
   const [badGameShadow,     setBadGameShadow]     = useState(0);
   const [bank,              setBank]              = useState(0);
-  const [cumulativeMap,     setCumulativeMap]     = useState({});
+  const [cumulativeMap,        setCumulativeMap]        = useState({});
   const [pendingSpecialStakes, setPendingSpecialStakes] = useState(emptySpecial());
   const [totalSmallDeficits,   setTotalSmallDeficits]   = useState(0);
 
@@ -195,15 +195,15 @@ const Homepage = () => {
     setOneAmounts({ winnerAmount: so, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
     // Special martingale stakes
-    const newPending  = {};
+    const newPending    = {};
     const newCumulative = {};
-    let runningTarget = newBad;
+    let runningTarget   = newBad;
     specialKeys.forEach((key) => {
       const odd = found[key] || 0;
       if (odd > 1.01) {
         const stake = Math.max(Math.round(runningTarget / (odd - 1)), 10);
         newPending[key]    = stake;
-        newCumulative[key] = runningTarget;
+        newCumulative[key] = runningTarget; // total staked BEFORE this item
         runningTarget += stake;
       } else {
         newPending[key]    = 0;
@@ -228,23 +228,29 @@ const Homepage = () => {
     const stakesSnap  = { ...pendingSpecialStakes };
     const stake       = stakesSnap[type];
     const behindKeys  = getAssetsBehind(type);
+    // behindTotal = sum of all stakes AFTER this winner (still unpaid)
     const behindTotal = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
+    // beforeTotal = cumulative amount staked BEFORE this winner (already paid/recovered)
+    const beforeTotal = cumulativeMap[type] || 0;
 
     setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
     setTotalSmallDeficits((prev) => Math.max(0, prev - stake));
 
     if (!smallTeamImpact) {
       // ── FIRST WIN ──
-      // martingale deficit resets to 0
-      // bad game deficit becomes only the stakes AFTER (upward) this win
+      // martingale deficit clears (this win recovered everything before it)
+      // badGamesDeficit becomes only the stakes still ahead (behindTotal) — still owed
       setMartingaleDeficit(0);
       setBadGamesDeficit(behindTotal);
       setSmallTeamImpact(true);
       setTotalSmallDeficits(0);
     } else {
       // ── SECOND+ WIN ──
-      // Wipe bad game deficit, send residue (badGamesDeficit - behindTotal) to bank
-      const residue = badGamesDeficit - behindTotal;
+      // This win recovered beforeTotal + its own stake
+      // badGameShadow = original total target at start of this game
+      // residue = what was recovered beyond what was still owed (badGamesDeficit)
+      const totalRecovered = beforeTotal + stake;
+      const residue        = totalRecovered - badGamesDeficit;
       setMartingaleDeficit(0);
       setBadGamesDeficit(0);
       if (residue > 0) {
