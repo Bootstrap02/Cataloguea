@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -109,7 +110,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(running / (odd - 1));
-      
+      stake = Math.max(stake, 10);
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -174,22 +175,9 @@ const Homepage = () => {
 
     /* ── SMALL GAME ── */
 
-    // 6-0 → martingale
-    let newMartingale = martingaleDeficit + winnerAmt;
-    let toBad = 0;
-    if      (newMartingale <= 300)   toBad = newMartingale;
-    else if (newMartingale <= 600)   toBad = Math.floor(newMartingale / 2);
-    else if (newMartingale <= 10000) toBad = Math.floor(newMartingale / 3);
-    else if (newMartingale <= 15000) toBad = Math.floor(newMartingale / 4);
-    else if (newMartingale <= 20000) toBad = Math.floor(newMartingale / 5);
-    else if (newMartingale <= 25000) toBad = Math.floor(newMartingale / 6);
-    else if (newMartingale <= 30000) toBad = Math.floor(newMartingale / 7);
-    else if (newMartingale <= 35000) toBad = Math.floor(newMartingale / 8);
-    else if (newMartingale <= 40000) toBad = Math.floor(newMartingale / 9);
-    else                              toBad = Math.floor(newMartingale / 10);
-
-    const newBad = badGamesDeficit + toBad;
-    newMartingale -= toBad;
+    // 6-0 → martingale: winner stake goes directly into both martingale and bad game deficit
+    const newMartingale = martingaleDeficit + winnerAmt;
+    const newBad = badGamesDeficit + winnerAmt;
     setMartingaleDeficit(newMartingale);
     setBadGamesDeficit(newBad);
     setBadGameShadow(newBad);
@@ -237,24 +225,27 @@ const Homepage = () => {
     if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
     setPressedWins((prev) => new Set([...prev, type]));
 
-    const stakesSnap   = { ...pendingSpecialStakes };
-    const stake        = stakesSnap[type];
-    const behindKeys   = getAssetsBehind(type);
-    const behindTotal  = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
-    const beforeTotal  = cumulativeMap[type] || 0;
+    const stakesSnap  = { ...pendingSpecialStakes };
+    const stake       = stakesSnap[type];
+    const behindKeys  = getAssetsBehind(type);
+    const behindTotal = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
+    const beforeTotal = cumulativeMap[type] || 0; // sum of stakes before this one (cumulative target)
 
     setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
     setTotalSmallDeficits((prev) => Math.max(0, prev - stake));
 
     if (!smallTeamImpact) {
-      // First win
-      setBadGamesDeficit(0);
-      setMartingaleDeficit((prev) => prev + behindTotal);
+      // ── FIRST WIN ──
+      // martingale deficit resets to 0
+      // bad game deficit becomes only the stakes AFTER (upward) this win
+      setMartingaleDeficit(0);
+      setBadGamesDeficit(behindTotal);
       setSmallTeamImpact(true);
       setTotalSmallDeficits(0);
     } else {
-      // Second+ win → wipe martingale, wipe badGames, send remainder to bank
-      const residue = beforeTotal - martingaleDeficit;
+      // ── SECOND+ WIN ──
+      // Wipe bad game deficit, send residue (badGamesDeficit - behindTotal) to bank
+      const residue = badGamesDeficit - behindTotal;
       setMartingaleDeficit(0);
       setBadGamesDeficit(0);
       if (residue > 0) {
