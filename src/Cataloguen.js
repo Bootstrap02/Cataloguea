@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -110,7 +109,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(running / (odd - 1));
-      stake = Math.max(stake, 10);
+    
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
