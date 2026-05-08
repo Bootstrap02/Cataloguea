@@ -110,7 +110,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(running / (odd - 1));
-      stake = Math.max(stake, 10);
+      
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -229,7 +229,6 @@ const Homepage = () => {
     const stake       = stakesSnap[type];
     const behindKeys  = getAssetsBehind(type);
     const behindTotal = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
-    const beforeTotal = cumulativeMap[type] || 0; // sum of stakes before this one (cumulative target)
 
     setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
     setTotalSmallDeficits((prev) => Math.max(0, prev - stake));
