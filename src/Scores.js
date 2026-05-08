@@ -337,7 +337,9 @@ export const odds = [
     fiveOne: 183,
     code: "DHA",
     ht30: 46.0
-  }, 
+  }
+];
+export const smallOdds = [
   {
     id: "cheful",
     home: "che",
@@ -349,7 +351,16 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    ht30: 59.0
+    oneX: 20.4,
+    twoX: 20.4,
+    x2: 23.0,
+    zeroGoals: 14.7,
+    sixGoals: 15.5,
+    ht12: 33.1,
+    ht21: 12.6,
+    ht30: 59.0,
+    ft40: 18.0,
+    ft41: 20.6
   },
   {
     id: "chenot",
@@ -362,7 +373,16 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    ht30: 59.0
+    oneX: 20.4,
+    twoX: 20.4,
+    x2: 23.0,
+    zeroGoals: 14.7,
+    sixGoals: 15.5,
+    ht12: 33.1,
+    ht21: 12.6,
+    ht30: 59.0,
+    ft40: 18.0,
+    ft41: 20.6
   },
   {
     id: "chewhu",
@@ -375,7 +395,16 @@ export const odds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    ht30: 59.0
+    oneX: 20.4,
+    twoX: 20.4,
+    x2: 23.0,
+    zeroGoals: 14.7,
+    sixGoals: 15.5,
+    ht12: 33.1,
+    ht21: 12.6,
+    ht30: 59.0,
+    ft40: 18.0,
+    ft41: 20.6
   },
   {
     id: "chelee",
@@ -388,7 +417,16 @@ export const odds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 24.9,
+    twoX: 24.9,
+    x2: 28.8,
+    zeroGoals: 17.7,
+    sixGoals: 13.0,
+    ht12: 37.3,
+    ht21: 11.6,
+    ht30: 59.0,
+    ft40: 14.0,
+    ft41: 16.9
   },
   {
     id: "chebha",
@@ -401,7 +439,16 @@ export const odds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 24.9,
+    twoX: 24.9,
+    x2: 28.8,
+    zeroGoals: 17.7,
+    sixGoals: 13.0,
+    ht12: 37.3,
+    ht21: 11.6,
+    ht30: 59.0,
+    ft40: 14.0,
+    ft41: 16.9
   },
   {
     id: "chesun",
@@ -414,7 +461,16 @@ export const odds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 24.9,
+    twoX: 24.9,
+    x2: 28.8,
+    zeroGoals: 17.7,
+    sixGoals: 13.0,
+    ht12: 37.3,
+    ht21: 11.6,
+    ht30: 59.0,
+    ft40: 14.0,
+    ft41: 16.9
   },
   {
     id: "cheeve",
@@ -427,7 +483,16 @@ export const odds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 24.9,
+    twoX: 24.9,
+    x2: 28.8,
+    zeroGoals: 17.7,
+    sixGoals: 13.0,
+    ht12: 37.3,
+    ht21: 11.6,
+    ht30: 59.0,
+    ft40: 14.0,
+    ft41: 16.9
   },
   {
     id: "checry",
@@ -440,7 +505,16 @@ export const odds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 24.9,
+    twoX: 24.9,
+    x2: 28.8,
+    zeroGoals: 17.7,
+    sixGoals: 13.0,
+    ht12: 37.3,
+    ht21: 11.6,
+    ht30: 59.0,
+    ft40: 14.0,
+    ft41: 16.9
   },
   {
     id: "chetot",
@@ -453,7 +527,16 @@ export const odds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 31.2,
+    twoX: 31.2,
+    x2: 35.6,
+    zeroGoals: 16.6,
+    sixGoals: 13.3,
+    ht12: 53.4,
+    ht21: 13.1,
+    ht30: 59.0,
+    ft40: 11.1,
+    ft41: 16.8
   },
   {
     id: "chebou",
@@ -466,7 +549,16 @@ export const odds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    ht30: 59.0
+    oneX: 31.2,
+    twoX: 31.2,
+    x2: 35.6,
+    zeroGoals: 16.6,
+    sixGoals: 13.3,
+    ht12: 53.4,
+    ht21: 13.1,
+    ht30: 59.0,
+    ft40: 11.1,
+    ft41: 16.8
   },
   {
     id: "bouche",
@@ -479,7 +571,16 @@ export const odds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    ht30: 59.0
+    oneX: 22.3,
+    twoX: 22.3,
+    x2: 25.5,
+    zeroGoals: 15.3,
+    sixGoals: 17.4,
+    ht12: 33.8,
+    ht21: 12.7,
+    ht30: 59.0,
+    ft40: 21.8,
+    ft41: 21.8
   },
   {
     id: "totche",
@@ -492,6 +593,15 @@ export const odds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    ht30: 59.0
+    oneX: 22.3,
+    twoX: 22.3,
+    x2: 25.5,
+    zeroGoals: 15.3,
+    sixGoals: 17.4,
+    ht12: 33.8,
+    ht21: 12.7,
+    ht30: 59.0,
+    ft40: 21.8,
+    ft41: 21.8
   }
 ];
