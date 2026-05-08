@@ -63,7 +63,7 @@ const Homepage = () => {
   const [badGamesDeficit,   setBadGamesDeficit]   = useState(0);
   const [badGameShadow,     setBadGameShadow]     = useState(0);
   const [bank,              setBank]              = useState(0);
-  const [cumulativeMap,        setCumulativeMap]        = useState({});
+  const [cumulativeMap,     setCumulativeMap]     = useState({});
   const [pendingSpecialStakes, setPendingSpecialStakes] = useState(emptySpecial());
   const [totalSmallDeficits,   setTotalSmallDeficits]   = useState(0);
 
@@ -110,7 +110,7 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       let stake = Math.round(running / (odd - 1));
-      
+    
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -175,12 +175,12 @@ const Homepage = () => {
 
     /* ── SMALL GAME ── */
 
-    // 6-0 → martingale: winner stake goes directly into both martingale and bad game deficit
-    const newMartingale = martingaleDeficit + winnerAmt;
-    const newBad = badGamesDeficit + winnerAmt;
-    setMartingaleDeficit(newMartingale);
-    setBadGamesDeficit(newBad);
-    setBadGameShadow(newBad);
+    // 6-0 → martingale
+    let newMartingale = martingaleDeficit + winnerAmt;
+
+    setBadGamesDeficit(newMartingale);
+    
+    setBadGameShadow(newMartingale);
 
     setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
@@ -195,15 +195,15 @@ const Homepage = () => {
     setOneAmounts({ winnerAmount: so, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
     // Special martingale stakes
-    const newPending    = {};
+    const newPending  = {};
     const newCumulative = {};
-    let runningTarget   = newBad;
+    let runningTarget = newBad;
     specialKeys.forEach((key) => {
       const odd = found[key] || 0;
       if (odd > 1.01) {
         const stake = Math.max(Math.round(runningTarget / (odd - 1)), 10);
         newPending[key]    = stake;
-        newCumulative[key] = runningTarget; // total staked BEFORE this item
+        newCumulative[key] = runningTarget;
         runningTarget += stake;
       } else {
         newPending[key]    = 0;
@@ -225,32 +225,24 @@ const Homepage = () => {
     if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
     setPressedWins((prev) => new Set([...prev, type]));
 
-    const stakesSnap  = { ...pendingSpecialStakes };
-    const stake       = stakesSnap[type];
-    const behindKeys  = getAssetsBehind(type);
-    // behindTotal = sum of all stakes AFTER this winner (still unpaid)
-    const behindTotal = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
-    // beforeTotal = cumulative amount staked BEFORE this winner (already paid/recovered)
-    const beforeTotal = cumulativeMap[type] || 0;
+    const stakesSnap   = { ...pendingSpecialStakes };
+    const stake        = stakesSnap[type];
+    const behindKeys   = getAssetsBehind(type);
+    const behindTotal  = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
+    const beforeTotal  = cumulativeMap[type] || 0;
 
     setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
     setTotalSmallDeficits((prev) => Math.max(0, prev - stake));
 
     if (!smallTeamImpact) {
-      // ── FIRST WIN ──
-      // martingale deficit clears (this win recovered everything before it)
-      // badGamesDeficit becomes only the stakes still ahead (behindTotal) — still owed
-      setMartingaleDeficit(0);
-      setBadGamesDeficit(behindTotal);
+      // First win
+      setBadGamesDeficit(0);
+      setMartingaleDeficit((prev) => prev + behindTotal);
       setSmallTeamImpact(true);
       setTotalSmallDeficits(0);
     } else {
-      // ── SECOND+ WIN ──
-      // This win recovered beforeTotal + its own stake
-      // badGameShadow = original total target at start of this game
-      // residue = what was recovered beyond what was still owed (badGamesDeficit)
-      const totalRecovered = beforeTotal + stake;
-      const residue        = totalRecovered - badGamesDeficit;
+      // Second+ win → wipe martingale, wipe badGames, send remainder to bank
+      const residue = beforeTotal - martingaleDeficit;
       setMartingaleDeficit(0);
       setBadGamesDeficit(0);
       if (residue > 0) {
