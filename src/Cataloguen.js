@@ -333,77 +333,79 @@ const Homepage = () => {
      HANDLE NEXT
      ================================================================ */
   const handleNextGame = async () => {
-    if (!fixture || !isLoading) return;
+  if (!fixture || !isLoading) return;
 
-    let nextBase        = baseStake + deficit;
-    let nextBaseDeficit = baseDeficit;
-    let nextZeroDef     = zeroDeficit;
-    let nextOneDef      = oneDeficit;
-    let nextMartingale  = martingaleDeficit;
-    let nextBad         = 0;
-    let nextShadow      = 0;
-    let nextBank        = bank;
+  let nextBase        = baseStake + deficit;
+  let nextBaseDeficit = baseDeficit;
+  let nextZeroDef     = zeroDeficit;
+  let nextOneDef      = oneDeficit;
+  let nextMartingale  = martingaleDeficit;
+  let nextBad         = 0;
+  let nextShadow      = 0;
+  let nextBank        = bank;
 
-    
-    if (isSmallTeamMatch) {
-  /* Push 5-0/5-1 stakes into their deficits */
-  nextZeroDef += smallZeroStake;
-  nextOneDef  += smallOneStake;
+  if (isSmallTeamMatch) {
+    /* Push 5-0/5-1 stakes into their deficits */
+    nextZeroDef += smallZeroStake;
+    nextOneDef  += smallOneStake;
 
-  /* FIX: On no-win, badGamesDeficit (the full chain total) goes to martingaleDeficit */
-  /* On win (smallTeamImpact true), martingaleDeficit was already set in handleSpecialWin */
-  if (!smallTeamImpact) {
-    // No win happened this game - push the entire badGamesDeficit forward
-    nextMartingale = badGamesDeficit;
-  } else {
-    // Win happened - martingaleDeficit already updated in handleSpecialWin
-    nextMartingale = martingaleDeficit;
-  }
-  
-  nextBad = 0;
-  nextShadow = 0;
-  }
-    /* If martingaleDeficit > 1000, push to baseStake + baseDeficit (after bank check) */
-    if (nextMartingale > 1000) {
-      if (nextBank >= nextMartingale) {
-        nextBank      -= nextMartingale;
-        nextMartingale = 0;
-      } else {
-        const residue   = nextMartingale - nextBank;
-        nextBank        = 0;
-        nextBase        += residue;
-        nextBaseDeficit += residue;
-        nextMartingale  = 0;
-      }
+    /* Calculate total stakes from all chain assets (winner + specials) */
+    const totalStakes = Object.values(gameStakes).reduce((sum, val) => sum + (val || 0), 0);
+
+    /* FIX: On no-win, badGamesDeficit PLUS totalStakes goes to martingaleDeficit */
+    if (!smallTeamImpact) {
+      // No win happened - push the full chain total + all stakes forward
+      nextMartingale = badGamesDeficit + totalStakes;
+    } else {
+      // Win happened - use what's already in martingaleDeficit from handleSpecialWin
+      nextMartingale = martingaleDeficit;
     }
+    
+    nextBad    = 0;
+    nextShadow = 0;
+  }
 
-    setBaseStake(nextBase);
-    setDeficit(0);
-    setBaseDeficit(nextBaseDeficit);
-    setZeroDeficit(nextZeroDef);
-    setOneDeficit(nextOneDef);
-    setMartingaleDeficit(nextMartingale);
-    setBadGamesDeficit(nextBad);
-    setBadGameShadow(nextShadow);
-    setBank(nextBank);
-    setSmallZeroStake(0);
-    setSmallOneStake(0);
-    setGameStakes({ winner: 0, ...emptySpecial() });
+  /* If martingaleDeficit > 1000, push to baseStake + baseDeficit (after bank check) */
+  if (nextMartingale > 1000) {
+    if (nextBank >= nextMartingale) {
+      nextBank      -= nextMartingale;
+      nextMartingale = 0;
+    } else {
+      const residue   = nextMartingale - nextBank;
+      nextBank        = 0;
+      nextBase        += residue;
+      nextBaseDeficit += residue;
+      nextMartingale  = 0;
+    }
+  }
 
-    setPressedWins(new Set());
-    setJackpot(false);
-    setFixture(null);
-    setOrderedStakes([]);
-    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setIsSmallTeamMatch(false);
-    setSmallTeamImpact(false);
-    setInputA(""); setInputB("");
-    setIsLoading(false);
+  setBaseStake(nextBase);
+  setDeficit(0);
+  setBaseDeficit(nextBaseDeficit);
+  setZeroDeficit(nextZeroDef);
+  setOneDeficit(nextOneDef);
+  setMartingaleDeficit(nextMartingale);
+  setBadGamesDeficit(nextBad);
+  setBadGameShadow(nextShadow);
+  setBank(nextBank);
+  setSmallZeroStake(0);
+  setSmallOneStake(0);
+  setGameStakes({ winner: 0, ...emptySpecial() });
 
-    await saveAll();
-  };
+  setPressedWins(new Set());
+  setJackpot(false);
+  setFixture(null);
+  setOrderedStakes([]);
+  setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  setIsSmallTeamMatch(false);
+  setSmallTeamImpact(false);
+  setInputA(""); setInputB("");
+  setIsLoading(false);
+
+  await saveAll();
+};
 
   /* ── CLEAR after normal game resolve ── */
   const clearForNext = () => {
