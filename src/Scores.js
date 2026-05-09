@@ -339,6 +339,7 @@ export const odds = [
     ht30: 46.0
   }
 ];
+
 export const smallOdds = [
   {
     id: "cheful",
@@ -358,7 +359,7 @@ export const smallOdds = [
     sixGoals: 15.5,
     ht12: 33.1,
     ht21: 12.6,
-    ht30: 59.0,
+    ht30: 14.9,
     ft40: 18.0,
     ft41: 20.6
   },
@@ -380,7 +381,7 @@ export const smallOdds = [
     sixGoals: 15.5,
     ht12: 33.1,
     ht21: 12.6,
-    ht30: 59.0,
+    ht30: 14.9,
     ft40: 18.0,
     ft41: 20.6
   },
@@ -402,7 +403,7 @@ export const smallOdds = [
     sixGoals: 15.5,
     ht12: 33.1,
     ht21: 12.6,
-    ht30: 59.0,
+    ht30: 14.9,
     ft40: 18.0,
     ft41: 20.6
   },
@@ -424,7 +425,7 @@ export const smallOdds = [
     sixGoals: 13.0,
     ht12: 37.3,
     ht21: 11.6,
-    ht30: 59.0,
+    ht30: 11.3,
     ft40: 14.0,
     ft41: 16.9
   },
@@ -446,7 +447,7 @@ export const smallOdds = [
     sixGoals: 13.0,
     ht12: 37.3,
     ht21: 11.6,
-    ht30: 59.0,
+    ht30: 11.3,
     ft40: 14.0,
     ft41: 16.9
   },
@@ -468,7 +469,7 @@ export const smallOdds = [
     sixGoals: 13.0,
     ht12: 37.3,
     ht21: 11.6,
-    ht30: 59.0,
+    ht30: 11.3,
     ft40: 14.0,
     ft41: 16.9
   },
@@ -490,7 +491,7 @@ export const smallOdds = [
     sixGoals: 13.0,
     ht12: 37.3,
     ht21: 11.6,
-    ht30: 59.0,
+    ht30: 11.3,
     ft40: 14.0,
     ft41: 16.9
   },
@@ -512,7 +513,7 @@ export const smallOdds = [
     sixGoals: 13.0,
     ht12: 37.3,
     ht21: 11.6,
-    ht30: 59.0,
+    ht30: 11.3,
     ft40: 14.0,
     ft41: 16.9
   },
@@ -534,7 +535,7 @@ export const smallOdds = [
     sixGoals: 13.3,
     ht12: 53.4,
     ht21: 13.1,
-    ht30: 59.0,
+    ht30: 9.63,
     ft40: 11.1,
     ft41: 16.8
   },
@@ -556,7 +557,7 @@ export const smallOdds = [
     sixGoals: 13.3,
     ht12: 53.4,
     ht21: 13.1,
-    ht30: 59.0,
+    ht30: 9.63,
     ft40: 11.1,
     ft41: 16.8
   },
@@ -578,7 +579,7 @@ export const smallOdds = [
     sixGoals: 17.4,
     ht12: 33.8,
     ht21: 12.7,
-    ht30: 59.0,
+    ht30: 17.7,
     ft40: 21.8,
     ft41: 21.8
   },
@@ -600,7 +601,7 @@ export const smallOdds = [
     sixGoals: 17.4,
     ht12: 33.8,
     ht21: 12.7,
-    ht30: 59.0,
+    ht30: 17.7,
     ft40: 21.8,
     ft41: 21.8
   }
