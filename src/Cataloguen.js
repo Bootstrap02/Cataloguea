@@ -7,6 +7,13 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
+/* ── martingale chain: winner is index 0, then specials in order ── */
+const martingaleOrder = [
+  "winner",
+  "oneX", "twoX", "x2", "zeroGoals", "sixGoals",
+  "ht12", "ht21", "ht30", "ft40", "ft41",
+];
+
 const specialKeys = [
   "oneX", "twoX", "x2", "zeroGoals", "sixGoals",
   "ht12", "ht21", "ht30", "ft40", "ft41",
@@ -18,11 +25,6 @@ const specialLabels = {
   ht12: "HT 1-2", ht21: "HT 2-1", ht30: "HT 3-0",
   ft40: "FT 4-0", ft41: "FT 4-1",
 };
-
-const martingaleOrder = [
-  "oneX", "twoX", "sixGoals", "zeroGoals",
-  "ht12", "ht21", "ht30", "ft40", "ft41",
-];
 
 const emptySpecial = () => ({
   oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
@@ -43,7 +45,7 @@ const Homepage = () => {
   const [pressedWins, setPressedWins] = useState(new Set());
   const [jackpot, setJackpot] = useState(false);
 
-  /* ── NORMAL GAME STATE (cataloguem) ── */
+  /* ── NORMAL GAME STATE ── */
   const [baseStake,   setBaseStake]   = useState(10000);
   const [baseDeficit, setBaseDeficit] = useState(0);
   const [deficit,     setDeficit]     = useState(0);
@@ -53,19 +55,20 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ── NORMAL STAKES ── */
-  const [amounts,    setAmounts]    = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [amounts,     setAmounts]     = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [zeroAmounts, setZeroAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [oneAmounts,  setOneAmounts]  = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
   const [orderedStakes, setOrderedStakes] = useState([]);
 
-  /* ── SMALL ODDS STATE (catalogued martingale) ── */
+  /* ── SMALL ODDS STATE ── */
   const [martingaleDeficit, setMartingaleDeficit] = useState(0);
   const [badGamesDeficit,   setBadGamesDeficit]   = useState(0);
   const [badGameShadow,     setBadGameShadow]     = useState(0);
   const [bank,              setBank]              = useState(0);
-  const [cumulativeMap,     setCumulativeMap]     = useState({});
-  const [pendingSpecialStakes, setPendingSpecialStakes] = useState(emptySpecial());
-  const [totalSmallDeficits,   setTotalSmallDeficits]   = useState(0);
+
+  /* Stakes for each martingale slot this game — just display + win logic */
+  /* Format: { winner: 0, oneX: 0, twoX: 0, ... } */
+  const [gameStakes, setGameStakes] = useState({ winner: 0, ...emptySpecial() });
 
   /* ── SMALL ODDS: 5-0 / 5-1 plain stakes (no HDA) ── */
   const [smallZeroStake, setSmallZeroStake] = useState(0);
@@ -109,8 +112,7 @@ const Homepage = () => {
     for (const step of code) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
-      let stake = Math.round(running / (odd - 1));
-    
+      let stake = Math.max(Math.round(running / (odd - 1)), 10);
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -118,12 +120,6 @@ const Homepage = () => {
       running += stake;
     }
     return { ladder, H, D, A };
-  };
-
-  /* ── HELPERS ── */
-  const getAssetsBehind = (wonKey) => {
-    const idx = martingaleOrder.indexOf(wonKey);
-    return idx === -1 ? [] : martingaleOrder.slice(idx + 1);
   };
 
   /* ================================================================
@@ -151,117 +147,147 @@ const Homepage = () => {
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
     const code    = found.code || "";
 
-    /* ── 6-0 (winner) stake ── */
+    /* ── 6-0 winner stake ── */
     const newBase6 = baseStake + deficit;
     setBaseStake(newBase6);
     setDeficit(0);
-    let winnerAmt = Math.max(Math.round(newBase6 / found.winner), 10);
+    const winnerAmt = Math.max(Math.round(newBase6 / found.winner), 10);
 
-    /* ── NORMAL GAME: full HDA ladders ── */
+    /* ══════════════════════════════════════
+       NORMAL GAME — full HDA ladders
+    ══════════════════════════════════════ */
     if (!isSmall) {
       const r6  = buildLadder(winnerAmt, "6-0", code, oddsMap);
-      const r50 = buildLadder(Math.max(Math.round((baseDeficit + zeroDeficit) / found.fiveZero), 10), "5-0", code, oddsMap);
-      const r51 = buildLadder(Math.max(Math.round((baseDeficit + oneDeficit)  / found.fiveOne),  10), "5-1", code, oddsMap);
+      const r50 = buildLadder(
+        Math.max(Math.round((baseDeficit + zeroDeficit) / found.fiveZero), 10),
+        "5-0", code, oddsMap
+      );
+      const r51 = buildLadder(
+        Math.max(Math.round((baseDeficit + oneDeficit) / found.fiveOne), 10),
+        "5-1", code, oddsMap
+      );
 
       setOrderedStakes([...r6.ladder, ...r50.ladder, ...r51.ladder]);
-
-      setAmounts({    winnerAmount: winnerAmt,        homeAmount: r6.H,  drawAmount: r6.D,  awayAmount: r6.A  });
+      setAmounts({    winnerAmount: winnerAmt, homeAmount: r6.H,  drawAmount: r6.D,  awayAmount: r6.A });
       setZeroAmounts({ winnerAmount: Math.max(Math.round((baseDeficit + zeroDeficit) / found.fiveZero), 10), homeAmount: r50.H, drawAmount: r50.D, awayAmount: r50.A });
       setOneAmounts({  winnerAmount: Math.max(Math.round((baseDeficit + oneDeficit)  / found.fiveOne),  10), homeAmount: r51.H, drawAmount: r51.D, awayAmount: r51.A });
-
       setIsLoading(true);
       return;
     }
 
-    /* ── SMALL GAME ── */
+    /* ══════════════════════════════════════
+       SMALL ODDS GAME — martingale chain
+    ══════════════════════════════════════
 
-    // 6-0 → martingale
-    let newMartingale = martingaleDeficit + winnerAmt;
-
-    setBadGamesDeficit(newMartingale);
-    
-    setBadGameShadow(newMartingale);
+       badGamesDeficit = winnerAmt + any existing martingaleDeficit
+       This is the total target the chain must recover.
+       Each asset in martingaleOrder stakes to recover everything before it.
+    ══════════════════════════════════════ */
+    const newBad = winnerAmt + martingaleDeficit;
+    setBadGamesDeficit(newBad);
+    setBadGameShadow(newBad);
+    /* martingaleDeficit stays as-is until next game or win resolves it */
 
     setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
-    // 5-0 plain stake (no HDA in small games)
+    /* 5-0 plain stake */
     const sz = Math.max(Math.round((baseDeficit + zeroDeficit) / found.fiveZero), 10);
     setSmallZeroStake(sz);
     setZeroAmounts({ winnerAmount: sz, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
-    // 5-1 plain stake (no HDA in small games)
+    /* 5-1 plain stake */
     const so = Math.max(Math.round((baseDeficit + oneDeficit) / found.fiveOne), 10);
     setSmallOneStake(so);
     setOneAmounts({ winnerAmount: so, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
-    // Special martingale stakes
-    const newPending  = {};
-    const newCumulative = {};
-    let runningTarget = newBad;
+    /*
+      Build martingale chain stakes.
+      running starts at newBad (what needs to be recovered).
+      Each asset stakes enough to recover the entire running total if it wins.
+      winner slot is already staked (winnerAmt), so chain starts from specialKeys.
+    */
+    const newGameStakes = { winner: winnerAmt };
+    let running = newBad;
+
     specialKeys.forEach((key) => {
       const odd = found[key] || 0;
       if (odd > 1.01) {
-        const stake = Math.max(Math.round(runningTarget / (odd - 1)), 10);
-        newPending[key]    = stake;
-        newCumulative[key] = runningTarget;
-        runningTarget += stake;
+        const stake = Math.max(Math.round(running / (odd - 1)), 10);
+        newGameStakes[key] = stake;
+        running += stake;
       } else {
-        newPending[key]    = 0;
-        newCumulative[key] = runningTarget;
+        newGameStakes[key] = 0;
       }
     });
-    setPendingSpecialStakes(newPending);
-    setCumulativeMap(newCumulative);
-    const addedThisTime = Object.values(newPending).reduce((s, v) => s + v, 0);
-    setTotalSmallDeficits((prev) => prev + addedThisTime);
 
+    setGameStakes(newGameStakes);
     setIsLoading(true);
   };
 
   /* ================================================================
      SPECIAL WIN (small odds martingale)
+
+     Win logic:
+     - First win:
+         badGamesDeficit → 0
+         stakes AFTER this asset → martingaleDeficit (still owed)
+     - Second+ win (badGamesDeficit already 0):
+         stakes BEFORE this asset + shadow = total recovered
+         subtract martingaleDeficit → residue → bank
+         martingaleDeficit → 0
      ================================================================ */
   const handleSpecialWin = (type) => {
-    if (!fixture || !isSmallTeamMatch || pendingSpecialStakes[type] === 0) return;
+    if (!fixture || !isSmallTeamMatch || gameStakes[type] === 0) return;
+    if (pressedWins.has(type)) return;
     setPressedWins((prev) => new Set([...prev, type]));
 
-    const stakesSnap   = { ...pendingSpecialStakes };
-    const stake        = stakesSnap[type];
-    const behindKeys   = getAssetsBehind(type);
-    const behindTotal  = behindKeys.reduce((s, k) => s + (stakesSnap[k] || 0), 0);
-    const beforeTotal  = cumulativeMap[type] || 0;
+    const snap = { ...gameStakes };
 
-    setPendingSpecialStakes((prev) => ({ ...prev, [type]: 0 }));
-    setTotalSmallDeficits((prev) => Math.max(0, prev - stake));
+    /* Stakes of assets AFTER this one in the chain */
+    const myIdx      = martingaleOrder.indexOf(type);
+    const afterKeys  = martingaleOrder.slice(myIdx + 1);
+    const afterTotal = afterKeys.reduce((s, k) => s + (snap[k] || 0), 0);
+
+    /* Stakes of assets BEFORE this one in the chain (including winner) */
+    const beforeKeys  = martingaleOrder.slice(0, myIdx);
+    const beforeTotal = beforeKeys.reduce((s, k) => s + (snap[k] || 0), 0);
 
     if (!smallTeamImpact) {
-      // First win
+      /* ── FIRST WIN ──
+         This win recovered everything before it (beforeTotal + its own stake).
+         What's still owed = afterTotal → goes to martingaleDeficit.
+         badGamesDeficit clears. */
       setBadGamesDeficit(0);
-      setMartingaleDeficit((prev) => prev + behindTotal);
+      setMartingaleDeficit(afterTotal);
       setSmallTeamImpact(true);
-      setTotalSmallDeficits(0);
     } else {
-      // Second+ win → wipe martingale, wipe badGames, send remainder to bank
-      const residue = beforeTotal - martingaleDeficit;
+      /* ── SECOND+ WIN ──
+         badGamesDeficit is already 0.
+         Total recovered by this win = beforeTotal (stakes before) + badGameShadow (original target).
+         Subtract martingaleDeficit (what was still owed) → residue → bank. */
+      const totalRecovered = beforeTotal + badGameShadow;
+      const residue        = totalRecovered - martingaleDeficit;
       setMartingaleDeficit(0);
       setBadGamesDeficit(0);
-      if (residue > 0) {
-        setBank((prev) => prev + residue);
-      }
+      if (residue > 0) setBank((prev) => prev + residue);
     }
   };
 
-  /* ================================================================
-     JACKPOTS
-     ================================================================ */
+  /* ── 6-0 WIN in small game ── */
   const handleJackpot = () => {
     if (!fixture) return;
     setJackpot(true);
     setDeficit(0);
     setBaseStake(10000);
     setBaseDeficit(0);
+    /* 6-0 wins = martingale chain fully recovered */
+    if (isSmallTeamMatch) {
+      setBadGamesDeficit(0);
+      setMartingaleDeficit(0);
+    }
   };
 
+  /* ── 5-0 WIN ── */
   const handleZeroJackpot = () => {
     setBaseStake(10000 + oneDeficit);
     setBaseDeficit(oneDeficit);
@@ -269,6 +295,7 @@ const Homepage = () => {
     setZeroDeficit(0);
   };
 
+  /* ── 5-1 WIN ── */
   const handleOneJackpot = () => {
     setBaseStake(10000 + zeroDeficit);
     setBaseDeficit(zeroDeficit);
@@ -289,9 +316,9 @@ const Homepage = () => {
       return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
     };
 
-    const mainLoss  = calcLoss("6-0");
-    const zeroLoss  = calcLoss("5-0");
-    const oneLoss   = calcLoss("5-1");
+    const mainLoss = calcLoss("6-0");
+    const zeroLoss = calcLoss("5-0");
+    const oneLoss  = calcLoss("5-1");
 
     setDeficit(mainLoss);
     setBaseDeficit((prev) => prev + mainLoss);
@@ -317,28 +344,30 @@ const Homepage = () => {
     let nextBank        = bank;
 
     if (isSmallTeamMatch) {
-      // Push small game 5-0/5-1 stakes into their deficits
+      /* Push 5-0/5-1 stakes into their deficits */
       nextZeroDef += smallZeroStake;
       nextOneDef  += smallOneStake;
 
-      // Roll leftover martingale + bad + small into next martingale
-      nextMartingale = Math.max(0, martingaleDeficit + badGamesDeficit + totalSmallDeficits);
-      nextBad    = 0;
-      nextShadow = 0;
+      /* No win happened: everything (badGamesDeficit + all chain stakes) rolls into martingaleDeficit */
+      /* If a win happened, martingaleDeficit was already updated in handleSpecialWin */
+      /* Either way we carry forward what's in martingaleDeficit now */
+      /* badGamesDeficit clears for next game */
+      nextMartingale = martingaleDeficit;
+      nextBad        = 0;
+      nextShadow     = 0;
     }
 
-    // Check martingale > 1000 → push to baseStake + baseDeficit
-    // First check bank: if bank >= martingale, absorb from bank
+    /* If martingaleDeficit > 1000, push to baseStake + baseDeficit (after bank check) */
     if (nextMartingale > 1000) {
       if (nextBank >= nextMartingale) {
-        nextBank -= nextMartingale;
+        nextBank      -= nextMartingale;
         nextMartingale = 0;
       } else {
-        const residue = nextMartingale - nextBank;
-        nextBank = 0;
+        const residue   = nextMartingale - nextBank;
+        nextBank        = 0;
         nextBase        += residue;
         nextBaseDeficit += residue;
-        nextMartingale   = 0;
+        nextMartingale  = 0;
       }
     }
 
@@ -351,13 +380,12 @@ const Homepage = () => {
     setBadGamesDeficit(nextBad);
     setBadGameShadow(nextShadow);
     setBank(nextBank);
-    setTotalSmallDeficits(0);
     setSmallZeroStake(0);
     setSmallOneStake(0);
+    setGameStakes({ winner: 0, ...emptySpecial() });
 
     setPressedWins(new Set());
     setJackpot(false);
-    setPendingSpecialStakes(emptySpecial());
     setFixture(null);
     setOrderedStakes([]);
     setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
@@ -371,7 +399,7 @@ const Homepage = () => {
     await saveAll();
   };
 
-  /* ── CLEAR (used after normal game resolve) ── */
+  /* ── CLEAR after normal game resolve ── */
   const clearForNext = () => {
     setInputA(""); setInputB("");
     setFixture(null);
@@ -399,7 +427,7 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white">
 
-      {/* ══════════════ DESKTOP ══════════════ */}
+      {/* ══ DESKTOP ══ */}
       <div className="max-lg:hidden px-4 py-10">
         <div className="text-center mb-10 flex items-center justify-center gap-6 flex-wrap">
           <h1 className="text-4xl font-extrabold text-red-500">Virtual EPL Strategy</h1>
@@ -411,8 +439,6 @@ const Homepage = () => {
         </div>
 
         <div className="max-w-6xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
-
-          {/* Outcome Buttons */}
           <div className="mb-8">
             {isSmallTeamMatch ? (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -430,9 +456,9 @@ const Homepage = () => {
                 </button>
                 {specialKeys.map((key) => (
                   <button key={key} onClick={() => handleSpecialWin(key)}
-                    disabled={!fixture || pendingSpecialStakes[key] === 0 || pressedWins.has(key)}
+                    disabled={!fixture || gameStakes[key] === 0 || pressedWins.has(key)}
                     className={`py-6 rounded-2xl font-bold transition ${pressedWins.has(key) ? "bg-green-500 text-white" : "bg-blue-600 text-white hover:bg-blue-500"}`}>
-                    {specialLabels[key]}<br />({pendingSpecialStakes[key] || "–"})
+                    {specialLabels[key]}<br />({gameStakes[key] || "–"})
                   </button>
                 ))}
               </div>
@@ -466,7 +492,6 @@ const Homepage = () => {
             )}
           </div>
 
-          {/* Inputs */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-8">
             <div className="flex items-center gap-4">
               <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home"
@@ -487,7 +512,6 @@ const Homepage = () => {
             </div>
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
             <div>Base<br /><strong className="text-green-600">{baseStake}</strong></div>
             <div>Deficit<br /><strong className="text-red-600">{deficit}</strong></div>
@@ -502,7 +526,7 @@ const Homepage = () => {
         </div>
       </div>
 
-      {/* ══════════════ MOBILE ══════════════ */}
+      {/* ══ MOBILE ══ */}
       <div className="hidden max-lg:block px-3 py-6">
         <div className="text-center mb-4 flex items-center justify-center gap-3">
           <h1 className="text-2xl font-extrabold text-red-500">Virtual EPL</h1>
@@ -513,7 +537,6 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* Inputs */}
         <div className="flex gap-2 mb-4 justify-center items-center">
           <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home"
             className="flex-1 max-w-[105px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" />
@@ -522,7 +545,6 @@ const Homepage = () => {
             className="flex-1 max-w-[105px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" />
         </div>
 
-        {/* Load / Next */}
         <div className="flex gap-3 mb-6">
           <button onClick={handleLoadGame} disabled={isLoading}
             className="flex-1 py-3 bg-red-700 hover:bg-red-600 disabled:opacity-50 rounded-2xl text-sm font-bold transition">
@@ -534,7 +556,6 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* Outcome Buttons */}
         <div className="mb-6">
           {isSmallTeamMatch ? (
             <div className="grid grid-cols-3 gap-2">
@@ -552,9 +573,9 @@ const Homepage = () => {
               </button>
               {specialKeys.map((key) => (
                 <button key={key} onClick={() => handleSpecialWin(key)}
-                  disabled={!fixture || pendingSpecialStakes[key] === 0 || pressedWins.has(key)}
+                  disabled={!fixture || gameStakes[key] === 0 || pressedWins.has(key)}
                   className={`py-3 rounded-xl text-xs font-bold transition ${pressedWins.has(key) ? "bg-green-500 text-white" : "bg-blue-700 text-white"}`}>
-                  {specialLabels[key]}<br /><span className="text-[10px]">({pendingSpecialStakes[key] || "–"})</span>
+                  {specialLabels[key]}<br /><span className="text-[10px]">({gameStakes[key] || "–"})</span>
                 </button>
               ))}
             </div>
@@ -588,7 +609,6 @@ const Homepage = () => {
           )}
         </div>
 
-        {/* Stats */}
         <div className="bg-black/30 rounded-2xl p-4 text-xs grid grid-cols-3 gap-2">
           <div>Base<br /><strong className="text-green-400">{baseStake}</strong></div>
           <div>Deficit<br /><strong className="text-red-400">{deficit}</strong></div>
