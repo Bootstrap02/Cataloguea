@@ -112,7 +112,7 @@ const Homepage = () => {
     for (const step of code) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
-      let stake = Math.max(Math.round(running / (odd - 1)), 10);
+      let stake = Math.round(running / (odd - 1));
       ladder.push({ step, stake, type });
       if (step === "H") H = stake;
       if (step === "D") D = stake;
@@ -186,6 +186,7 @@ const Homepage = () => {
     const newBad = winnerAmt + martingaleDeficit;
     setBadGamesDeficit(newBad);
     setBadGameShadow(newBad);
+    setMartingaleDeficit(0);
     /* martingaleDeficit stays as-is until next game or win resolves it */
 
     setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
