@@ -351,11 +351,11 @@ const Homepage = () => {
 
     /* Calculate total stakes from all chain assets (winner + specials) */
     const totalStakes = Object.values(gameStakes).reduce((sum, val) => sum + (val || 0), 0);
-
+    const winner = badgamedeficit - gameStakes.winner
     /* FIX: On no-win, badGamesDeficit PLUS totalStakes goes to martingaleDeficit */
     if (!smallTeamImpact) {
       // No win happened - push the full chain total + all stakes forward
-      nextMartingale = totalStakes;
+      nextMartingale = totalStakes + winner;
     } else {
       // Win happened - use what's already in martingaleDeficit from handleSpecialWin
       nextMartingale = martingaleDeficit;
