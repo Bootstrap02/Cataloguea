@@ -344,20 +344,25 @@ const Homepage = () => {
     let nextShadow      = 0;
     let nextBank        = bank;
 
+    
     if (isSmallTeamMatch) {
-      /* Push 5-0/5-1 stakes into their deficits */
-      nextZeroDef += smallZeroStake;
-      nextOneDef  += smallOneStake;
+  /* Push 5-0/5-1 stakes into their deficits */
+  nextZeroDef += smallZeroStake;
+  nextOneDef  += smallOneStake;
 
-      /* No win happened: everything (badGamesDeficit + all chain stakes) rolls into martingaleDeficit */
-      /* If a win happened, martingaleDeficit was already updated in handleSpecialWin */
-      /* Either way we carry forward what's in martingaleDeficit now */
-      /* badGamesDeficit clears for next game */
-      nextMartingale = martingaleDeficit;
-      nextBad        = 0;
-      nextShadow     = 0;
-    }
-
+  /* FIX: On no-win, badGamesDeficit (the full chain total) goes to martingaleDeficit */
+  /* On win (smallTeamImpact true), martingaleDeficit was already set in handleSpecialWin */
+  if (!smallTeamImpact) {
+    // No win happened this game - push the entire badGamesDeficit forward
+    nextMartingale = badGamesDeficit;
+  } else {
+    // Win happened - martingaleDeficit already updated in handleSpecialWin
+    nextMartingale = martingaleDeficit;
+  }
+  
+  nextBad = 0;
+  nextShadow = 0;
+  }
     /* If martingaleDeficit > 1000, push to baseStake + baseDeficit (after bank check) */
     if (nextMartingale > 1000) {
       if (nextBank >= nextMartingale) {
