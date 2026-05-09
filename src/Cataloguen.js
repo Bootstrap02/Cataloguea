@@ -355,7 +355,7 @@ const Homepage = () => {
     /* FIX: On no-win, badGamesDeficit PLUS totalStakes goes to martingaleDeficit */
     if (!smallTeamImpact) {
       // No win happened - push the full chain total + all stakes forward
-      nextMartingale = badGamesDeficit + totalStakes;
+      nextMartingale = totalStakes;
     } else {
       // Win happened - use what's already in martingaleDeficit from handleSpecialWin
       nextMartingale = martingaleDeficit;
