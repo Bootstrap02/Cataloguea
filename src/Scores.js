@@ -1,4 +1,5 @@
 
+
 export const odds = [
   {
     id: "chebre",
@@ -337,10 +338,7 @@ export const odds = [
     fiveOne: 183,
     code: "DHA",
     ht30: 46.0
-  }
-];
-
-export const smallOdds = [
+  }, 
   {
     id: "cheful",
     home: "che",
@@ -352,16 +350,7 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    oneX: 20.4,
-    twoX: 20.4,
-    x2: 23.0,
-    zeroGoals: 14.7,
-    sixGoals: 15.5,
-    ht12: 33.1,
-    ht21: 12.6,
-    ht30: 14.9,
-    ft40: 18.0,
-    ft41: 20.6
+    ht30: 59.0
   },
   {
     id: "chenot",
@@ -374,16 +363,7 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    oneX: 20.4,
-    twoX: 20.4,
-    x2: 23.0,
-    zeroGoals: 14.7,
-    sixGoals: 15.5,
-    ht12: 33.1,
-    ht21: 12.6,
-    ht30: 14.9,
-    ft40: 18.0,
-    ft41: 20.6
+    ht30: 59.0
   },
   {
     id: "chewhu",
@@ -396,16 +376,7 @@ export const smallOdds = [
     fiveZero: 40.4,
     fiveOne: 45.5,
     code: "ADH",
-    oneX: 20.4,
-    twoX: 20.4,
-    x2: 23.0,
-    zeroGoals: 14.7,
-    sixGoals: 15.5,
-    ht12: 33.1,
-    ht21: 12.6,
-    ht30: 14.9,
-    ft40: 18.0,
-    ft41: 20.6
+    ht30: 59.0
   },
   {
     id: "chelee",
@@ -418,16 +389,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    oneX: 24.9,
-    twoX: 24.9,
-    x2: 28.8,
-    zeroGoals: 17.7,
-    sixGoals: 13.0,
-    ht12: 37.3,
-    ht21: 11.6,
-    ht30: 11.3,
-    ft40: 14.0,
-    ft41: 16.9
+    ht30: 59.0
   },
   {
     id: "chebha",
@@ -440,16 +402,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    oneX: 24.9,
-    twoX: 24.9,
-    x2: 28.8,
-    zeroGoals: 17.7,
-    sixGoals: 13.0,
-    ht12: 37.3,
-    ht21: 11.6,
-    ht30: 11.3,
-    ft40: 14.0,
-    ft41: 16.9
+    ht30: 59.0
   },
   {
     id: "chesun",
@@ -462,16 +415,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    oneX: 24.9,
-    twoX: 24.9,
-    x2: 28.8,
-    zeroGoals: 17.7,
-    sixGoals: 13.0,
-    ht12: 37.3,
-    ht21: 11.6,
-    ht30: 11.3,
-    ft40: 14.0,
-    ft41: 16.9
+    ht30: 59.0
   },
   {
     id: "cheeve",
@@ -484,16 +428,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    oneX: 24.9,
-    twoX: 24.9,
-    x2: 28.8,
-    zeroGoals: 17.7,
-    sixGoals: 13.0,
-    ht12: 37.3,
-    ht21: 11.6,
-    ht30: 11.3,
-    ft40: 14.0,
-    ft41: 16.9
+    ht30: 59.0
   },
   {
     id: "checry",
@@ -506,16 +441,7 @@ export const smallOdds = [
     fiveZero: 28,
     fiveOne: 33.9,
     code: "ADH",
-    oneX: 24.9,
-    twoX: 24.9,
-    x2: 28.8,
-    zeroGoals: 17.7,
-    sixGoals: 13.0,
-    ht12: 37.3,
-    ht21: 11.6,
-    ht30: 11.3,
-    ft40: 14.0,
-    ft41: 16.9
+    ht30: 59.0
   },
   {
     id: "chetot",
@@ -528,16 +454,7 @@ export const smallOdds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    oneX: 31.2,
-    twoX: 31.2,
-    x2: 35.6,
-    zeroGoals: 16.6,
-    sixGoals: 13.3,
-    ht12: 53.4,
-    ht21: 13.1,
-    ht30: 9.63,
-    ft40: 11.1,
-    ft41: 16.8
+    ht30: 59.0
   },
   {
     id: "chebou",
@@ -550,16 +467,7 @@ export const smallOdds = [
     fiveZero: 20.6,
     fiveOne: 31.9,
     code: "ADH",
-    oneX: 31.2,
-    twoX: 31.2,
-    x2: 35.6,
-    zeroGoals: 16.6,
-    sixGoals: 13.3,
-    ht12: 53.4,
-    ht21: 13.1,
-    ht30: 9.63,
-    ft40: 11.1,
-    ft41: 16.8
+    ht30: 59.0
   },
   {
     id: "bouche",
@@ -572,16 +480,7 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    oneX: 22.3,
-    twoX: 22.3,
-    x2: 25.5,
-    zeroGoals: 15.3,
-    sixGoals: 17.4,
-    ht12: 33.8,
-    ht21: 12.7,
-    ht30: 17.7,
-    ft40: 21.8,
-    ft41: 21.8
+    ht30: 59.0
   },
   {
     id: "totche",
@@ -594,15 +493,6 @@ export const smallOdds = [
     fiveZero: 54.6,
     fiveOne: 54.6,
     code: "HDA",
-    oneX: 22.3,
-    twoX: 22.3,
-    x2: 25.5,
-    zeroGoals: 15.3,
-    sixGoals: 17.4,
-    ht12: 33.8,
-    ht21: 12.7,
-    ht30: 17.7,
-    ft40: 21.8,
-    ft41: 21.8
+    ht30: 59.0
   }
 ];
