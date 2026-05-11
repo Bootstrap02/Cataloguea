@@ -263,7 +263,12 @@ const Homepage = () => {
       
       setBaseDeficit((prev) => prev + copAmount);
     }
-
+    if(smallDeficit >= 10000) {
+      const residue = smallDeficit - 10000
+      setBaseDeficit(smallDeficit) 
+      setDeficit((prev) => prev + residue) 
+      setSmallDeficit(0)
+    } 
     clearForNext();
   };
 
