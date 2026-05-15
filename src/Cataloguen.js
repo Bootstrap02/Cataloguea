@@ -213,10 +213,15 @@ const Homepage = () => {
     if (pressedWins.has(key)) return;
     setPressedWins((prev) => new Set([...prev, key]));
 
+    if(smallDeficit > 0){
     setPrivateDeficit((prev) => ({ ...prev, [key]: 0 }));
     setSmallDeficit(0);
     setBadGamesDeficit(0);
-    setBank((prev) => prev + 100);
+    }else{
+      setPrivateDeficit((prev) => ({ ...prev, [key]: 0 }));
+    setBank((prev) => prev + badGameShadow);
+    }
+    
   };
 
   /* ── 6-0 WIN ── */
