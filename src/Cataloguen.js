@@ -69,34 +69,79 @@ const Homepage = () => {
   const [smallOneStake,  setSmallOneStake]  = useState(0);
 
   /* ── API ── */
-  const fetchAll = async () => {
-    setIsReloading(true);
-    try {
-      const res = await axios.get(API_BASE);
-      const d = res.data || {};
-      setBaseStake(d.base             ?? 10000);
-      setBaseDeficit(d.baseDeficit    ?? 0);
-      setZeroDeficit(d.zeroDeficit    ?? 0);
-      setOneDeficit(d.oneDeficit      ?? 0);
-      setSmallDeficit(d.smallDeficit  ?? 0);
-      setBadGamesDeficit(d.badGamesDeficit ?? 0);
-      setBadGameShadow(d.badGameShadow    ?? 0);
-      setBank(d.bank                  ?? 0);
-      if (d.privateDeficit) setPrivateDeficit(d.privateDeficit);
-    } catch (err) { console.error("❌ Load:", err.message); }
-    finally { setIsReloading(false); }
-  };
+  /* ── API ── */
+const fetchAll = async () => {
+  setIsReloading(true);
+  try {
+    const res = await axios.get(API_BASE);
+    const d = res.data || {};
 
-  const saveAll = async () => {
-    try {
-      await axios.put(API_BASE, {
-        base: Math.max(10000, baseRef.current),
-        baseDeficit, zeroDeficit, oneDeficit,
-        smallDeficit, badGamesDeficit, badGameShadow, bank,
-        privateDeficit,
+    // Core fields
+    setBaseStake(d.base ?? 10000);
+    setBaseDeficit(d.baseDeficit ?? 0);
+    setZeroDeficit(d.zeroDeficit ?? 0);
+    setOneDeficit(d.oneDeficit ?? 0);
+    setSmallDeficit(d.smallDeficit ?? 0);
+    setBank(d.bank ?? 0);
+    setBadGamesDeficit(d.badGamesDeficit ?? 0);
+    setBadGameShadow(d.badGameShadow ?? 0);
+
+    // Main Private Deficits (1X, 2X, X2, 0 Goals, 6 Goals, etc.)
+    if (d.privateDeficit && typeof d.privateDeficit === 'object') {
+      setPrivateDeficit(d.privateDeficit);
+    } else {
+      // Fallback: try loading from legacy individual fields
+      setPrivateDeficit({
+        oneX: d.oneXDeficit ?? 0,
+        twoX: d.twoXDeficit ?? 0,
+        x2: d.xTwoDeficit ?? 0,
+        zeroGoals: d.zeroGoalsDeficit ?? 0,
+        sixGoals: d.sixGoalsDeficit ?? 0,
+        ht12: d.htOneTwoDeficit ?? 0,
+        ht21: d.htTwoOneDeficit ?? 0,
+        ht30: d.htThreeZeroDeficit ?? 0,
+        ft40: d.ftFourZeroDeficit ?? 0,
+        ft41: d.ftFourOneDeficit ?? 0,
       });
-    } catch (err) { console.error("❌ Save:", err.message); }
-  };
+    }
+  } catch (err) {
+    console.error("❌ Load:", err.message);
+  } finally {
+    setIsReloading(false);
+  }
+};
+
+const saveAll = async () => {
+  try {
+    await axios.put(API_BASE, {
+      base: Math.max(10000, baseRef.current),
+      baseDeficit,
+      zeroDeficit,
+      oneDeficit,
+      smallDeficit,
+      bank,
+      badGamesDeficit,
+      badGameShadow,
+
+      // Main Object (Recommended)
+      privateDeficit,
+
+      // Legacy Individual Fields (for full backend compatibility)
+      oneXDeficit: privateDeficit.oneX || 0,
+      twoXDeficit: privateDeficit.twoX || 0,
+      xTwoDeficit: privateDeficit.x2 || 0,
+      zeroGoalsDeficit: privateDeficit.zeroGoals || 0,
+      sixGoalsDeficit: privateDeficit.sixGoals || 0,
+      htOneTwoDeficit: privateDeficit.ht12 || 0,
+      htTwoOneDeficit: privateDeficit.ht21 || 0,
+      htThreeZeroDeficit: privateDeficit.ht30 || 0,
+      ftFourZeroDeficit: privateDeficit.ft40 || 0,
+      ftFourOneDeficit: privateDeficit.ft41 || 0,
+    });
+  } catch (err) {
+    console.error("❌ Save:", err.message);
+  }
+};
 
   useEffect(() => { fetchAll(); }, []);
 
