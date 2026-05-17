@@ -7,7 +7,6 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-/* ── 19 opponent teams ── */
 const TEAMS = [
   "ast","liv","bre","ars","new","wol","mnc","mnu","bur",
   "not","whu","ful","bou","tot","cry","eve","bha","sun","lee"
@@ -20,7 +19,6 @@ const TEAM_LABELS = {
   eve:"EVE", bha:"BHA", sun:"SUN", lee:"LEE"
 };
 
-/* ── martingale chain order per team ── */
 const CHAIN_KEYS = [
   "oneX","twoX","x2","zeroGoals","sixGoals",
   "ht12","ht21","ht30","ft40","ft41"
@@ -28,51 +26,58 @@ const CHAIN_KEYS = [
 
 const CHAIN_LABELS = {
   oneX:"1X", twoX:"2X", x2:"X2",
-  zeroGoals:"0 GOALS", sixGoals:"6 GOALS",
-  ht12:"HT 1-2", ht21:"HT 2-1", ht30:"HT 3-0",
-  ft40:"FT 4-0", ft41:"FT 4-1"
+  zeroGoals:"0G", sixGoals:"6G",
+  ht12:"HT12", ht21:"HT21", ht30:"HT30",
+  ft40:"FT40", ft41:"FT41"
 };
 
 const TARGET_DEFAULT = 100;
 
-/* ── helpers ── */
-const defaultTeamDeficits = () => Object.fromEntries(TEAMS.map(t => [t, 0]));
-const emptyGameStakes     = () => Object.fromEntries(CHAIN_KEYS.map(k => [k, 0]));
+/* Per-team state shape */
+const defaultTeamState = () =>
+  Object.fromEntries(TEAMS.map(t => [t, {
+    deficit: 0,
+    target:  TARGET_DEFAULT,
+    shadow:  0,
+  }]));
+
+const emptyGameStakes = () => Object.fromEntries(CHAIN_KEYS.map(k => [k, 0]));
 
 const Homepage = () => {
-  /* ── INPUTS ── */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
   const [isLoading,   setIsLoading]   = useState(false);
 
-  /* ── ACTIVE FIXTURE ── */
-  const [fixture,       setFixture]       = useState(null);
-  const [activeTeam,    setActiveTeam]    = useState(null); // which of the 19
-  const [isSmallMatch,  setIsSmallMatch]  = useState(false);
-  const [pressedWins,   setPressedWins]   = useState(new Set());
-  const [smallImpact,   setSmallImpact]   = useState(false); // first win happened
+  /* ── FIXTURE ── */
+  const [fixture,     setFixture]     = useState(null);
+  const [activeTeam,  setActiveTeam]  = useState(null);
+  const [pressedWins, setPressedWins] = useState(new Set());
+  const [firstWinDone, setFirstWinDone] = useState(false);
 
-  /* ── PER-TEAM DEFICIT (persisted) ── */
-  const [teamDeficits, setTeamDeficits] = useState(defaultTeamDeficits());
+  /* ── PER-TEAM STATE ── */
+  const [teamState, setTeamState] = useState(defaultTeamState());
 
-  /* ── PER-GAME EPHEMERAL ── */
-  const [gameTarget,   setGameTarget]   = useState(0);   // target + deficit for this game
-  const [gameShadow,   setGameShadow]   = useState(0);   // snapshot of gameTarget at load
-  const [gameStakes,   setGameStakes]   = useState(emptyGameStakes());
+  /* ── ACTIVE GAME STAKES ── */
+  const [gameStakes, setGameStakes] = useState(emptyGameStakes());
+
+  /* ── REF FOR SAVE ── */
+  const teamStateRef = useRef(teamState);
+  useEffect(() => { teamStateRef.current = teamState; }, [teamState]);
 
   /* ── API ── */
-  const teamDeficitsRef = useRef(teamDeficits);
-  useEffect(() => { teamDeficitsRef.current = teamDeficits; }, [teamDeficits]);
-
   const fetchAll = async () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
-      const d = res.data || {};
-      const loaded = {};
-      TEAMS.forEach(t => { loaded[t] = d[`${t}Deficit`] ?? 0; });
-      setTeamDeficits(loaded);
+      const d   = res.data || {};
+      const loaded = defaultTeamState();
+      TEAMS.forEach(t => {
+        loaded[t].deficit = d[`${t}_deficit`] ?? 0;
+        loaded[t].target  = d[`${t}_target`]  ?? TARGET_DEFAULT;
+        loaded[t].shadow  = d[`${t}_shadow`]  ?? 0;
+      });
+      setTeamState(loaded);
     } catch (err) { console.error("❌ Load:", err.message); }
     finally { setIsReloading(false); }
   };
@@ -80,7 +85,11 @@ const Homepage = () => {
   const saveAll = async () => {
     try {
       const payload = {};
-      TEAMS.forEach(t => { payload[`${t}Deficit`] = teamDeficitsRef.current[t]; });
+      TEAMS.forEach(t => {
+        payload[`${t}_deficit`] = teamStateRef.current[t].deficit;
+        payload[`${t}_target`]  = teamStateRef.current[t].target;
+        payload[`${t}_shadow`]  = teamStateRef.current[t].shadow;
+      });
       await axios.put(API_BASE, payload);
     } catch (err) { console.error("❌ Save:", err.message); }
   };
@@ -97,51 +106,40 @@ const Homepage = () => {
     const home = sanitizeTeam(inputA);
     const away = sanitizeTeam(inputB);
 
-    /* Detect which of the 19 opponents is playing */
-    let opponent = null;
-    let found    = null;
-    let isSmall  = false;
+    let found = smallOdds.find(o => o.home === home && o.away === away)
+             || odds.find(o => o.home === home && o.away === away);
 
-    /* Try smallOdds first */
-    found = smallOdds.find(o => o.home === home && o.away === away);
-    if (found) {
-      isSmall  = true;
-      opponent = TEAMS.includes(home) ? home : TEAMS.includes(away) ? away : null;
-    } else {
-      found = odds.find(o => o.home === home && o.away === away);
-      if (found) {
-        opponent = TEAMS.includes(home) ? home : TEAMS.includes(away) ? away : null;
-      }
-    }
+    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
-    if (!found)    { alert(`No odds for ${home} vs ${away}`); return; }
-    if (!opponent) { alert(`Neither ${home} nor ${away} is one of the 19 tracked opponents`); return; }
+    const opponent = TEAMS.includes(home) ? home : TEAMS.includes(away) ? away : null;
+    if (!opponent) { alert(`Neither ${home} nor ${away} is a tracked opponent`); return; }
 
-    setFixture(found);
-    setActiveTeam(opponent);
-    setIsSmallMatch(isSmall);
-    setSmallImpact(false);
-    setPressedWins(new Set());
+    const ts       = teamState[opponent];
+    const base     = ts.target + ts.deficit; // this game's running start
 
-    /* Base for this game = TARGET_DEFAULT + team's accumulated deficit */
-    const teamDef  = teamDeficits[opponent] || 0;
-    const target   = TARGET_DEFAULT + teamDef;
-    setGameTarget(target);
-    setGameShadow(target);
-
-    /* Build martingale chain starting from target */
-    let running = target;
+    /* Build martingale chain from base */
+    let running = base;
     const stakes = {};
     CHAIN_KEYS.forEach(key => {
       const odd = found[key] || 0;
       if (odd > 1.01) {
-        const stake = Math.max(Math.round(running / (odd - 1)), 10);
-        stakes[key] = stake;
-        running    += stake;
+        stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
+        running    += stakes[key];
       } else {
         stakes[key] = 0;
       }
     });
+
+    /* Save shadow = base for this game */
+    setTeamState(prev => ({
+      ...prev,
+      [opponent]: { ...prev[opponent], shadow: base }
+    }));
+
+    setFixture(found);
+    setActiveTeam(opponent);
+    setPressedWins(new Set());
+    setFirstWinDone(false);
     setGameStakes(stakes);
     setIsLoading(true);
   };
@@ -154,38 +152,45 @@ const Homepage = () => {
     if (pressedWins.has(key)) return;
     setPressedWins(prev => new Set([...prev, key]));
 
-    const snap = { ...gameStakes };
-    const myIdx = CHAIN_KEYS.indexOf(key);
+    const snap    = { ...gameStakes };
+    const myIdx   = CHAIN_KEYS.indexOf(key);
 
-    /* Stakes AFTER this winner (still unpaid) */
-    const afterKeys  = CHAIN_KEYS.slice(myIdx + 1);
-    const afterTotal = afterKeys.reduce((s, k) => s + (snap[k] || 0), 0);
+    /* Stakes AFTER this winner */
+    const afterTotal = CHAIN_KEYS.slice(myIdx + 1)
+      .reduce((s, k) => s + (snap[k] || 0), 0);
 
     /* Stakes BEFORE this winner */
-    const beforeKeys  = CHAIN_KEYS.slice(0, myIdx);
-    const beforeTotal = beforeKeys.reduce((s, k) => s + (snap[k] || 0), 0);
+    const beforeTotal = CHAIN_KEYS.slice(0, myIdx)
+      .reduce((s, k) => s + (snap[k] || 0), 0);
 
-    if (!smallImpact) {
+    const ts = teamState[activeTeam];
+
+    if (!firstWinDone) {
       /* ── FIRST WIN ──
-         Residue = afterTotal (stakes still above that weren't covered)
-         Push afterTotal + 100 into team deficit for next round */
-      setTeamDeficits(prev => ({
+         Residue = afterTotal → push to deficit, target stays 100 */
+      setTeamState(prev => ({
         ...prev,
-        [activeTeam]: afterTotal + TARGET_DEFAULT
+        [activeTeam]: {
+          ...prev[activeTeam],
+          deficit: afterTotal,
+          target:  TARGET_DEFAULT,
+        }
       }));
-      setSmallImpact(true);
+      setFirstWinDone(true);
     } else {
       /* ── SECOND WIN ──
-         Total recovered = beforeTotal + gameShadow (original target)
-         Subtract martingale still owed (afterTotal from first win = current teamDeficit - 100)
-         Remainder: clear deficit, reset to target 100 */
-      const currentDeficit = teamDeficits[activeTeam] || 0;
-      const totalRecovered = beforeTotal + gameShadow;
-      const residue        = totalRecovered - (currentDeficit - TARGET_DEFAULT);
-      /* deficit resets to 0, target back to 100 */
-      setTeamDeficits(prev => ({
+         beforeTotal + shadow covers what was owed (deficit).
+         Subtract deficit from (beforeTotal + shadow) → if positive, deficit = 0.
+         Target resets to 100. */
+      const recovered = beforeTotal + ts.shadow;
+      const newDeficit = Math.max(0, ts.deficit - recovered);
+      setTeamState(prev => ({
         ...prev,
-        [activeTeam]: residue > 0 ? 0 : Math.abs(residue)
+        [activeTeam]: {
+          deficit: newDeficit,
+          target:  TARGET_DEFAULT,
+          shadow:  0,
+        }
       }));
     }
   };
@@ -194,36 +199,38 @@ const Homepage = () => {
      HANDLE NEXT
      ================================================================ */
   const handleNextGame = async () => {
-    if (!fixture || !isLoading) return;
+    if (!isLoading) return;
 
-    /* If no win at all → push entire gameTarget (full chain) into team deficit */
-    if (!smallImpact && activeTeam) {
-      /* Sum of all chain stakes + target = total unpaid */
+    if (activeTeam && !firstWinDone) {
+      /* No win at all — full chain + base goes to deficit */
       const chainTotal = Object.values(gameStakes).reduce((s, v) => s + v, 0);
-      const totalUnpaid = gameShadow + chainTotal;
-      setTeamDeficits(prev => ({
+      const ts         = teamState[activeTeam];
+      setTeamState(prev => ({
         ...prev,
-        [activeTeam]: totalUnpaid + TARGET_DEFAULT
+        [activeTeam]: {
+          deficit: ts.deficit + ts.shadow + chainTotal,
+          target:  TARGET_DEFAULT,
+          shadow:  0,
+        }
+      }));
+    } else if (activeTeam) {
+      /* Win happened — shadow clears */
+      setTeamState(prev => ({
+        ...prev,
+        [activeTeam]: { ...prev[activeTeam], shadow: 0 }
       }));
     }
 
-    /* Reset ephemeral state */
     setFixture(null);
     setActiveTeam(null);
-    setIsSmallMatch(false);
-    setSmallImpact(false);
     setPressedWins(new Set());
-    setGameTarget(0);
-    setGameShadow(0);
+    setFirstWinDone(false);
     setGameStakes(emptyGameStakes());
     setInputA(""); setInputB("");
     setIsLoading(false);
 
     await saveAll();
   };
-
-  /* ── DERIVED ── */
-  const opp = activeTeam ? TEAM_LABELS[activeTeam] : "OPP";
 
   /* ================================================================
      RENDER
@@ -240,22 +247,29 @@ const Homepage = () => {
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
             {isReloading ? "Reloading…" : "Reload"}
           </button>
+          <button onClick={saveAll}
+            className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-xl text-sm transition">
+            💾 Save
+          </button>
         </div>
 
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="max-w-7xl mx-auto space-y-6">
 
-          {/* ── ACTIVE GAME ── */}
-          {fixture && (
+          {/* Active game */}
+          {fixture && activeTeam && (
             <div className="bg-white text-gray-900 rounded-3xl shadow-2xl p-6">
               <div className="text-center mb-4">
-                <span className="text-xl font-extrabold text-blue-600">{opp}</span>
-                <span className="mx-2 text-gray-400">vs CHE</span>
-                <span className="text-sm text-gray-500">Target: {gameTarget}</span>
+                <span className="text-2xl font-extrabold text-blue-600">{TEAM_LABELS[activeTeam]}</span>
+                <span className="ml-3 text-sm text-gray-500">
+                  Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;|&nbsp;
+                  Deficit: {teamState[activeTeam].deficit} &nbsp;|&nbsp;
+                  Target: {teamState[activeTeam].target}
+                </span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 {CHAIN_KEYS.map(key => (
                   <button key={key} onClick={() => handleWin(key)}
-                    disabled={!fixture || gameStakes[key] === 0 || pressedWins.has(key)}
+                    disabled={gameStakes[key] === 0 || pressedWins.has(key)}
                     className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 ${
                       pressedWins.has(key)
                         ? "bg-green-500 text-white"
@@ -271,15 +285,15 @@ const Homepage = () => {
             </div>
           )}
 
-          {/* ── INPUTS ── */}
-          <div className="bg-white text-gray-900 rounded-3xl shadow-xl p-6">
+          {/* Inputs */}
+          <div className="bg-white/5 rounded-3xl p-6">
             <div className="flex flex-col md:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-4">
                 <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
-                  className="w-32 px-6 py-3 border-2 border-blue-400 rounded-2xl text-center text-lg" />
-                <span className="font-black text-3xl text-blue-500">VS</span>
+                  className="w-32 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
+                <span className="font-black text-3xl text-blue-400">VS</span>
                 <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away"
-                  className="w-32 px-6 py-3 border-2 border-blue-400 rounded-2xl text-center text-lg" />
+                  className="w-32 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
               </div>
               <div className="flex gap-4">
                 <button onClick={handleLoadGame} disabled={isLoading}
@@ -294,23 +308,21 @@ const Homepage = () => {
             </div>
           </div>
 
-          {/* ── 19-TEAM DEFICIT GRID ── */}
-          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+          {/* 19-team grid */}
+          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-10 gap-3">
             {TEAMS.map(t => {
-              const def    = teamDeficits[t] || 0;
-              const target = TARGET_DEFAULT + def;
+              const ts       = teamState[t];
               const isActive = activeTeam === t;
               return (
                 <div key={t} className={`rounded-2xl p-3 text-center border-2 transition ${
-                  isActive
-                    ? "border-blue-400 bg-blue-900/60"
-                    : def > 0
-                    ? "border-red-500/50 bg-red-900/20"
-                    : "border-white/10 bg-white/5"
+                  isActive           ? "border-blue-400 bg-blue-900/50" :
+                  ts.deficit > 0     ? "border-red-500/50 bg-red-900/20" :
+                                       "border-white/10 bg-white/5"
                 }`}>
                   <div className="font-extrabold text-sm text-white">{TEAM_LABELS[t]}</div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">Def: {def}</div>
-                  <div className="text-[10px] text-blue-300">Tgt: {target}</div>
+                  <div className="text-[10px] text-gray-400 mt-1">Def: {ts.deficit}</div>
+                  <div className="text-[10px] text-blue-300">Tgt: {ts.target}</div>
+                  {ts.shadow > 0 && <div className="text-[9px] text-orange-300">Shd: {ts.shadow}</div>}
                 </div>
               );
             })}
@@ -321,15 +333,15 @@ const Homepage = () => {
       {/* ══ MOBILE ══ */}
       <div className="hidden max-lg:block px-3 py-6">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <h1 className="text-xl font-extrabold text-blue-400">CHE Opponent Tracker</h1>
+          <h1 className="text-lg font-extrabold text-blue-400">CHE Tracker</h1>
           <button onClick={fetchAll} disabled={isReloading}
             className="flex items-center gap-1 px-3 py-1.5 bg-blue-700 text-xs rounded-xl transition disabled:opacity-50">
             <FiRefreshCw className={`w-3 h-3 ${isReloading ? "animate-spin" : ""}`} />
             {isReloading ? "…" : "Reload"}
           </button>
+          <button onClick={saveAll} className="px-3 py-1.5 bg-green-700 text-xs rounded-xl">💾</button>
         </div>
 
-        {/* Inputs */}
         <div className="flex gap-2 mb-3 justify-center items-center">
           <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
             className="flex-1 max-w-[105px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
@@ -349,17 +361,19 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* Active game chain buttons */}
-        {fixture && (
-          <div className="mb-4">
-            <div className="text-center text-xs mb-2 text-blue-300 font-bold">
-              {opp} · Target: {gameTarget}
+        {/* Active game */}
+        {fixture && activeTeam && (
+          <div className="mb-4 bg-white/5 rounded-2xl p-3">
+            <div className="text-center text-sm font-bold text-blue-300 mb-2">
+              {TEAM_LABELS[activeTeam]} &nbsp;·&nbsp;
+              Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;·&nbsp;
+              Def: {teamState[activeTeam].deficit}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-5 gap-1.5">
               {CHAIN_KEYS.map(key => (
                 <button key={key} onClick={() => handleWin(key)}
-                  disabled={!fixture || gameStakes[key] === 0 || pressedWins.has(key)}
-                  className={`py-3 rounded-xl text-xs font-bold transition ${
+                  disabled={gameStakes[key] === 0 || pressedWins.has(key)}
+                  className={`py-3 rounded-xl text-[10px] font-bold transition ${
                     pressedWins.has(key)
                       ? "bg-green-500 text-white"
                       : gameStakes[key] === 0
@@ -367,30 +381,28 @@ const Homepage = () => {
                       : "bg-blue-700 text-white"
                   }`}>
                   {CHAIN_LABELS[key]}<br />
-                  <span className="text-[10px]">({gameStakes[key] || "–"})</span>
+                  <span className="text-[9px]">({gameStakes[key] || "–"})</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* 19-team deficit grid */}
+        {/* 19-team grid */}
         <div className="grid grid-cols-4 gap-2">
           {TEAMS.map(t => {
-            const def    = teamDeficits[t] || 0;
-            const target = TARGET_DEFAULT + def;
+            const ts       = teamState[t];
             const isActive = activeTeam === t;
             return (
               <div key={t} className={`rounded-xl p-2 text-center border transition ${
-                isActive
-                  ? "border-blue-400 bg-blue-900/60"
-                  : def > 0
-                  ? "border-red-500/40 bg-red-900/20"
-                  : "border-white/10 bg-white/5"
+                isActive       ? "border-blue-400 bg-blue-900/50" :
+                ts.deficit > 0 ? "border-red-500/40 bg-red-900/20" :
+                                  "border-white/10 bg-white/5"
               }`}>
                 <div className="font-extrabold text-[11px] text-white">{TEAM_LABELS[t]}</div>
-                <div className="text-[9px] text-gray-400">D:{def}</div>
-                <div className="text-[9px] text-blue-300">T:{target}</div>
+                <div className="text-[9px] text-gray-400">D:{ts.deficit}</div>
+                <div className="text-[9px] text-blue-300">T:{ts.target}</div>
+                {ts.shadow > 0 && <div className="text-[8px] text-orange-300">S:{ts.shadow}</div>}
               </div>
             );
           })}
