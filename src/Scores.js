@@ -25,7 +25,7 @@ export const odds = [
   { id: "newche", home: "new", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
   { id: "arsche", home: "ars", away: "che", winner: 1140, oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
   { id: "cheast", home: "che", away: "ast", winner: 568, oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 },
-  { id: "cheliv", home: "che", away: "liv", winner: 568, oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 }
+  { id: "cheliv", home: "che", away: "liv", winner: 568, oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 }, 
   { id: "chelee", home: "che", away: "lee", winner: 66.1, oneX: 24.9, twoX: 24.9, x2: 28.8, zeroGoals: 17.7, sixGoals: 13, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 14, ft41: 16.9 },
   { id: "chebha", home: "che", away: "bha", winner: 66.1, oneX: 24.9, twoX: 24.9, x2: 28.8, zeroGoals: 17.7, sixGoals: 13, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 14, ft41: 16.9 },
   { id: "chesun", home: "che", away: "sun", winner: 66.1, oneX: 24.9, twoX: 24.9, x2: 28.8, zeroGoals: 17.7, sixGoals: 13, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 14, ft41: 16.9 },
