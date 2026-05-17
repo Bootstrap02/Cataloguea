@@ -7,9 +7,10 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
+
 const TEAMS = [
-  "ast","liv","bre","ars","new","wol","mnc","mnu","bur",
-  "not","whu","ful","bou","tot","cry","eve","bha","sun","lee"
+  "ars", "ast", "liv", "bre", "new", "wol", "mnc", "mnu", "bur",
+  "not", "whu", "ful", "bou", "tot", "cry", "eve", "bha", "sun", "lee", "che"
 ];
 
 const TEAM_LABELS = {
@@ -99,51 +100,65 @@ const Homepage = () => {
   /* ================================================================
      HANDLE LOAD
      ================================================================ */
-  const handleLoadGame = (e) => {
-    e.preventDefault();
-    if (isLoading) return;
+const handleLoadGame = (e) => {
+  e.preventDefault();
+  if (isLoading) return;
 
-    const home = sanitizeTeam(inputA);
-    const away = sanitizeTeam(inputB);
+  const home = sanitizeTeam(inputA);
+  const away = sanitizeTeam(inputB);
+  
+  console.log("Looking for:", home, away); // Debug log
 
-    let found = smallOdds.find(o => o.home === home && o.away === away)
-             || odds.find(o => o.home === home && o.away === away);
+  // First try smallOdds, then odds
+  let found = smallOdds.find(o => o.home === home && o.away === away)
+           || odds.find(o => o.home === home && o.away === away);
 
-    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+  if (!found) { 
+    alert(`No odds found for ${home} vs ${away}`); 
+    return; 
+  }
 
-    const opponent = TEAMS.includes(home) ? home : TEAMS.includes(away) ? away : null;
-    if (!opponent) { alert(`Neither ${home} nor ${away} is a tracked opponent`); return; }
+  // Check which team is the tracked opponent
+  let opponent = null;
+  if (TEAMS.includes(home)) opponent = home;
+  if (TEAMS.includes(away)) opponent = away;
+  
+  if (!opponent) { 
+    alert(`Neither ${home} nor ${away} is a tracked opponent. Tracked teams: ${TEAMS.join(", ")}`); 
+    return; 
+  }
 
-    const ts       = teamState[opponent];
-    const base     = ts.target + ts.deficit; // this game's running start
+  console.log("Found opponent:", opponent); // Debug log
 
-    /* Build martingale chain from base */
-    let running = base;
-    const stakes = {};
-    CHAIN_KEYS.forEach(key => {
-      const odd = found[key] || 0;
-      if (odd > 1.01) {
-        stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
-        running    += stakes[key];
-      } else {
-        stakes[key] = 0;
-      }
-    });
+  const ts = teamState[opponent];
+  const base = ts.target + ts.deficit;
 
-    /* Save shadow = base for this game */
-    setTeamState(prev => ({
-      ...prev,
-      [opponent]: { ...prev[opponent], shadow: base }
-    }));
+  // Build martingale chain from base
+  let running = base;
+  const stakes = {};
+  CHAIN_KEYS.forEach(key => {
+    const odd = found[key] || 0;
+    if (odd > 1.01) {
+      stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
+      running += stakes[key];
+    } else {
+      stakes[key] = 0;
+    }
+  });
 
-    setFixture(found);
-    setActiveTeam(opponent);
-    setPressedWins(new Set());
-    setFirstWinDone(false);
-    setGameStakes(stakes);
-    setIsLoading(true);
-  };
+  // Save shadow = base for this game
+  setTeamState(prev => ({
+    ...prev,
+    [opponent]: { ...prev[opponent], shadow: base }
+  }));
 
+  setFixture(found);
+  setActiveTeam(opponent);
+  setPressedWins(new Set());
+  setFirstWinDone(false);
+  setGameStakes(stakes);
+  setIsLoading(true);
+};
   /* ================================================================
      WIN HANDLER
      ================================================================ */
