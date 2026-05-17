@@ -102,10 +102,9 @@ const Homepage = () => {
   const handleLoadGame = (e) => {
     e.preventDefault();
     if (isLoading) return;
-
-    const home = sanitizeTeam(inputA);
-    const away = sanitizeTeam(inputB);
-
+    
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
     // Search by opponent team — user types just one team name (the opponent)
     // Find any fixture where that team appears as home or away against che
     const query = home || away; // use whichever input was filled
