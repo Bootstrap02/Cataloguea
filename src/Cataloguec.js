@@ -243,7 +243,170 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-black to-slate-800 text-white">
 
-             <p> Hello </p>
+      {/* ══ DESKTOP ══ */}
+      <div className="max-lg:hidden px-6 py-10">
+        <div className="flex items-center justify-center gap-6 mb-8 flex-wrap">
+          <h1 className="text-4xl font-extrabold text-blue-400">Chelsea Opponent Tracker</h1>
+          <button onClick={fetchAll} disabled={isReloading}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl text-sm transition">
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
+            {isReloading ? "Reloading…" : "Reload"}
+          </button>
+          <button onClick={saveAll}
+            className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-xl text-sm transition">
+            💾 Save
+          </button>
+        </div>
+
+        <div className="max-w-7xl mx-auto space-y-6">
+
+          {/* Active game */}
+          {fixture && activeTeam && (
+            <div className="bg-white text-gray-900 rounded-3xl shadow-2xl p-6">
+              <div className="text-center mb-4">
+                <span className="text-2xl font-extrabold text-blue-600">{TEAM_LABELS[activeTeam]}</span>
+                <span className="ml-3 text-sm text-gray-500">
+                  Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;|&nbsp;
+                  Deficit: {teamState[activeTeam].deficit} &nbsp;|&nbsp;
+                  Target: {teamState[activeTeam].target}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-3">
+                {CHAIN_KEYS.map(key => (
+                  <button key={key} onClick={() => handleWin(key)}
+                    disabled={gameStakes[key] === 0 || pressedWins.has(key)}
+                    className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 ${
+                      pressedWins.has(key)
+                        ? "bg-green-500 text-white"
+                        : gameStakes[key] === 0
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-500"
+                    }`}>
+                    {CHAIN_LABELS[key]}<br />
+                    <span className="text-xs opacity-80">({gameStakes[key] || "–"})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inputs */}
+          <div className="bg-white/5 rounded-3xl p-6">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+              <div className="flex items-center gap-4">
+                <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
+                  className="w-48 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
+              </div>
+              <div className="flex gap-4">
+                <button onClick={handleLoadGame} disabled={isLoading}
+                  className="px-10 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xl rounded-2xl">
+                  LOAD
+                </button>
+                <button onClick={handleNextGame} disabled={!isLoading}
+                  className="px-10 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-extrabold text-xl rounded-2xl">
+                  NEXT
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 19-team grid */}
+          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-10 gap-3">
+            {TEAMS.map(t => {
+              const ts       = teamState[t];
+              const isActive = activeTeam === t;
+              return (
+                <div key={t} className={`rounded-2xl p-3 text-center border-2 transition ${
+                  isActive           ? "border-blue-400 bg-blue-900/50" :
+                  ts.deficit > 0     ? "border-red-500/50 bg-red-900/20" :
+                                       "border-white/10 bg-white/5"
+                }`}>
+                  <div className="font-extrabold text-sm text-white">{TEAM_LABELS[t]}</div>
+                  <div className="text-[10px] text-gray-400 mt-1">Def: {ts.deficit}</div>
+                  <div className="text-[10px] text-blue-300">Tgt: {ts.target}</div>
+                  {ts.shadow > 0 && <div className="text-[9px] text-orange-300">Shd: {ts.shadow}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ══ MOBILE ══ */}
+      <div className="hidden max-lg:block px-3 py-6">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <h1 className="text-lg font-extrabold text-blue-400">CHE Tracker</h1>
+          <button onClick={fetchAll} disabled={isReloading}
+            className="flex items-center gap-1 px-3 py-1.5 bg-blue-700 text-xs rounded-xl transition disabled:opacity-50">
+            <FiRefreshCw className={`w-3 h-3 ${isReloading ? "animate-spin" : ""}`} />
+            {isReloading ? "…" : "Reload"}
+          </button>
+          <button onClick={saveAll} className="px-3 py-1.5 bg-green-700 text-xs rounded-xl">💾</button>
+        </div>
+
+        <div className="flex gap-2 mb-3 justify-center items-center">
+          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
+            className="flex-1 max-w-[200px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
+        </div>
+
+        <div className="flex gap-3 mb-4">
+          <button onClick={handleLoadGame} disabled={isLoading}
+            className="flex-1 py-3 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded-2xl text-sm font-bold transition">
+            LOAD
+          </button>
+          <button onClick={handleNextGame} disabled={!isLoading}
+            className="flex-1 py-3 bg-green-700 hover:bg-green-600 disabled:opacity-50 rounded-2xl text-sm font-bold transition">
+            NEXT
+          </button>
+        </div>
+
+        {/* Active game */}
+        {fixture && activeTeam && (
+          <div className="mb-4 bg-white/5 rounded-2xl p-3">
+            <div className="text-center text-sm font-bold text-blue-300 mb-2">
+              {TEAM_LABELS[activeTeam]} &nbsp;·&nbsp;
+              Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;·&nbsp;
+              Def: {teamState[activeTeam].deficit}
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {CHAIN_KEYS.map(key => (
+                <button key={key} onClick={() => handleWin(key)}
+                  disabled={gameStakes[key] === 0 || pressedWins.has(key)}
+                  className={`py-3 rounded-xl text-[10px] font-bold transition ${
+                    pressedWins.has(key)
+                      ? "bg-green-500 text-white"
+                      : gameStakes[key] === 0
+                      ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-700 text-white"
+                  }`}>
+                  {CHAIN_LABELS[key]}<br />
+                  <span className="text-[9px]">({gameStakes[key] || "–"})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 19-team grid */}
+        <div className="grid grid-cols-4 gap-2">
+          {TEAMS.map(t => {
+            const ts       = teamState[t];
+            const isActive = activeTeam === t;
+            return (
+              <div key={t} className={`rounded-xl p-2 text-center border transition ${
+                isActive       ? "border-blue-400 bg-blue-900/50" :
+                ts.deficit > 0 ? "border-red-500/40 bg-red-900/20" :
+                                  "border-white/10 bg-white/5"
+              }`}>
+                <div className="font-extrabold text-[11px] text-white">{TEAM_LABELS[t]}</div>
+                <div className="text-[9px] text-gray-400">D:{ts.deficit}</div>
+                <div className="text-[9px] text-blue-300">T:{ts.target}</div>
+                {ts.shadow > 0 && <div className="text-[8px] text-orange-300">S:{ts.shadow}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
     </div>
   );
