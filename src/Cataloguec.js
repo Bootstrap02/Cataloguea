@@ -96,6 +96,23 @@ const Homepage = () => {
 
   useEffect(() => { fetchAll(); }, []);
 
+  /* Auto-fill the other input with "che" when one is filled */
+  const handleInputAChange = (e) => {
+    const value = e.target.value;
+    setInputA(value);
+    if (value && !inputB) {
+      setInputB("che");
+    }
+  };
+
+  const handleInputBChange = (e) => {
+    const value = e.target.value;
+    setInputB(value);
+    if (value && !inputA) {
+      setInputA("che");
+    }
+  };
+
   /* ================================================================
      HANDLE LOAD
      ================================================================ */
@@ -103,21 +120,44 @@ const Homepage = () => {
     e.preventDefault();
     if (isLoading) return;
     
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
-    // Search by opponent team — user types just one team name (the opponent)
-    // Find any fixture where that team appears as home or away against che
-    const query = home || away; // use whichever input was filled
-    const opponent = TEAMS.find(t => t === query);
-    if (!opponent) { alert(`${query} is not one of the 19 tracked opponents`); return; }
+    // Get the opponent (the non-che team)
+    const home = sanitizeTeam(inputA);
+    const away = sanitizeTeam(inputB);
+    
+    let opponent = null;
+    let isHome = false;
+    
+    if (home === "che" && away !== "che") {
+      opponent = away;
+      isHome = false;
+    } else if (away === "che" && home !== "che") {
+      opponent = home;
+      isHome = true;
+    } else {
+      alert("One team must be Chelsea (che) and the other a valid opponent");
+      return;
+    }
+    
+    // Verify opponent is in tracked teams
+    if (!TEAMS.includes(opponent)) {
+      alert(`${opponent} is not one of the 19 tracked opponents`);
+      return;
+    }
 
-    // Find fixture for this opponent (home or away)
-    const found = odds.find(o =>
-      (o.home === opponent && o.away === "che") ||
-      (o.home === "che" && o.away === opponent)
-    );
+    // Find fixture for this opponent
+    let found = null;
+    if (isHome) {
+      // Chelsea is home, opponent is away
+      found = odds.find(o => o.home === "che" && o.away === opponent);
+    } else {
+      // Chelsea is away, opponent is home
+      found = odds.find(o => o.home === opponent && o.away === "che");
+    }
 
-    if (!found) { alert(`No odds found for ${opponent}`); return; }
+    if (!found) { 
+      alert(`No odds found for Chelsea vs ${opponent}`); 
+      return; 
+    }
 
     const ts       = teamState[opponent];
     const base     = ts.target + ts.deficit; // this game's running start
@@ -231,7 +271,8 @@ const Homepage = () => {
     setPressedWins(new Set());
     setFirstWinDone(false);
     setGameStakes(emptyGameStakes());
-    setInputA(""); setInputB("");
+    setInputA("");
+    setInputB("");
     setIsLoading(false);
 
     await saveAll();
@@ -294,8 +335,19 @@ const Homepage = () => {
           <div className="bg-white/5 rounded-3xl p-6">
             <div className="flex flex-col md:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-4">
-                <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
-                  className="w-48 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
+                <input 
+                  value={inputA} 
+                  onChange={handleInputAChange} 
+                  placeholder="Home (e.g. ars)"
+                  className="w-40 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" 
+                />
+                <span className="font-black text-3xl text-blue-400">VS</span>
+                <input 
+                  value={inputB} 
+                  onChange={handleInputBChange} 
+                  placeholder="Away (e.g. che)"
+                  className="w-40 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" 
+                />
               </div>
               <div className="flex gap-4">
                 <button onClick={handleLoadGame} disabled={isLoading}
@@ -345,8 +397,19 @@ const Homepage = () => {
         </div>
 
         <div className="flex gap-2 mb-3 justify-center items-center">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
-            className="flex-1 max-w-[200px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
+          <input 
+            value={inputA} 
+            onChange={handleInputAChange} 
+            placeholder="Home"
+            className="flex-1 max-w-[130px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" 
+          />
+          <span className="text-sm text-blue-400 font-black">VS</span>
+          <input 
+            value={inputB} 
+            onChange={handleInputBChange} 
+            placeholder="Away"
+            className="flex-1 max-w-[130px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" 
+          />
         </div>
 
         <div className="flex gap-3 mb-4">
