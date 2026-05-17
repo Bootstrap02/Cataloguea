@@ -344,10 +344,7 @@ const Homepage = () => {
           <button onClick={saveAll} className="px-3 py-1.5 bg-green-700 text-xs rounded-xl">💾</button>
         </div>
 
-        <div className="flex gap-2 mb-3 justify-center items-center">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
-            className="flex-1 max-w-[200px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
-        </div>
+        
 
         <div className="flex gap-3 mb-4">
           <button onClick={handleLoadGame} disabled={isLoading}
