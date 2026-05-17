@@ -253,7 +253,7 @@ const Homepage = () => {
       setTeamState(prev => ({
         ...prev,
         [activeTeam]: {
-          deficit: ts.deficit + ts.shadow + chainTotal,
+          deficit: ts.shadow + chainTotal,
           target:  TARGET_DEFAULT,
           shadow:  0,
         }
