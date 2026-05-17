@@ -1,16 +1,15 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { odds, smallOdds } from "./Scores";
+import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-
 const TEAMS = [
-  "ars", "ast", "liv", "bre", "new", "wol", "mnc", "mnu", "bur",
-  "not", "whu", "ful", "bou", "tot", "cry", "eve", "bha", "sun", "lee", "che"
+  "ast","liv","bre","ars","new","wol","mnc","mnu","bur",
+  "not","whu","ful","bou","tot","cry","eve","bha","sun","lee"
 ];
 
 const TEAM_LABELS = {
@@ -100,65 +99,57 @@ const Homepage = () => {
   /* ================================================================
      HANDLE LOAD
      ================================================================ */
-const handleLoadGame = (e) => {
-  e.preventDefault();
-  if (isLoading) return;
+  const handleLoadGame = (e) => {
+    e.preventDefault();
+    if (isLoading) return;
 
-  const home = sanitizeTeam(inputA);
-  const away = sanitizeTeam(inputB);
-  
-  console.log("Looking for:", home, away); // Debug log
+    const home = sanitizeTeam(inputA);
+    const away = sanitizeTeam(inputB);
 
-  // First try smallOdds, then odds
-  let found = smallOdds.find(o => o.home === home && o.away === away)
-           || odds.find(o => o.home === home && o.away === away);
+    // Search by opponent team — user types just one team name (the opponent)
+    // Find any fixture where that team appears as home or away against che
+    const query = home || away; // use whichever input was filled
+    const opponent = TEAMS.find(t => t === query);
+    if (!opponent) { alert(`${query} is not one of the 19 tracked opponents`); return; }
 
-  if (!found) { 
-    alert(`No odds found for ${home} vs ${away}`); 
-    return; 
-  }
+    // Find fixture for this opponent (home or away)
+    const found = odds.find(o =>
+      (o.home === opponent && o.away === "che") ||
+      (o.home === "che" && o.away === opponent)
+    );
 
-  // Check which team is the tracked opponent
-  let opponent = null;
-  if (TEAMS.includes(home)) opponent = home;
-  if (TEAMS.includes(away)) opponent = away;
-  
-  if (!opponent) { 
-    alert(`Neither ${home} nor ${away} is a tracked opponent. Tracked teams: ${TEAMS.join(", ")}`); 
-    return; 
-  }
+    if (!found) { alert(`No odds found for ${opponent}`); return; }
 
-  console.log("Found opponent:", opponent); // Debug log
+    const ts       = teamState[opponent];
+    const base     = ts.target + ts.deficit; // this game's running start
 
-  const ts = teamState[opponent];
-  const base = ts.target + ts.deficit;
+    /* Build martingale chain from base */
+    let running = base;
+    const stakes = {};
+    CHAIN_KEYS.forEach(key => {
+      const odd = found[key] || 0;
+      if (odd > 1.01) {
+        stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
+        running    += stakes[key];
+      } else {
+        stakes[key] = 0;
+      }
+    });
 
-  // Build martingale chain from base
-  let running = base;
-  const stakes = {};
-  CHAIN_KEYS.forEach(key => {
-    const odd = found[key] || 0;
-    if (odd > 1.01) {
-      stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
-      running += stakes[key];
-    } else {
-      stakes[key] = 0;
-    }
-  });
+    /* Save shadow = base for this game */
+    setTeamState(prev => ({
+      ...prev,
+      [opponent]: { ...prev[opponent], shadow: base }
+    }));
 
-  // Save shadow = base for this game
-  setTeamState(prev => ({
-    ...prev,
-    [opponent]: { ...prev[opponent], shadow: base }
-  }));
+    setFixture(found);
+    setActiveTeam(opponent);
+    setPressedWins(new Set());
+    setFirstWinDone(false);
+    setGameStakes(stakes);
+    setIsLoading(true);
+  };
 
-  setFixture(found);
-  setActiveTeam(opponent);
-  setPressedWins(new Set());
-  setFirstWinDone(false);
-  setGameStakes(stakes);
-  setIsLoading(true);
-};
   /* ================================================================
      WIN HANDLER
      ================================================================ */
@@ -304,11 +295,8 @@ const handleLoadGame = (e) => {
           <div className="bg-white/5 rounded-3xl p-6">
             <div className="flex flex-col md:flex-row items-center justify-center gap-6">
               <div className="flex items-center gap-4">
-                <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
-                  className="w-32 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
-                <span className="font-black text-3xl text-blue-400">VS</span>
-                <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away"
-                  className="w-32 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
+                <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
+                  className="w-48 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" />
               </div>
               <div className="flex gap-4">
                 <button onClick={handleLoadGame} disabled={isLoading}
@@ -358,11 +346,8 @@ const handleLoadGame = (e) => {
         </div>
 
         <div className="flex gap-2 mb-3 justify-center items-center">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
-            className="flex-1 max-w-[105px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
-          <span className="text-xl text-blue-400 font-black px-1">VS</span>
-          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away"
-            className="flex-1 max-w-[105px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
+          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Opponent (e.g. ars)"
+            className="flex-1 max-w-[200px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" />
         </div>
 
         <div className="flex gap-3 mb-4">
