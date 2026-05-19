@@ -603,10 +603,10 @@ const handleSubmit = (e) => {
         <div className="grid grid-cols-2 gap-3">
           {/* 1X */}
           <button onClick={handleOneXWin}
-            disabled={!fixture || !isSmallOddsGame || clicked.has("oneX")}
+            disabled={!fixture || clicked.has("oneX")}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
               clicked.has("oneX") ? "bg-white text-purple-600 ring-2 ring-purple-400"
-              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
               : "bg-purple-500 text-white hover:bg-purple-400"
             }`}>
             <div className="font-black">1X</div>
@@ -616,10 +616,10 @@ const handleSubmit = (e) => {
 
           {/* 2X */}
           <button onClick={handleTwoXWin}
-            disabled={!fixture || !isSmallOddsGame || clicked.has("twoX")}
+            disabled={!fixture || clicked.has("twoX")}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
               clicked.has("twoX") ? "bg-white text-pink-600 ring-2 ring-pink-400"
-              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
               : "bg-pink-500 text-white hover:bg-pink-400"
             }`}>
             <div className="font-black">2X</div>
@@ -629,10 +629,10 @@ const handleSubmit = (e) => {
 
           {/* TG0 */}
           <button onClick={handleTg0Win}
-            disabled={!fixture || !isSmallOddsGame || clicked.has("tg0")}
+            disabled={!fixture  || clicked.has("tg0")}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
               clicked.has("tg0") ? "bg-white text-cyan-600 ring-2 ring-cyan-400"
-              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
               : "bg-cyan-500 text-white hover:bg-cyan-400"
             }`}>
             <div className="font-black">0G</div>
@@ -642,10 +642,10 @@ const handleSubmit = (e) => {
 
           {/* TG6 */}
           <button onClick={handleTg6Win}
-            disabled={!fixture || !isSmallOddsGame || clicked.has("tg6")}
+            disabled={!fixture || clicked.has("tg6")}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
               clicked.has("tg6") ? "bg-white text-teal-600 ring-2 ring-teal-400"
-              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : !fixture  ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
               : "bg-teal-500 text-white hover:bg-teal-400"
             }`}>
             <div className="font-black">6G</div>
