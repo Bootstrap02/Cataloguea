@@ -621,10 +621,12 @@ const handleSubmit = (e) => {
   }
     if(sixSpecDef > 1000) {
       setBaseStake((prev) => prev + 1000);
+      setBaseDeficit((prev) => prev + 1000);
       setSixSpecDef((prev) => prev - 1000);
     }
     if(zeroSpecDef > 1000) {
       setBaseStake((prev) => prev + 1000);
+      setBaseDeficit((prev) => prev + 1000);
       setZeroSpecDef((prev) => prev - 1000);
     }
 
