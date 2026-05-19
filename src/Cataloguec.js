@@ -495,12 +495,12 @@ const handleSubmit = (e) => {
     if (twoXDeficit > 500) {
       setOneXDeficit(150);
       setTwoXDeficit((prev) => prev - 150);
-      setZeroTarget(0);
+      setZeroTarget(100);
       setOneXStake(0);
     } else {
       setOneXDeficit(150);
       setBank((prev) => prev + 150);
-      setZeroTarget(0);
+      setZeroTarget(100);
       setOneXStake(0);
     }
   };
@@ -515,12 +515,12 @@ const handleSubmit = (e) => {
     if (oneXDeficit > 500) {
       setTwoXDeficit(150);
       setOneXDeficit((prev) => prev - 150);
-      setSixTarget(0);
+      setSixTarget(100);
       setTwoXStake(0);
     } else {
       setTwoXDeficit(150);
       setBank((prev) => prev + 150);
-      setSixTarget(0);
+      setSixTarget(100);
       setTwoXStake(0);
     }
   };
@@ -534,13 +534,13 @@ const handleSubmit = (e) => {
 
     if (sixTarget > 500) {
       setZeroSpecDef(0);
-      setZeroTarget(150);
-      setSixTarget((prev) => prev - 150);
+      setZeroTarget(100);
+      setSixTarget((prev) => prev - 100);
       setTg0Stake(0);
     } else {
       setZeroSpecDef(0);
-      setZeroTarget(150);
-      setBank((prev) => prev + 150);
+      setZeroTarget(100);
+      setBank((prev) => prev + 100);
       setTg0Stake(0);
     }
   };
@@ -554,13 +554,13 @@ const handleSubmit = (e) => {
 
     if (zeroTarget > 500) {
       setSixSpecDef(0);
-      setSixTarget(150);
-      setZeroTarget((prev) => prev - 150);
+      setSixTarget(100);
+      setZeroTarget((prev) => prev - 100);
       setTg6Stake(0);
     } else {
       setSixSpecDef(0);
-      setSixTarget(150);
-      setBank((prev) => prev + 150);
+      setSixTarget(100);
+      setBank((prev) => prev + 100);
       setTg6Stake(0);
     }
   };
