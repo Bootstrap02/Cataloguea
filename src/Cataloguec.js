@@ -586,18 +586,67 @@ const handleSubmit = (e) => {
   /* ================================================================
      CLEAR FOR NEXT
      ================================================================ */
+  
   const clearForNext = () => {
-    setInputA(""); setInputB("");
-    setFixture(null);
-    setIsSmallOddsGame(false);
-    setOrderedStakes([]);
-    setClicked(new Set());
-    setOneXStake(0); setTwoXStake(0); setTg0Stake(0); setTg6Stake(0);
-    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    saveBase();
-  };
+
+  /* =========================================================
+     SMALL ODDS AUTO-CARRY
+     ========================================================= */
+
+  if (fixture && isSmallOddsGame) {
+
+    const total50Stake =
+      zeroAmounts.winnerAmount +
+      orderedStakes
+        .filter((s) => s.type === "5-0")
+        .reduce((sum, s) => sum + s.stake, 0);
+
+    const total51Stake =
+      oneAmounts.winnerAmount +
+      orderedStakes
+        .filter((s) => s.type === "5-1")
+        .reduce((sum, s) => sum + s.stake, 0);
+
+    setZeroDeficit((prev) => prev + total50Stake);
+
+    setOneDeficit((prev) => prev + total51Stake);
+  }
+
+  setInputA("");
+  setInputB("");
+  setFixture(null);
+  setIsSmallOddsGame(false);
+  setOrderedStakes([]);
+  setClicked(new Set());
+
+  setOneXStake(0);
+  setTwoXStake(0);
+  setTg0Stake(0);
+  setTg6Stake(0);
+
+  setAmounts({
+    winnerAmount: 0,
+    homeAmount: 0,
+    drawAmount: 0,
+    awayAmount: 0,
+  });
+
+  setZeroAmounts({
+    winnerAmount: 0,
+    homeAmount: 0,
+    drawAmount: 0,
+    awayAmount: 0,
+  });
+
+  setOneAmounts({
+    winnerAmount: 0,
+    homeAmount: 0,
+    drawAmount: 0,
+    awayAmount: 0,
+  });
+
+  saveBase();
+};
 
   /* ── DERIVED ── */
   const teamA = sanitizeTeam(inputA) || "HME";
