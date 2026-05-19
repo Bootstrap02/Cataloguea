@@ -430,7 +430,7 @@ const handleSubmit = (e) => {
      1X WIN
      ================================================================ */
   const handleOneXWin = () => {
-    if (!fixture || !isSmallOddsGame) return;
+    if (!fixture ) return;
     setClicked((prev) => new Set([...prev, "oneX"]));
 
     if (twoXDeficit > 500) {
@@ -448,7 +448,7 @@ const handleSubmit = (e) => {
      2X WIN
      ================================================================ */
   const handleTwoXWin = () => {
-    if (!fixture || !isSmallOddsGame) return;
+    if (!fixture ) return;
     setClicked((prev) => new Set([...prev, "twoX"]));
 
     if (oneXDeficit > 500) {
@@ -466,7 +466,7 @@ const handleSubmit = (e) => {
      TG0 WIN
      ================================================================ */
   const handleTg0Win = () => {
-    if (!fixture || !isSmallOddsGame) return;
+    if (!fixture ) return;
     setClicked((prev) => new Set([...prev, "tg0"]));
 
     if (sixTarget > 500) {
@@ -484,7 +484,7 @@ const handleSubmit = (e) => {
      TG6 WIN
      ================================================================ */
   const handleTg6Win = () => {
-    if (!fixture || !isSmallOddsGame) return;
+    if (!fixture ) return;
     setClicked((prev) => new Set([...prev, "tg6"]));
 
     if (zeroTarget > 500) {
