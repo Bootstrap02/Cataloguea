@@ -394,6 +394,7 @@ const handleSubmit = (e) => {
      RESOLVE RESULT (HDA)
      ================================================================ */
   
+  
   const resolveResult = (step) => {
   if (!fixture) return;
 
@@ -433,13 +434,17 @@ const handleSubmit = (e) => {
 
   if (isSmallOddsGame) {
 
-    const total50Stake = orderedStakes
-      .filter((s) => s.type === "5-0")
-      .reduce((sum, s) => sum + s.stake, 0);
+    const total50Stake =
+      zeroAmounts.winnerAmount +
+      orderedStakes
+        .filter((s) => s.type === "5-0")
+        .reduce((sum, s) => sum + s.stake, 0);
 
-    const total51Stake = orderedStakes
-      .filter((s) => s.type === "5-1")
-      .reduce((sum, s) => sum + s.stake, 0);
+    const total51Stake =
+      oneAmounts.winnerAmount +
+      orderedStakes
+        .filter((s) => s.type === "5-1")
+        .reduce((sum, s) => sum + s.stake, 0);
 
     setZeroDeficit((prev) => prev + total50Stake);
 
@@ -478,7 +483,7 @@ const handleSubmit = (e) => {
 
   clearForNext();
 };
-
+  
 
   /* ================================================================
      1X WIN
