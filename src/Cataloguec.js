@@ -120,122 +120,275 @@ const Homepage = () => {
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
-  const handleSubmit = (e) => {
-    e.preventDefault();
+const handleSubmit = (e) => {
+  e.preventDefault();
 
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
+  const home = sanitizeTeam(inputA) || "che";
+  const away = sanitizeTeam(inputB) || "che";
 
-    let found = smallOdds.find((o) => o.home === home && o.away === away);
-    const isSmall = !!found;
-    if (!found) found = odds.find((o) => o.home === home && o.away === away);
-    if (!found) { alert(`No odds found for "${home}" vs "${away}"`); return; }
+  let found = smallOdds.find(
+    (o) => o.home === home && o.away === away
+  );
 
-    setIsSmallOddsGame(isSmall);
-    setFixture(found);
-    setClicked(new Set());
+  const isSmall = !!found;
 
-    const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-    const code    = found.code || "";
-    const newStakes = [];
-    let totalH = 0, totalD = 0, totalA = 0;
+  if (!found) {
+    found = odds.find(
+      (o) => o.home === home && o.away === away
+    );
+  }
 
-    /* ── 6-0 winner ── */
-    const newBase6 = baseStake + deficit;
-    setBaseStake(newBase6);
-    setDeficit(0);
-    let sixWinner = Math.max(Math.round(newBase6 / found.winner), 10);
+  if (!found) {
+    alert(`No odds found for "${home}" vs "${away}"`);
+    return;
+  }
 
-    if (isSmall) {
-      /* Winner stake goes into bank/deficit logic */
-      let bankNow      = bank;
-      let oneXDefNow   = oneXDeficit;
-      let twoXDefNow   = twoXDeficit;
+  setIsSmallOddsGame(isSmall);
+  setFixture(found);
+  setClicked(new Set());
 
-      if (bankNow >= sixWinner) {
-        bankNow -= sixWinner;
-      } else {
-        const residue = sixWinner - bankNow;
-        bankNow = 0;
-        const half = Math.ceil(residue / 2);
-        oneXDefNow += half;
-        twoXDefNow += residue - half; // handles odd numbers
-      }
+  const oddsMap = {
+    H: found.win,
+    D: found.draw,
+    A: found.lose,
+  };
 
-      setBank(bankNow);
-      setOneXDeficit(oneXDefNow);
-      setTwoXDeficit(twoXDefNow);
+  const code = found.code || "";
 
-      setAmounts({ winnerAmount: sixWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const newStakes = [];
 
-      /* ── 1X stake: oneXDeficit + zeroTarget / (odd - 1) ── */
-      const oneXOdd = found.oneX || 0;
-      let oneXS = 0;
-      if (oneXOdd > 1.01) {
-        oneXS = Math.max(Math.round((oneXDefNow + zeroTarget) / (oneXOdd - 1)), 10);
-      }
-      setOneXStake(oneXS);
+  let totalH = 0;
+  let totalD = 0;
+  let totalA = 0;
 
-      /* ── 2X stake: twoXDeficit + sixTarget / (odd - 1) ── */
-      const twoXOdd = found.twoX || 0;
-      let twoXS = 0;
-      if (twoXOdd > 1.01) {
-        twoXS = Math.max(Math.round((twoXDefNow + sixTarget) / (twoXOdd - 1)), 10);
-      }
-      setTwoXStake(twoXS);
+  /* =========================================================
+     6-0
+     ========================================================= */
 
-      /* ── TG0 stake: zeroTarget + zeroSpecDef / (odd - 1) ── */
-      const tg0Odd = found.zeroGoals || 0;
-      let tg0S = 0;
-      if (tg0Odd > 1.01) {
-        tg0S = Math.max(Math.round((zeroTarget + zeroSpecDef) / (tg0Odd - 1)), 10);
-      }
-      setTg0Stake(tg0S);
+  const newBase6 = baseStake + deficit;
 
-      /* ── TG6 stake: sixTarget + sixSpecDef / (odd - 1) ── */
-      const tg6Odd = found.sixGoals || 0;
-      let tg6S = 0;
-      if (tg6Odd > 1.01) {
-        tg6S = Math.max(Math.round((sixTarget + sixSpecDef) / (tg6Odd - 1)), 10);
-      }
-      setTg6Stake(tg6S);
+  setBaseStake(newBase6);
+  setDeficit(0);
 
+  let sixWinner = Math.max(
+    Math.round(newBase6 / found.winner),
+    10
+  );
+
+  /* =========================================================
+     ONLY SMALL ODDS GAMES TOUCH BANK / 1XDEF / 2XDEF
+     ========================================================= */
+
+  let currentOneXDef = oneXDeficit;
+  let currentTwoXDef = twoXDeficit;
+
+  if (isSmall) {
+    let bankNow = bank;
+
+    if (bankNow >= sixWinner) {
+      bankNow -= sixWinner;
     } else {
-      /* Normal game: 6-0 HDA ladder */
-      setOneXStake(0); setTwoXStake(0); setTg0Stake(0); setTg6Stake(0);
+      const residue = sixWinner - bankNow;
 
-      const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
-      newStakes.push(...res6.ladder);
-      setAmounts({
-        winnerAmount: sixWinner,
-        homeAmount: res6.homeAmount,
-        drawAmount: res6.drawAmount,
-        awayAmount: res6.awayAmount,
-      });
-      totalH += res6.homeAmount;
-      totalD += res6.drawAmount;
-      totalA += res6.awayAmount;
+      bankNow = 0;
+
+      const half = Math.ceil(residue / 2);
+
+      currentOneXDef += half;
+      currentTwoXDef += residue - half;
     }
 
-    /* ── 5-0 always HDA ── */
-    const base50    = baseDeficit + zeroDeficit;
-    const zeroWinner = Math.max(Math.round(base50 / found.fiveZero), 10);
-    const res50      = buildLadder(zeroWinner, "5-0", code, oddsMap);
-    newStakes.push(...res50.ladder);
-    setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
-    totalH += res50.homeAmount; totalD += res50.drawAmount; totalA += res50.awayAmount;
+    setBank(bankNow);
+    setOneXDeficit(currentOneXDef);
+    setTwoXDeficit(currentTwoXDef);
+  }
 
-    /* ── 5-1 always HDA ── */
-    const base51    = baseDeficit + oneDeficit;
-    const oneWinner = Math.max(Math.round(base51 / found.fiveOne), 10);
-    const res51     = buildLadder(oneWinner, "5-1", code, oddsMap);
-    newStakes.push(...res51.ladder);
-    setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
-    totalH += res51.homeAmount; totalD += res51.drawAmount; totalA += res51.awayAmount;
+  /* =========================================================
+     6-0 HDA ALWAYS PLAYS
+     ========================================================= */
 
-    setOrderedStakes(newStakes);
-    setAmounts((prev) => ({ ...prev, homeAmount: totalH, drawAmount: totalD, awayAmount: totalA }));
-  };
+  const res6 = buildLadder(
+    sixWinner,
+    "6-0",
+    code,
+    oddsMap
+  );
+
+  newStakes.push(...res6.ladder);
+
+  setAmounts({
+    winnerAmount: sixWinner,
+    homeAmount: res6.homeAmount,
+    drawAmount: res6.drawAmount,
+    awayAmount: res6.awayAmount,
+  });
+
+  totalH += res6.homeAmount;
+  totalD += res6.drawAmount;
+  totalA += res6.awayAmount;
+
+  /* =========================================================
+     1X ALWAYS PLAYS
+     ========================================================= */
+
+  const oneXOdd = found.oneX || 0;
+
+  let oneXS = 0;
+
+  if (oneXOdd > 1.01) {
+    oneXS = Math.max(
+      Math.round(
+        (currentOneXDef + zeroTarget) /
+          (oneXOdd - 1)
+      ),
+      10
+    );
+  }
+
+  setOneXStake(oneXS);
+
+  /* =========================================================
+     2X ALWAYS PLAYS
+     ========================================================= */
+
+  const twoXOdd = found.twoX || 0;
+
+  let twoXS = 0;
+
+  if (twoXOdd > 1.01) {
+    twoXS = Math.max(
+      Math.round(
+        (currentTwoXDef + sixTarget) /
+          (twoXOdd - 1)
+      ),
+      10
+    );
+  }
+
+  setTwoXStake(twoXS);
+
+  /* =========================================================
+     TG0 ALWAYS PLAYS
+     ========================================================= */
+
+  const tg0Odd = found.zeroGoals || 0;
+
+  let tg0S = 0;
+
+  if (tg0Odd > 1.01) {
+    tg0S = Math.max(
+      Math.round(
+        (zeroTarget + zeroSpecDef) /
+          (tg0Odd - 1)
+      ),
+      10
+    );
+  }
+
+  setTg0Stake(tg0S);
+
+  /* =========================================================
+     TG6 ALWAYS PLAYS
+     ========================================================= */
+
+  const tg6Odd = found.sixGoals || 0;
+
+  let tg6S = 0;
+
+  if (tg6Odd > 1.01) {
+    tg6S = Math.max(
+      Math.round(
+        (sixTarget + sixSpecDef) /
+          (tg6Odd - 1)
+      ),
+      10
+    );
+  }
+
+  setTg6Stake(tg6S);
+
+  /* =========================================================
+     5-0
+     ========================================================= */
+
+  const base50 =
+    baseDeficit + zeroDeficit;
+
+  const zeroWinner = Math.max(
+    Math.round(base50 / found.fiveZero),
+    10
+  );
+
+  const res50 = buildLadder(
+    zeroWinner,
+    "5-0",
+    code,
+    oddsMap
+  );
+
+  newStakes.push(...res50.ladder);
+
+  setZeroAmounts({
+    winnerAmount: zeroWinner,
+    homeAmount: res50.homeAmount,
+    drawAmount: res50.drawAmount,
+    awayAmount: res50.awayAmount,
+  });
+
+  totalH += res50.homeAmount;
+  totalD += res50.drawAmount;
+  totalA += res50.awayAmount;
+
+  /* =========================================================
+     5-1
+     ========================================================= */
+
+  const base51 =
+    baseDeficit + oneDeficit;
+
+  const oneWinner = Math.max(
+    Math.round(base51 / found.fiveOne),
+    10
+  );
+
+  const res51 = buildLadder(
+    oneWinner,
+    "5-1",
+    code,
+    oddsMap
+  );
+
+  newStakes.push(...res51.ladder);
+
+  setOneAmounts({
+    winnerAmount: oneWinner,
+    homeAmount: res51.homeAmount,
+    drawAmount: res51.drawAmount,
+    awayAmount: res51.awayAmount,
+  });
+
+  totalH += res51.homeAmount;
+  totalD += res51.drawAmount;
+  totalA += res51.awayAmount;
+
+  /* =========================================================
+     FINAL
+     ========================================================= */
+
+  setOrderedStakes(newStakes);
+
+  setAmounts((prev) => ({
+    ...prev,
+    homeAmount: totalH,
+    drawAmount: totalD,
+    awayAmount: totalA,
+  }));
+};
+
+
+
+  
+      
 
   /* ================================================================
      RESOLVE RESULT (HDA)
@@ -271,6 +424,7 @@ const Homepage = () => {
 
     clearForNext();
   };
+
 
   /* ================================================================
      1X WIN
