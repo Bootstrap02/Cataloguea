@@ -496,10 +496,12 @@ const handleSubmit = (e) => {
       setOneXDeficit(150);
       setTwoXDeficit((prev) => prev - 150);
       setZeroTarget(0);
+      setOneXStake(0);
     } else {
       setOneXDeficit(150);
       setBank((prev) => prev + 150);
       setZeroTarget(0);
+      setOneXStake(0);
     }
   };
 
@@ -514,10 +516,12 @@ const handleSubmit = (e) => {
       setTwoXDeficit(150);
       setOneXDeficit((prev) => prev - 150);
       setSixTarget(0);
+      setTwoXStake(0);
     } else {
       setTwoXDeficit(150);
       setBank((prev) => prev + 150);
       setSixTarget(0);
+      setTwoXStake(0);
     }
   };
 
@@ -532,10 +536,12 @@ const handleSubmit = (e) => {
       setZeroSpecDef(0);
       setZeroTarget(150);
       setSixTarget((prev) => prev - 150);
+      setTg0Stake(0);
     } else {
       setZeroSpecDef(0);
       setZeroTarget(150);
       setBank((prev) => prev + 150);
+      setTg0Stake(0);
     }
   };
 
@@ -550,10 +556,12 @@ const handleSubmit = (e) => {
       setSixSpecDef(0);
       setSixTarget(150);
       setZeroTarget((prev) => prev - 150);
+      setTg6Stake(0);
     } else {
       setSixSpecDef(0);
       setSixTarget(150);
       setBank((prev) => prev + 150);
+      setTg6Stake(0);
     }
   };
 
