@@ -1,476 +1,582 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { odds } from "./Scores";
+import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-const TEAMS = [
-  "ast","liv","bre","ars","new","wol","mnc","mnu","bur",
-  "not","whu","ful","bou","tot","cry","eve","bha","sun","lee"
-];
-
-const TEAM_LABELS = {
-  ast:"AST", liv:"LIV", bre:"BRE", ars:"ARS", new:"NEW",
-  wol:"WOL", mnc:"MNC", mnu:"MNU", bur:"BUR", not:"NOT",
-  whu:"WHU", ful:"FUL", bou:"BOU", tot:"TOT", cry:"CRY",
-  eve:"EVE", bha:"BHA", sun:"SUN", lee:"LEE"
-};
-
-const CHAIN_KEYS = [
-  "oneX","twoX","x2","zeroGoals","sixGoals",
-  "ht12","ht21","ht30","ft40","ft41"
-];
-
-const CHAIN_LABELS = {
-  oneX:"1X", twoX:"2X", x2:"X2",
-  zeroGoals:"0G", sixGoals:"6G",
-  ht12:"HT12", ht21:"HT21", ht30:"HT30",
-  ft40:"FT40", ft41:"FT41"
-};
-
-const TARGET_DEFAULT = 100;
-
-/* Per-team state shape */
-const defaultTeamState = () =>
-  Object.fromEntries(TEAMS.map(t => [t, {
-    deficit: 0,
-    target:  TARGET_DEFAULT,
-    shadow:  0,
-  }]));
-
-const emptyGameStakes = () => Object.fromEntries(CHAIN_KEYS.map(k => [k, 0]));
-
 const Homepage = () => {
+
+  /* ---------- INPUTS ---------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
-  const [isLoading,   setIsLoading]   = useState(false);
 
-  /* ── FIXTURE ── */
-  const [fixture,     setFixture]     = useState(null);
-  const [activeTeam,  setActiveTeam]  = useState(null);
-  const [pressedWins, setPressedWins] = useState(new Set());
-  const [firstWinDone, setFirstWinDone] = useState(false);
+  /* ---------- FIXTURE ---------- */
+  const [fixture, setFixture] = useState(null);
+  const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
-  /* ── PER-TEAM STATE ── */
-  const [teamState, setTeamState] = useState(defaultTeamState());
+  /* ---------- BASE & DEFICITS ---------- */
+  const [baseStake,   setBaseStake]   = useState(10000);
+  const [baseDeficit, setBaseDeficit] = useState(0);
+  const [deficit,     setDeficit]     = useState(0);
+  const [zeroDeficit, setZeroDeficit] = useState(0);
+  const [oneDeficit,  setOneDeficit]  = useState(0);
 
-  /* ── ACTIVE GAME STAKES ── */
-  const [gameStakes, setGameStakes] = useState(emptyGameStakes());
+  /* ---------- SPECIAL STATES ---------- */
+  // Team A: 1X + zeroTarget/zeroDeficit
+  // Team B: 2X + sixTarget/sixDeficit
+  const [bank,          setBank]          = useState(600);
+  const [oneXDeficit,   setOneXDeficit]   = useState(200);
+  const [twoXDeficit,   setTwoXDeficit]   = useState(200);
+  const [zeroTarget,    setZeroTarget]    = useState(100); // accumulates 1X stakes
+  const [sixTarget,     setSixTarget]     = useState(100); // accumulates 2X stakes
+  const [zeroSpecDef,   setZeroSpecDef]   = useState(100); // tg0 deficit (0-Goals protection)
+  const [sixSpecDef,    setSixSpecDef]    = useState(100); // tg6 deficit (6-Goals protection)
 
-  /* ── REF FOR SAVE ── */
-  const teamStateRef = useRef(teamState);
-  useEffect(() => { teamStateRef.current = teamState; }, [teamState]);
+  /* ---------- STAKES PER LINE ---------- */
+  const [amounts,     setAmounts]     = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [zeroAmounts, setZeroAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [oneAmounts,  setOneAmounts]  = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  const [orderedStakes, setOrderedStakes] = useState([]);
 
-  /* ── API ── */
-  const fetchAll = async () => {
+  /* ---------- SPECIAL STAKES THIS GAME ---------- */
+  const [oneXStake,  setOneXStake]  = useState(0);
+  const [twoXStake,  setTwoXStake]  = useState(0);
+  const [tg0Stake,   setTg0Stake]   = useState(0);
+  const [tg6Stake,   setTg6Stake]   = useState(0);
+
+  /* ---------- CLICK INDICATORS ---------- */
+  const [clicked, setClicked] = useState(new Set());
+
+  /* ---------- REF FOR AUTOSAVE ---------- */
+  const baseRef = useRef(baseStake);
+  useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
+
+  /* ================================================================
+     API
+     ================================================================ */
+  const fetchBase = async () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
-      const d   = res.data || {};
-      const loaded = defaultTeamState();
-      TEAMS.forEach(t => {
-        loaded[t].deficit = d[`${t}_deficit`] ?? 0;
-        loaded[t].target  = d[`${t}_target`]  ?? TARGET_DEFAULT;
-        loaded[t].shadow  = d[`${t}_shadow`]  ?? 0;
-      });
-      setTeamState(loaded);
-    } catch (err) { console.error("❌ Load:", err.message); }
-    finally { setIsReloading(false); }
-  };
-
-  const saveAll = async () => {
-    try {
-      const payload = {};
-      TEAMS.forEach(t => {
-        payload[`${t}_deficit`] = teamStateRef.current[t].deficit;
-        payload[`${t}_target`]  = teamStateRef.current[t].target;
-        payload[`${t}_shadow`]  = teamStateRef.current[t].shadow;
-      });
-      await axios.put(API_BASE, payload);
-    } catch (err) { console.error("❌ Save:", err.message); }
-  };
-
-  useEffect(() => { fetchAll(); }, []);
-
-  /* Auto-fill the other input with "che" when one is filled */
-  const handleInputAChange = (e) => {
-    const value = e.target.value;
-    setInputA(value);
-    if (value && !inputB) {
-      setInputB("che");
-    }
-  };
-
-  const handleInputBChange = (e) => {
-    const value = e.target.value;
-    setInputB(value);
-    if (value && !inputA) {
-      setInputA("che");
-    }
-  };
-
-  /* ================================================================
-     HANDLE LOAD
-     ================================================================ */
-  const handleLoadGame = (e) => {
-    e.preventDefault();
-    if (isLoading) return;
-    
-    // Get the opponent (the non-che team)
-    const home = sanitizeTeam(inputA);
-    const away = sanitizeTeam(inputB);
-    
-    let opponent = null;
-    let isHome = false;
-    
-    if (home === "che" && away !== "che") {
-      opponent = away;
-      isHome = false;
-    } else if (away === "che" && home !== "che") {
-      opponent = home;
-      isHome = true;
-    } else {
-      alert("One team must be Chelsea (che) and the other a valid opponent");
-      return;
-    }
-    
-    // Verify opponent is in tracked teams
-    if (!TEAMS.includes(opponent)) {
-      alert(`${opponent} is not one of the 19 tracked opponents`);
-      return;
-    }
-
-    // Find fixture for this opponent
-    let found = null;
-    if (isHome) {
-      // Chelsea is home, opponent is away
-      found = odds.find(o => o.home === "che" && o.away === opponent);
-    } else {
-      // Chelsea is away, opponent is home
-      found = odds.find(o => o.home === opponent && o.away === "che");
-    }
-
-    if (!found) { 
-      alert(`No odds found for Chelsea vs ${opponent}`); 
-      return; 
-    }
-
-    const ts       = teamState[opponent];
-    const base     = ts.target + ts.deficit; // this game's running start
-
-    /* Build martingale chain from base */
-    let running = base;
-    const stakes = {};
-    CHAIN_KEYS.forEach(key => {
-      const odd = found[key] || 0;
-      if (odd > 1.01) {
-        stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
-        running    += stakes[key];
-      } else {
-        stakes[key] = 0;
+      if (res.data) {
+        setBaseStake(res.data.base || 0);
+        setBaseDeficit(res.data.baseDeficit || 0);
+        setDeficit(res.data.deficit || 0);
+        setZeroDeficit(res.data.zeroDeficit || 0);
+        setOneDeficit(res.data.oneDeficit || 0);
+        setBank(res.data.bank ?? 600);
+        setOneXDeficit(res.data.oneXDeficit ?? 200);
+        setTwoXDeficit(res.data.twoXDeficit ?? 200);
+        setZeroTarget(res.data.zeroTarget ?? 100);
+        setSixTarget(res.data.sixTarget ?? 100);
+        setZeroSpecDef(res.data.zeroSpecDef ?? 100);
+        setSixSpecDef(res.data.sixSpecDef ?? 100);
       }
-    });
+    } catch (err) {
+      console.error("❌ fetch failed:", err.message);
+    } finally {
+      setIsReloading(false);
+    }
+  };
 
-    /* Save shadow = base for this game */
-    setTeamState(prev => ({
-      ...prev,
-      [opponent]: { ...prev[opponent], shadow: base }
-    }));
+  const saveBase = async () => {
+    try {
+      await axios.put(API_BASE, {
+        base: baseRef.current,
+        baseDeficit, deficit, zeroDeficit, oneDeficit,
+        bank, oneXDeficit, twoXDeficit,
+        zeroTarget, sixTarget, zeroSpecDef, sixSpecDef,
+      });
+      console.log("✅ Saved");
+    } catch (err) {
+      console.error("❌ Save failed:", err.message);
+    }
+  };
 
+  /* ================================================================
+     BUILD LADDER FOR HDA
+     ================================================================ */
+  const buildLadder = (startTotal, type, code, oddsMap) => {
+    let runningTotal = startTotal;
+    const ladder = [];
+    let homeAmount = 0, drawAmount = 0, awayAmount = 0;
+    for (const step of code) {
+      const odd = oddsMap[step];
+      if (!odd || odd <= 1.01) continue;
+      let stake = Math.round(runningTotal / (odd - 1));
+      ladder.push({ step, stake, type });
+      if (step === "H") homeAmount = stake;
+      if (step === "D") drawAmount = stake;
+      if (step === "A") awayAmount = stake;
+      runningTotal += stake;
+    }
+    return { ladder, homeAmount, drawAmount, awayAmount };
+  };
+
+  /* ================================================================
+     HANDLE SUBMIT
+     ================================================================ */
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
+
+    let found = smallOdds.find((o) => o.home === home && o.away === away);
+    const isSmall = !!found;
+    if (!found) found = odds.find((o) => o.home === home && o.away === away);
+    if (!found) { alert(`No odds found for "${home}" vs "${away}"`); return; }
+
+    setIsSmallOddsGame(isSmall);
     setFixture(found);
-    setActiveTeam(opponent);
-    setPressedWins(new Set());
-    setFirstWinDone(false);
-    setGameStakes(stakes);
-    setIsLoading(true);
-  };
+    setClicked(new Set());
 
-  /* ================================================================
-     WIN HANDLER
-     ================================================================ */
-  const handleWin = (key) => {
-    if (!fixture || !activeTeam) return;
-    if (pressedWins.has(key)) return;
-    setPressedWins(prev => new Set([...prev, key]));
+    const oddsMap = { H: found.win, D: found.draw, A: found.lose };
+    const code    = found.code || "";
+    const newStakes = [];
+    let totalH = 0, totalD = 0, totalA = 0;
 
-    const snap    = { ...gameStakes };
-    const myIdx   = CHAIN_KEYS.indexOf(key);
+    /* ── 6-0 winner ── */
+    const newBase6 = baseStake + deficit;
+    setBaseStake(newBase6);
+    setDeficit(0);
+    let sixWinner = Math.max(Math.round(newBase6 / found.winner), 10);
 
-    /* Stakes AFTER this winner */
-    const afterTotal = CHAIN_KEYS.slice(myIdx + 1)
-      .reduce((s, k) => s + (snap[k] || 0), 0);
+    if (isSmall) {
+      /* Winner stake goes into bank/deficit logic */
+      let bankNow      = bank;
+      let oneXDefNow   = oneXDeficit;
+      let twoXDefNow   = twoXDeficit;
 
-    /* Stakes BEFORE this winner */
-    const beforeTotal = CHAIN_KEYS.slice(0, myIdx)
-      .reduce((s, k) => s + (snap[k] || 0), 0);
+      if (bankNow >= sixWinner) {
+        bankNow -= sixWinner;
+      } else {
+        const residue = sixWinner - bankNow;
+        bankNow = 0;
+        const half = Math.ceil(residue / 2);
+        oneXDefNow += half;
+        twoXDefNow += residue - half; // handles odd numbers
+      }
 
-    const ts = teamState[activeTeam];
+      setBank(bankNow);
+      setOneXDeficit(oneXDefNow);
+      setTwoXDeficit(twoXDefNow);
 
-    if (!firstWinDone) {
-      /* ── FIRST WIN ──
-         Residue = afterTotal → push to deficit, target stays 100 */
-      setTeamState(prev => ({
-        ...prev,
-        [activeTeam]: {
-          ...prev[activeTeam],
-          deficit: afterTotal,
-          target:  TARGET_DEFAULT,
-        }
-      }));
-      setFirstWinDone(true);
+      setAmounts({ winnerAmount: sixWinner, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+
+      /* ── 1X stake: oneXDeficit + zeroTarget / (odd - 1) ── */
+      const oneXOdd = found.oneX || 0;
+      let oneXS = 0;
+      if (oneXOdd > 1.01) {
+        oneXS = Math.max(Math.round((oneXDefNow + zeroTarget) / (oneXOdd - 1)), 10);
+      }
+      setOneXStake(oneXS);
+
+      /* ── 2X stake: twoXDeficit + sixTarget / (odd - 1) ── */
+      const twoXOdd = found.twoX || 0;
+      let twoXS = 0;
+      if (twoXOdd > 1.01) {
+        twoXS = Math.max(Math.round((twoXDefNow + sixTarget) / (twoXOdd - 1)), 10);
+      }
+      setTwoXStake(twoXS);
+
+      /* ── TG0 stake: zeroTarget + zeroSpecDef / (odd - 1) ── */
+      const tg0Odd = found.zeroGoals || 0;
+      let tg0S = 0;
+      if (tg0Odd > 1.01) {
+        tg0S = Math.max(Math.round((zeroTarget + zeroSpecDef) / (tg0Odd - 1)), 10);
+      }
+      setTg0Stake(tg0S);
+
+      /* ── TG6 stake: sixTarget + sixSpecDef / (odd - 1) ── */
+      const tg6Odd = found.sixGoals || 0;
+      let tg6S = 0;
+      if (tg6Odd > 1.01) {
+        tg6S = Math.max(Math.round((sixTarget + sixSpecDef) / (tg6Odd - 1)), 10);
+      }
+      setTg6Stake(tg6S);
+
     } else {
-      /* ── SECOND WIN ──
-         beforeTotal + shadow covers what was owed (deficit).
-         Subtract deficit from (beforeTotal + shadow) → if positive, deficit = 0.
-         Target resets to 100. */
-      const recovered = beforeTotal + ts.shadow;
-      const newDeficit = Math.max(0, ts.deficit - recovered);
-      setTeamState(prev => ({
-        ...prev,
-        [activeTeam]: {
-          deficit: newDeficit,
-          target:  TARGET_DEFAULT,
-          shadow:  0,
-        }
-      }));
+      /* Normal game: 6-0 HDA ladder */
+      setOneXStake(0); setTwoXStake(0); setTg0Stake(0); setTg6Stake(0);
+
+      const res6 = buildLadder(sixWinner, "6-0", code, oddsMap);
+      newStakes.push(...res6.ladder);
+      setAmounts({
+        winnerAmount: sixWinner,
+        homeAmount: res6.homeAmount,
+        drawAmount: res6.drawAmount,
+        awayAmount: res6.awayAmount,
+      });
+      totalH += res6.homeAmount;
+      totalD += res6.drawAmount;
+      totalA += res6.awayAmount;
+    }
+
+    /* ── 5-0 always HDA ── */
+    const base50    = baseDeficit + zeroDeficit;
+    const zeroWinner = Math.max(Math.round(base50 / found.fiveZero), 10);
+    const res50      = buildLadder(zeroWinner, "5-0", code, oddsMap);
+    newStakes.push(...res50.ladder);
+    setZeroAmounts({ winnerAmount: zeroWinner, homeAmount: res50.homeAmount, drawAmount: res50.drawAmount, awayAmount: res50.awayAmount });
+    totalH += res50.homeAmount; totalD += res50.drawAmount; totalA += res50.awayAmount;
+
+    /* ── 5-1 always HDA ── */
+    const base51    = baseDeficit + oneDeficit;
+    const oneWinner = Math.max(Math.round(base51 / found.fiveOne), 10);
+    const res51     = buildLadder(oneWinner, "5-1", code, oddsMap);
+    newStakes.push(...res51.ladder);
+    setOneAmounts({ winnerAmount: oneWinner, homeAmount: res51.homeAmount, drawAmount: res51.drawAmount, awayAmount: res51.awayAmount });
+    totalH += res51.homeAmount; totalD += res51.drawAmount; totalA += res51.awayAmount;
+
+    setOrderedStakes(newStakes);
+    setAmounts((prev) => ({ ...prev, homeAmount: totalH, drawAmount: totalD, awayAmount: totalA }));
+  };
+
+  /* ================================================================
+     RESOLVE RESULT (HDA)
+     ================================================================ */
+  const resolveResult = (step) => {
+    if (!fixture) return;
+    setClicked((prev) => new Set([...prev, step]));
+
+    const calcLoss = (type) => {
+      const stakes = orderedStakes.filter((s) => s.type === type);
+      const idx    = stakes.findIndex((s) => s.step === step);
+      if (idx === -1) return 0;
+      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
+    };
+
+    if (!isSmallOddsGame) {
+      const mainLoss = calcLoss("6-0");
+      setDeficit(mainLoss);
+      setBaseDeficit((prev) => prev + mainLoss);
+    }
+    const zeroLoss = calcLoss("5-0");
+    setZeroDeficit((prev) => prev + zeroLoss);
+    const oneLoss = calcLoss("5-1");
+    setOneDeficit((prev) => prev + oneLoss);
+
+    /* Pile special stakes into their respective targets/deficits */
+    if (isSmallOddsGame) {
+      if (oneXStake > 0)  setZeroTarget((prev) => prev + oneXStake);
+      if (twoXStake > 0)  setSixTarget((prev)  => prev + twoXStake);
+      if (tg0Stake > 0)   setZeroSpecDef((prev) => prev + tg0Stake);
+      if (tg6Stake > 0)   setSixSpecDef((prev)  => prev + tg6Stake);
+    }
+
+    clearForNext();
+  };
+
+  /* ================================================================
+     1X WIN
+     ================================================================ */
+  const handleOneXWin = () => {
+    if (!fixture || !isSmallOddsGame) return;
+    setClicked((prev) => new Set([...prev, "oneX"]));
+
+    if (twoXDeficit > 500) {
+      setOneXDeficit(150);
+      setTwoXDeficit((prev) => prev - 150);
+      setZeroTarget(0);
+    } else {
+      setOneXDeficit(150);
+      setBank((prev) => prev + 150);
+      setZeroTarget(0);
     }
   };
 
   /* ================================================================
-     HANDLE NEXT
+     2X WIN
      ================================================================ */
-  const handleNextGame = async () => {
-    if (!isLoading) return;
+  const handleTwoXWin = () => {
+    if (!fixture || !isSmallOddsGame) return;
+    setClicked((prev) => new Set([...prev, "twoX"]));
 
-    if (activeTeam && !firstWinDone) {
-      /* No win at all — full chain + base goes to deficit */
-      const chainTotal = Object.values(gameStakes).reduce((s, v) => s + v, 0);
-      const ts         = teamState[activeTeam];
-      setTeamState(prev => ({
-        ...prev,
-        [activeTeam]: {
-          deficit: ts.shadow + chainTotal,
-          target:  TARGET_DEFAULT,
-          shadow:  0,
-        }
-      }));
-    } else if (activeTeam) {
-      /* Win happened — shadow clears */
-      setTeamState(prev => ({
-        ...prev,
-        [activeTeam]: { ...prev[activeTeam], shadow: 0 }
-      }));
+    if (oneXDeficit > 500) {
+      setTwoXDeficit(150);
+      setOneXDeficit((prev) => prev - 150);
+      setSixTarget(0);
+    } else {
+      setTwoXDeficit(150);
+      setBank((prev) => prev + 150);
+      setSixTarget(0);
     }
+  };
 
+  /* ================================================================
+     TG0 WIN
+     ================================================================ */
+  const handleTg0Win = () => {
+    if (!fixture || !isSmallOddsGame) return;
+    setClicked((prev) => new Set([...prev, "tg0"]));
+
+    if (sixTarget > 500) {
+      setZeroSpecDef(0);
+      setZeroTarget(150);
+      setSixTarget((prev) => prev - 150);
+    } else {
+      setZeroSpecDef(0);
+      setZeroTarget(150);
+      setBank((prev) => prev + 150);
+    }
+  };
+
+  /* ================================================================
+     TG6 WIN
+     ================================================================ */
+  const handleTg6Win = () => {
+    if (!fixture || !isSmallOddsGame) return;
+    setClicked((prev) => new Set([...prev, "tg6"]));
+
+    if (zeroTarget > 500) {
+      setSixSpecDef(0);
+      setSixTarget(150);
+      setZeroTarget((prev) => prev - 150);
+    } else {
+      setSixSpecDef(0);
+      setSixTarget(150);
+      setBank((prev) => prev + 150);
+    }
+  };
+
+  /* ================================================================
+     JACKPOT HANDLERS
+     ================================================================ */
+  const handleJackpot = () => {
+    setClicked((prev) => new Set([...prev, "six"]));
+    setBaseStake(10000);
+    setBaseDeficit(0);
+    setDeficit(0);
+  };
+
+  const handleZeroJackpot = () => {
+    setClicked((prev) => new Set([...prev, "zero"]));
+    setBaseStake(10000 + oneDeficit);
+    setBaseDeficit(oneDeficit);
+    setOneDeficit(0);
+    setZeroDeficit(0);
+  };
+
+  const handleOneJackpot = () => {
+    setClicked((prev) => new Set([...prev, "one"]));
+    setBaseStake(10000 + zeroDeficit);
+    setBaseDeficit(zeroDeficit);
+    setZeroDeficit(0);
+    setOneDeficit(0);
+  };
+
+  /* ================================================================
+     CLEAR FOR NEXT
+     ================================================================ */
+  const clearForNext = () => {
+    setInputA(""); setInputB("");
     setFixture(null);
-    setActiveTeam(null);
-    setPressedWins(new Set());
-    setFirstWinDone(false);
-    setGameStakes(emptyGameStakes());
-    setInputA("");
-    setInputB("");
-    setIsLoading(false);
+    setIsSmallOddsGame(false);
+    setOrderedStakes([]);
+    setClicked(new Set());
+    setOneXStake(0); setTwoXStake(0); setTg0Stake(0); setTg6Stake(0);
+    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    saveBase();
+  };
 
-    await saveAll();
+  /* ── DERIVED ── */
+  const teamA = sanitizeTeam(inputA) || "HME";
+  const teamB = sanitizeTeam(inputB) || "AWY";
+
+  const displayAmounts = {
+    homeAmount: amounts.homeAmount,
+    drawAmount: amounts.drawAmount,
+    awayAmount: amounts.awayAmount,
   };
 
   /* ================================================================
      RENDER
      ================================================================ */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-black to-slate-800 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
-      {/* ══ DESKTOP ══ */}
-      <div className="max-lg:hidden px-6 py-10">
-        <div className="flex items-center justify-center gap-6 mb-8 flex-wrap">
-          <h1 className="text-4xl font-extrabold text-blue-400">Chelsea Opponent Tracker</h1>
-          <button onClick={fetchAll} disabled={isReloading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl text-sm transition">
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
-            {isReloading ? "Reloading…" : "Reload"}
-          </button>
-          <button onClick={saveAll}
-            className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-xl text-sm transition">
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
+        <h1 className="text-base font-extrabold text-red-400 tracking-tight leading-tight">
+          Virtual EPL
+          {isSmallOddsGame && fixture && (
+            <span className="ml-2 text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full font-bold align-middle">
+              SMALL ODDS
+            </span>
+          )}
+        </h1>
+        <div className="flex rounded-full overflow-hidden shadow">
+          <button onClick={saveBase} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
             💾 Save
           </button>
-        </div>
-
-        <div className="max-w-7xl mx-auto space-y-6">
-
-          {/* Active game */}
-          {fixture && activeTeam && (
-            <div className="bg-white text-gray-900 rounded-3xl shadow-2xl p-6">
-              <div className="text-center mb-4">
-                <span className="text-2xl font-extrabold text-blue-600">{TEAM_LABELS[activeTeam]}</span>
-                <span className="ml-3 text-sm text-gray-500">
-                  Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;|&nbsp;
-                  Deficit: {teamState[activeTeam].deficit} &nbsp;|&nbsp;
-                  Target: {teamState[activeTeam].target}
-                </span>
-              </div>
-              <div className="grid grid-cols-5 gap-3">
-                {CHAIN_KEYS.map(key => (
-                  <button key={key} onClick={() => handleWin(key)}
-                    disabled={gameStakes[key] === 0 || pressedWins.has(key)}
-                    className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 ${
-                      pressedWins.has(key)
-                        ? "bg-green-500 text-white"
-                        : gameStakes[key] === 0
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-500"
-                    }`}>
-                    {CHAIN_LABELS[key]}<br />
-                    <span className="text-xs opacity-80">({gameStakes[key] || "–"})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Inputs */}
-          <div className="bg-white/5 rounded-3xl p-6">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-              <div className="flex items-center gap-4">
-                <input 
-                  value={inputA} 
-                  onChange={handleInputAChange} 
-                  placeholder="Home (e.g. ars)"
-                  className="w-40 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" 
-                />
-                <span className="font-black text-3xl text-blue-400">VS</span>
-                <input 
-                  value={inputB} 
-                  onChange={handleInputBChange} 
-                  placeholder="Away (e.g. che)"
-                  className="w-40 px-6 py-3 border-2 border-blue-400 bg-transparent rounded-2xl text-center text-lg" 
-                />
-              </div>
-              <div className="flex gap-4">
-                <button onClick={handleLoadGame} disabled={isLoading}
-                  className="px-10 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xl rounded-2xl">
-                  LOAD
-                </button>
-                <button onClick={handleNextGame} disabled={!isLoading}
-                  className="px-10 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-extrabold text-xl rounded-2xl">
-                  NEXT
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 19-team grid */}
-          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-10 gap-3">
-            {TEAMS.map(t => {
-              const ts       = teamState[t];
-              const isActive = activeTeam === t;
-              return (
-                <div key={t} className={`rounded-2xl p-3 text-center border-2 transition ${
-                  isActive           ? "border-blue-400 bg-blue-900/50" :
-                  ts.deficit > 0     ? "border-red-500/50 bg-red-900/20" :
-                                       "border-white/10 bg-white/5"
-                }`}>
-                  <div className="font-extrabold text-sm text-white">{TEAM_LABELS[t]}</div>
-                  <div className="text-[10px] text-gray-400 mt-1">Def: {ts.deficit}</div>
-                  <div className="text-[10px] text-blue-300">Tgt: {ts.target}</div>
-                  {ts.shadow > 0 && <div className="text-[9px] text-orange-300">Shd: {ts.shadow}</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ══ MOBILE ══ */}
-      <div className="hidden max-lg:block px-3 py-6">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <h1 className="text-lg font-extrabold text-blue-400">CHE Tracker</h1>
-          <button onClick={fetchAll} disabled={isReloading}
-            className="flex items-center gap-1 px-3 py-1.5 bg-blue-700 text-xs rounded-xl transition disabled:opacity-50">
-            <FiRefreshCw className={`w-3 h-3 ${isReloading ? "animate-spin" : ""}`} />
+          <button onClick={fetchBase} disabled={isReloading}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 font-bold text-white text-xs hover:bg-red-700 transition disabled:opacity-50">
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
             {isReloading ? "…" : "Reload"}
           </button>
-          <button onClick={saveAll} className="px-3 py-1.5 bg-green-700 text-xs rounded-xl">💾</button>
-        </div>
-
-        <div className="flex gap-2 mb-3 justify-center items-center">
-          <input 
-            value={inputA} 
-            onChange={handleInputAChange} 
-            placeholder="Home"
-            className="flex-1 max-w-[130px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" 
-          />
-          <span className="text-sm text-blue-400 font-black">VS</span>
-          <input 
-            value={inputB} 
-            onChange={handleInputBChange} 
-            placeholder="Away"
-            className="flex-1 max-w-[130px] px-3 py-2.5 border border-blue-500 bg-transparent rounded-2xl text-center text-sm" 
-          />
-        </div>
-
-        <div className="flex gap-3 mb-4">
-          <button onClick={handleLoadGame} disabled={isLoading}
-            className="flex-1 py-3 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded-2xl text-sm font-bold transition">
-            LOAD
-          </button>
-          <button onClick={handleNextGame} disabled={!isLoading}
-            className="flex-1 py-3 bg-green-700 hover:bg-green-600 disabled:opacity-50 rounded-2xl text-sm font-bold transition">
-            NEXT
-          </button>
-        </div>
-
-        {/* Active game */}
-        {fixture && activeTeam && (
-          <div className="mb-4 bg-white/5 rounded-2xl p-3">
-            <div className="text-center text-sm font-bold text-blue-300 mb-2">
-              {TEAM_LABELS[activeTeam]} &nbsp;·&nbsp;
-              Base: {teamState[activeTeam].target + teamState[activeTeam].deficit} &nbsp;·&nbsp;
-              Def: {teamState[activeTeam].deficit}
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {CHAIN_KEYS.map(key => (
-                <button key={key} onClick={() => handleWin(key)}
-                  disabled={gameStakes[key] === 0 || pressedWins.has(key)}
-                  className={`py-3 rounded-xl text-[10px] font-bold transition ${
-                    pressedWins.has(key)
-                      ? "bg-green-500 text-white"
-                      : gameStakes[key] === 0
-                      ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-700 text-white"
-                  }`}>
-                  {CHAIN_LABELS[key]}<br />
-                  <span className="text-[9px]">({gameStakes[key] || "–"})</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 19-team grid */}
-        <div className="grid grid-cols-4 gap-2">
-          {TEAMS.map(t => {
-            const ts       = teamState[t];
-            const isActive = activeTeam === t;
-            return (
-              <div key={t} className={`rounded-xl p-2 text-center border transition ${
-                isActive       ? "border-blue-400 bg-blue-900/50" :
-                ts.deficit > 0 ? "border-red-500/40 bg-red-900/20" :
-                                  "border-white/10 bg-white/5"
-              }`}>
-                <div className="font-extrabold text-[11px] text-white">{TEAM_LABELS[t]}</div>
-                <div className="text-[9px] text-gray-400">D:{ts.deficit}</div>
-                <div className="text-[9px] text-blue-300">T:{ts.target}</div>
-                {ts.shadow > 0 && <div className="text-[8px] text-orange-300">S:{ts.shadow}</div>}
-              </div>
-            );
-          })}
         </div>
       </div>
 
+      <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-4 overflow-y-auto">
+
+        {/* JACKPOT ROW */}
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={handleJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${clicked.has("six") ? "bg-white text-yellow-500 ring-2 ring-yellow-400" : "bg-yellow-400 text-black hover:bg-yellow-300"}`}>
+            <div className="text-xl font-black">6–0</div>
+            <div className="text-[11px] mt-1 opacity-80">{amounts.winnerAmount || "–"}</div>
+          </button>
+          <button onClick={handleZeroJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${clicked.has("zero") ? "bg-white text-yellow-600 ring-2 ring-yellow-500" : "bg-yellow-500 text-black hover:bg-yellow-400"}`}>
+            <div className="text-xl font-black">5–0</div>
+            <div className="text-[11px] mt-1 opacity-80">{zeroAmounts.winnerAmount || "–"}</div>
+          </button>
+          <button onClick={handleOneJackpot}
+            className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${clicked.has("one") ? "bg-white text-orange-500 ring-2 ring-orange-400" : "bg-orange-400 text-black hover:bg-orange-300"}`}>
+            <div className="text-xl font-black">5–1</div>
+            <div className="text-[11px] mt-1 opacity-80">{oneAmounts.winnerAmount || "–"}</div>
+          </button>
+        </div>
+
+        {/* SPECIAL BUTTONS — only active in small odds games */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* 1X */}
+          <button onClick={handleOneXWin}
+            disabled={!fixture || !isSmallOddsGame || clicked.has("oneX")}
+            className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("oneX") ? "bg-white text-purple-600 ring-2 ring-purple-400"
+              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-purple-500 text-white hover:bg-purple-400"
+            }`}>
+            <div className="font-black">1X</div>
+            <div className="text-[11px] mt-0.5 opacity-80">{oneXStake || "–"}</div>
+            <div className="text-[9px] opacity-60">1XDef:{oneXDeficit} | 0Tgt:{zeroTarget}</div>
+          </button>
+
+          {/* 2X */}
+          <button onClick={handleTwoXWin}
+            disabled={!fixture || !isSmallOddsGame || clicked.has("twoX")}
+            className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("twoX") ? "bg-white text-pink-600 ring-2 ring-pink-400"
+              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-pink-500 text-white hover:bg-pink-400"
+            }`}>
+            <div className="font-black">2X</div>
+            <div className="text-[11px] mt-0.5 opacity-80">{twoXStake || "–"}</div>
+            <div className="text-[9px] opacity-60">2XDef:{twoXDeficit} | 6Tgt:{sixTarget}</div>
+          </button>
+
+          {/* TG0 */}
+          <button onClick={handleTg0Win}
+            disabled={!fixture || !isSmallOddsGame || clicked.has("tg0")}
+            className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("tg0") ? "bg-white text-cyan-600 ring-2 ring-cyan-400"
+              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-cyan-500 text-white hover:bg-cyan-400"
+            }`}>
+            <div className="font-black">0G</div>
+            <div className="text-[11px] mt-0.5 opacity-80">{tg0Stake || "–"}</div>
+            <div className="text-[9px] opacity-60">0Def:{zeroSpecDef} | 0Tgt:{zeroTarget}</div>
+          </button>
+
+          {/* TG6 */}
+          <button onClick={handleTg6Win}
+            disabled={!fixture || !isSmallOddsGame || clicked.has("tg6")}
+            className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
+              clicked.has("tg6") ? "bg-white text-teal-600 ring-2 ring-teal-400"
+              : !fixture || !isSmallOddsGame ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
+              : "bg-teal-500 text-white hover:bg-teal-400"
+            }`}>
+            <div className="font-black">6G</div>
+            <div className="text-[11px] mt-0.5 opacity-80">{tg6Stake || "–"}</div>
+            <div className="text-[9px] opacity-60">6Def:{sixSpecDef} | 6Tgt:{sixTarget}</div>
+          </button>
+        </div>
+
+        {/* HDA ROW */}
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={() => resolveResult("H")} disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("H") ? "bg-white text-green-600 ring-2 ring-green-500"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
+              : "bg-green-500 hover:bg-green-400"
+            }`}>
+            <div className="text-base font-extrabold uppercase tracking-wide">{teamA}</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.homeAmount || "–"}</div>
+          </button>
+          <button onClick={() => resolveResult("D")} disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("D") ? "bg-white text-gray-600 ring-2 ring-gray-400"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
+              : "bg-gray-400 hover:bg-gray-300"
+            }`}>
+            <div className="text-base font-extrabold">DRAW</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.drawAmount || "–"}</div>
+          </button>
+          <button onClick={() => resolveResult("A")} disabled={!fixture}
+            className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
+              clicked.has("A") ? "bg-white text-red-600 ring-2 ring-red-500"
+              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
+              : "bg-red-500 hover:bg-red-400"
+            }`}>
+            <div className="text-base font-extrabold uppercase tracking-wide">{teamB}</div>
+            <div className="text-[11px] mt-1 opacity-80">{displayAmounts.awayAmount || "–"}</div>
+          </button>
+        </div>
+
+        {/* INPUTS */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400" />
+            <span className="font-black text-xl text-red-500 shrink-0">VS</span>
+            <input value={inputB} onChange={(e) => setInputB(e.target.value)} placeholder="Away"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400" />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={handleSubmit} disabled={!!fixture}
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-red-700 hover:bg-red-600 text-white"}`}>
+              CALCULATE
+            </button>
+            <button onClick={clearForNext} disabled={!fixture}
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-green-700 hover:bg-green-600 text-white"}`}>
+              NEXT
+            </button>
+          </div>
+        </div>
+
+        {/* STATS */}
+        <div className="bg-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2">
+          <div className="flex justify-between"><span className="text-gray-400">Base</span><strong className="text-green-400">{baseStake}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Base Def</span><strong className="text-orange-400">{baseDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">5-0 Def</span><strong className="text-yellow-400">{zeroDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">5-1 Def</span><strong className="text-yellow-300">{oneDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Bank</span><strong className="text-emerald-400">{bank}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">1X Def</span><strong className="text-purple-400">{oneXDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">2X Def</span><strong className="text-pink-400">{twoXDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">0 Tgt</span><strong className="text-cyan-400">{zeroTarget}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">6 Tgt</span><strong className="text-teal-400">{sixTarget}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">0G Def</span><strong className="text-cyan-300">{zeroSpecDef}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">6G Def</span><strong className="text-teal-300">{sixSpecDef}</strong></div>
+          {fixture && (
+            <div className="col-span-2 pt-2 border-t border-white/10 text-center">
+              <span className="text-white font-bold uppercase">{teamA}</span>
+              <span className="text-gray-400 mx-2">vs</span>
+              <span className="text-white font-bold uppercase">{teamB}</span>
+              {isSmallOddsGame && <span className="ml-2 text-yellow-400 font-bold text-[10px]">· SMALL ODDS</span>}
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 };
