@@ -393,37 +393,91 @@ const handleSubmit = (e) => {
   /* ================================================================
      RESOLVE RESULT (HDA)
      ================================================================ */
+  
   const resolveResult = (step) => {
-    if (!fixture) return;
-    setClicked((prev) => new Set([...prev, step]));
+  if (!fixture) return;
 
-    const calcLoss = (type) => {
-      const stakes = orderedStakes.filter((s) => s.type === type);
-      const idx    = stakes.findIndex((s) => s.step === step);
-      if (idx === -1) return 0;
-      return stakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
-    };
+  setClicked((prev) => new Set([...prev, step]));
 
-    if (!isSmallOddsGame) {
-      const mainLoss = calcLoss("6-0");
-      setDeficit(mainLoss);
-      setBaseDeficit((prev) => prev + mainLoss);
-    }
-    const zeroLoss = calcLoss("5-0");
-    setZeroDeficit((prev) => prev + zeroLoss);
-    const oneLoss = calcLoss("5-1");
-    setOneDeficit((prev) => prev + oneLoss);
+  const calcLoss = (type) => {
+    const stakes = orderedStakes.filter(
+      (s) => s.type === type
+    );
 
-    /* Pile special stakes into their respective targets/deficits */
-    if (isSmallOddsGame) {
-      if (oneXStake > 0)  setZeroTarget((prev) => prev + oneXStake);
-      if (twoXStake > 0)  setSixTarget((prev)  => prev + twoXStake);
-      if (tg0Stake > 0)   setZeroSpecDef((prev) => prev + tg0Stake);
-      if (tg6Stake > 0)   setSixSpecDef((prev)  => prev + tg6Stake);
-    }
+    const idx = stakes.findIndex(
+      (s) => s.step === step
+    );
 
-    clearForNext();
+    if (idx === -1) return 0;
+
+    return stakes
+      .slice(idx + 1)
+      .reduce((sum, s) => sum + s.stake, 0);
   };
+
+  /* =========================================================
+     6-0 LOSS LOGIC
+     ========================================================= */
+
+  if (!isSmallOddsGame) {
+    const mainLoss = calcLoss("6-0");
+
+    setDeficit(mainLoss);
+
+    setBaseDeficit((prev) => prev + mainLoss);
+  }
+
+  /* =========================================================
+     5-0 / 5-1 LOGIC
+     ========================================================= */
+
+  if (isSmallOddsGame) {
+
+    const total50Stake = orderedStakes
+      .filter((s) => s.type === "5-0")
+      .reduce((sum, s) => sum + s.stake, 0);
+
+    const total51Stake = orderedStakes
+      .filter((s) => s.type === "5-1")
+      .reduce((sum, s) => sum + s.stake, 0);
+
+    setZeroDeficit((prev) => prev + total50Stake);
+
+    setOneDeficit((prev) => prev + total51Stake);
+
+  } else {
+
+    const zeroLoss = calcLoss("5-0");
+
+    setZeroDeficit((prev) => prev + zeroLoss);
+
+    const oneLoss = calcLoss("5-1");
+
+    setOneDeficit((prev) => prev + oneLoss);
+  }
+
+  /* =========================================================
+     SPECIAL SYSTEMS ALWAYS ACCUMULATE
+     ========================================================= */
+
+  if (oneXStake > 0) {
+    setZeroTarget((prev) => prev + oneXStake);
+  }
+
+  if (twoXStake > 0) {
+    setSixTarget((prev) => prev + twoXStake);
+  }
+
+  if (tg0Stake > 0) {
+    setZeroSpecDef((prev) => prev + tg0Stake);
+  }
+
+  if (tg6Stake > 0) {
+    setSixSpecDef((prev) => prev + tg6Stake);
+  }
+
+  clearForNext();
+};
 
 
   /* ================================================================
