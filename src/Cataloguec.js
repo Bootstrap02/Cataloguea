@@ -53,7 +53,7 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     API - Backward compatible with existing fields
+     API
      ================================================================ */
   const fetchBase = async () => {
     setIsReloading(true);
@@ -65,22 +65,18 @@ const Homepage = () => {
       setBank(d.bank ?? 1500);
       setSmallDeficit(d.smallDeficit ?? 0);
       
-      // Team A Deficits (from backend oneXDeficit, twoXDeficit, etc.)
       setOneXDef(d.oneXDeficit ?? 100);
       setTwoXDef(d.twoXDeficit ?? 100);
-      // For new fields, use defaults or map from existing
       setHt12Def(d.ht12Def ?? 100);
       setFt40Def(d.ft40Def ?? 100);
       setFt41Def(d.ft41Def ?? 100);
       
-      // Targets
       setZeroTarget(d.zeroTarget ?? 100);
       setSixTarget(d.sixTarget ?? 100);
       setHt21Target(d.ht21Target ?? 100);
       setFt40Target(d.ft40Target ?? 100);
       setFt41Target(d.ft41Target ?? 100);
       
-      // Team B Deficits
       setTg0Def(d.zeroSpecDef ?? 0);
       setTg6Def(d.sixSpecDef ?? 0);
       setHt21Def(d.ht21Def ?? 0);
@@ -103,7 +99,6 @@ const Homepage = () => {
         sixTarget,
         zeroSpecDef: tg0Def,
         sixSpecDef: tg6Def,
-        // Additional fields for new system
         ht12Def, ft40Def, ft41Def,
         ht21Target, ft40Target, ft41Target,
         ht21Def, ht30Def, x2Def,
@@ -163,14 +158,12 @@ const Homepage = () => {
       return Math.max(Math.round(total / (odd - 1)), 10);
     };
 
-    // Team A stakes: (own def + own target) / (odd - 1)
     const newStakes = {
       oneX: calcStake(oneXDef, zeroTarget, found.oneX),
       twoX: calcStake(twoXDef, sixTarget, found.twoX),
       ht12: calcStake(ht12Def, ht21Target, found.ht12),
       ft40: calcStake(ft40Def, ft40Target, found.ft40),
       ft41: calcStake(ft41Def, ft41Target, found.ft41),
-      // Team B stakes: (target from Team A + own def) / (odd - 1)
       tg0: calcStake(zeroTarget, tg0Def, found.zeroGoals),
       tg6: calcStake(sixTarget, tg6Def, found.sixGoals),
       ht21: calcStake(ht21Target, ht21Def, found.ht21),
@@ -181,25 +174,43 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     LOSS HANDLER - Pile stakes into targets/defs
+     HDA RESULT HANDLER - Determines win/loss for each asset
      ================================================================ */
-  const handleLoss = () => {
+  const resolveHdaResult = (result) => {
     if (!fixture) return;
-    setClicked(prev => new Set([...prev, "loss"]));
     
-    // Team A stakes → add to their respective targets
+    // For now, we need to know which assets win based on the result
+    // This mapping depends on your specific game logic
+    // Example: If result is "H", certain assets win, others lose
+    
+    setClicked(prev => new Set([...prev, result]));
+    
+    // Process losses first (all assets lose except the winning ones)
+    // You need to define which assets win for each result (H, D, A)
+    
+    // For demonstration, let's assume all assets lose on H, D, A results
+    // You'll need to customize this based on your actual game logic
+    
+    // Loss handling - all stakes go into respective deficits/targets
+    // Team A stakes → add to their targets
     if (stakes.oneX > 0) setZeroTarget(prev => prev + stakes.oneX);
     if (stakes.twoX > 0) setSixTarget(prev => prev + stakes.twoX);
     if (stakes.ht12 > 0) setHt21Target(prev => prev + stakes.ht12);
     if (stakes.ft40 > 0) setFt40Target(prev => prev + stakes.ft40);
     if (stakes.ft41 > 0) setFt41Target(prev => prev + stakes.ft41);
     
-    // Team B stakes → add to their own private deficits
+    // Team B stakes → add to their own deficits
     if (stakes.tg0 > 0) setTg0Def(prev => prev + stakes.tg0);
     if (stakes.tg6 > 0) setTg6Def(prev => prev + stakes.tg6);
     if (stakes.ht21 > 0) setHt21Def(prev => prev + stakes.ht21);
     if (stakes.ht30 > 0) setHt30Def(prev => prev + stakes.ht30);
     if (stakes.x2 > 0) setX2Def(prev => prev + stakes.x2);
+    
+    // If there are winning assets, you would handle them here
+    // For example, if 1X wins:
+    // setOneXDef(100);
+    // setZeroTarget(150);
+    // setBank(prev => prev + 150);
     
     clearForNext();
   };
@@ -215,6 +226,8 @@ const Homepage = () => {
     if (setDef) setDef(defValue);
     if (setTarget) setTarget(targetValue);
     setBank(prev => prev + bankAdd);
+    
+    // Don't call clearForNext here - wait for HDA result
   };
 
   // Win configurations
@@ -269,23 +282,15 @@ const Homepage = () => {
       </div>
 
       <div className="flex-1 flex flex-col px-4 pb-4 gap-3 overflow-y-auto">
-        {/* WINNER + JACKPOT + NO WIN */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* WINNER + JACKPOT */}
+        <div className="grid grid-cols-2 gap-3">
           <button onClick={handleJackpot}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${clicked.has("six") ? "bg-white text-yellow-500 ring-2 ring-yellow-400" : "bg-yellow-400 text-black"}`}>
             <div className="font-black">6–0</div>
             <div className="text-[11px] mt-0.5 opacity-80">{winnerStake || "–"}</div>
           </button>
-          <button onClick={handleLoss} disabled={!fixture || clicked.has("loss")}
-            className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
-              clicked.has("loss") ? "bg-white text-red-500 ring-2 ring-red-400"
-              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
-              : "bg-red-700 text-white hover:bg-red-600"}`}>
-            <div className="font-black">NO WIN</div>
-            <div className="text-[9px] mt-0.5 opacity-70">pile all stakes</div>
-          </button>
           <div className="bg-white/10 rounded-2xl flex items-center justify-center text-[10px] font-mono">
-            <div>Sm: {smallDeficit}</div>
+            <div>Sm Def: {smallDeficit}</div>
           </div>
         </div>
 
@@ -333,6 +338,22 @@ const Homepage = () => {
               <div className="text-[8px] opacity-60">T:{tgt}</div>
             </button>
           ))}
+        </div>
+
+        {/* HDA ROW */}
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={() => resolveHdaResult("H")} disabled={!fixture}
+            className="py-4 rounded-2xl font-extrabold text-sm bg-green-600 text-white hover:bg-green-500 transition">
+            {teamA}
+          </button>
+          <button onClick={() => resolveHdaResult("D")} disabled={!fixture}
+            className="py-4 rounded-2xl font-extrabold text-sm bg-gray-500 text-white hover:bg-gray-400 transition">
+            DRAW
+          </button>
+          <button onClick={() => resolveHdaResult("A")} disabled={!fixture}
+            className="py-4 rounded-2xl font-extrabold text-sm bg-red-600 text-white hover:bg-red-500 transition">
+            {teamB}
+          </button>
         </div>
 
         {/* INPUTS */}
