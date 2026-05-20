@@ -259,72 +259,47 @@ const Homepage = () => {
      - All stakes go to their respective private deficits
      ================================================================ */
   
-  const handleNextWithLoss = () => {
+  
+  const handleNextWithLoss = async () => {
   if (!fixture) return;
 
   /* =========================================================
      TEAM A
-     TARGET STATES stay at 200 permanently
-     DEFICIT STATES receive the stakes
+     Their stakes go into THEIR OWN deficits
      ========================================================= */
 
-  // 1X
-  if (!clicked.has("oneX")) {
-    setOneXDef((prev) => prev + stakes.oneX);
-  }
+  setOneXDef((prev) => prev + stakes.oneX);
 
-  // 2X
-  if (!clicked.has("twoX")) {
-    setTwoXDef((prev) => prev + stakes.twoX);
-  }
+  setTwoXDef((prev) => prev + stakes.twoX);
 
-  // HT12
-  if (!clicked.has("ht12")) {
-    setHt12Def((prev) => prev + stakes.ht12);
-  }
+  setHt12Def((prev) => prev + stakes.ht12);
 
-  // FT40
-  if (!clicked.has("ft40")) {
-    setFt40Def((prev) => prev + stakes.ft40);
-  }
+  setFt40Def((prev) => prev + stakes.ft40);
 
-  // FT41
-  if (!clicked.has("ft41")) {
-    setFt41Def((prev) => prev + stakes.ft41);
-  }
+  setFt41Def((prev) => prev + stakes.ft41);
 
   /* =========================================================
      TEAM B
-     Uses Team A deficit states as target states
-     But also has its own deficits
+     Their stakes go into THEIR OWN deficits
      ========================================================= */
 
-  // TG0 uses oneXDef as target
-  if (!clicked.has("tg0")) {
-    setTg0Def((prev) => prev + stakes.tg0);
-  }
+  setTg0Def((prev) => prev + stakes.tg0);
 
-  // TG6 uses twoXDef as target
-  if (!clicked.has("tg6")) {
-    setTg6Def((prev) => prev + stakes.tg6);
-  }
+  setTg6Def((prev) => prev + stakes.tg6);
 
-  // HT21 uses ht12Def as target
-  if (!clicked.has("ht21")) {
-    setHt21Def((prev) => prev + stakes.ht21);
-  }
+  setHt21Def((prev) => prev + stakes.ht21);
 
-  // HT30 uses ft40Def as target
-  if (!clicked.has("ht30")) {
-    setHt30Def((prev) => prev + stakes.ht30);
-  }
+  setHt30Def((prev) => prev + stakes.ht30);
 
-  // X2 uses ft41Def as target
-  if (!clicked.has("x2")) {
-    setX2Def((prev) => prev + stakes.x2);
-  }
+  setX2Def((prev) => prev + stakes.x2);
 
-  clearForNext();
+  /* =========================================================
+     WAIT BEFORE CLEARING
+     ========================================================= */
+
+  setTimeout(() => {
+    clearForNext();
+  }, 100);
 };
 
   /* ================================================================
