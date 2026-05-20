@@ -21,21 +21,21 @@ const Homepage = () => {
   const [bank, setBank] = useState(1500);
   const [smallDeficit, setSmallDeficit] = useState(0);
 
-  // Team A - Private Deficits (start at 100 each, receive share of winner residue)
-  const [oneXDef, setOneXDef] = useState(100);
-  const [twoXDef, setTwoXDef] = useState(100);
-  const [ht12Def, setHt12Def] = useState(100);
-  const [ft40Def, setFt40Def] = useState(100);
-  const [ft41Def, setFt41Def] = useState(100);
+  // TEAM A - Deficits (start at 200, receive share of winner residue)
+  const [oneXDef, setOneXDef] = useState(200);
+  const [twoXDef, setTwoXDef] = useState(200);
+  const [ht12Def, setHt12Def] = useState(200);
+  const [ft40Def, setFt40Def] = useState(200);
+  const [ft41Def, setFt41Def] = useState(200);
 
-  // Team A - Targets (piled from their own stakes, reset on win)
+  // TEAM A - Targets (piled from their own stakes on loss)
   const [zeroTarget, setZeroTarget] = useState(100);
   const [sixTarget, setSixTarget] = useState(100);
   const [ht21Target, setHt21Target] = useState(100);
-  const [ft40Target, setFt40Target] = useState(100);
-  const [ft41Target, setFt41Target] = useState(100);
+  const [ht30Target, setHt30Target] = useState(100);
+  const [x2Target, setX2Target] = useState(100);
 
-  // Team B - Private Deficits (start at 0, accumulate from their own losses)
+  // TEAM B - Deficits (start at 0, accumulate from their own losses)
   const [tg0Def, setTg0Def] = useState(0);
   const [tg6Def, setTg6Def] = useState(0);
   const [ht21Def, setHt21Def] = useState(0);
@@ -65,20 +65,20 @@ const Homepage = () => {
       setBank(d.bank ?? 1500);
       setSmallDeficit(d.smallDeficit ?? 0);
       
-      setOneXDef(d.oneXDeficit ?? 100);
-      setTwoXDef(d.twoXDeficit ?? 100);
-      setHt12Def(d.ht12Def ?? 100);
-      setFt40Def(d.ft40Def ?? 100);
-      setFt41Def(d.ft41Def ?? 100);
+      setOneXDef(d.oneXDef ?? 200);
+      setTwoXDef(d.twoXDef ?? 200);
+      setHt12Def(d.ht12Def ?? 200);
+      setFt40Def(d.ft40Def ?? 200);
+      setFt41Def(d.ft41Def ?? 200);
       
       setZeroTarget(d.zeroTarget ?? 100);
       setSixTarget(d.sixTarget ?? 100);
       setHt21Target(d.ht21Target ?? 100);
-      setFt40Target(d.ft40Target ?? 100);
-      setFt41Target(d.ft41Target ?? 100);
+      setHt30Target(d.ht30Target ?? 100);
+      setX2Target(d.x2Target ?? 100);
       
-      setTg0Def(d.zeroSpecDef ?? 0);
-      setTg6Def(d.sixSpecDef ?? 0);
+      setTg0Def(d.tg0Def ?? 0);
+      setTg6Def(d.tg6Def ?? 0);
       setHt21Def(d.ht21Def ?? 0);
       setHt30Def(d.ht30Def ?? 0);
       setX2Def(d.x2Def ?? 0);
@@ -93,15 +93,9 @@ const Homepage = () => {
         deficit,
         bank,
         smallDeficit,
-        oneXDeficit: oneXDef,
-        twoXDeficit: twoXDef,
-        zeroTarget,
-        sixTarget,
-        zeroSpecDef: tg0Def,
-        sixSpecDef: tg6Def,
-        ht12Def, ft40Def, ft41Def,
-        ht21Target, ft40Target, ft41Target,
-        ht21Def, ht30Def, x2Def,
+        oneXDef, twoXDef, ht12Def, ft40Def, ft41Def,
+        zeroTarget, sixTarget, ht21Target, ht30Target, x2Target,
+        tg0Def, tg6Def, ht21Def, ht30Def, x2Def,
       });
     } catch (err) { console.error("❌ save:", err.message); }
   };
@@ -127,31 +121,36 @@ const Homepage = () => {
     setDeficit(0);
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
+    
+    // 2. Winner stake goes into smallDeficit
     setSmallDeficit(prev => prev + wStake);
 
-    // 2. Winner residue handling with bank
-    let bankNow = bank;
-    let shareRemainder = 0;
+    // 3. Winner stake divided by 5 = share for each Team A deficit
+    const share = Math.ceil(wStake / 5);
     
-    if (bankNow >= wStake) {
-      bankNow -= wStake;
+    let bankNow = bank;
+    
+    // Try to take from bank first
+    if (bankNow >= share * 5) {
+      bankNow -= share * 5;
     } else {
-      const residue = wStake - bankNow;
+      const totalNeeded = share * 5;
+      const residue = totalNeeded - bankNow;
       bankNow = 0;
-      shareRemainder = Math.ceil(residue / 5);
+      // Add residue equally to all 5 deficits
+      const residueShare = Math.ceil(residue / 5);
+      setOneXDef(prev => prev + residueShare);
+      setTwoXDef(prev => prev + residueShare);
+      setHt12Def(prev => prev + residueShare);
+      setFt40Def(prev => prev + residueShare);
+      setFt41Def(prev => prev + residueShare);
     }
     setBank(bankNow);
 
-    // 3. Add share to each Team A deficit
-    if (shareRemainder > 0) {
-      setOneXDef(prev => prev + shareRemainder);
-      setTwoXDef(prev => prev + shareRemainder);
-      setHt12Def(prev => prev + shareRemainder);
-      setFt40Def(prev => prev + shareRemainder);
-      setFt41Def(prev => prev + shareRemainder);
-    }
-
     // 4. Calculate all stakes
+    // Team A stakes: (def + target) / (odd - 1)
+    // Team B stakes: (target from Team A + own def) / (odd - 1)
+    
     const calcStake = (def, target, odd) => {
       if (!odd || odd <= 1.01) return 0;
       const total = def + target;
@@ -159,45 +158,34 @@ const Homepage = () => {
     };
 
     const newStakes = {
+      // Team A
       oneX: calcStake(oneXDef, zeroTarget, found.oneX),
       twoX: calcStake(twoXDef, sixTarget, found.twoX),
       ht12: calcStake(ht12Def, ht21Target, found.ht12),
-      ft40: calcStake(ft40Def, ft40Target, found.ft40),
-      ft41: calcStake(ft41Def, ft41Target, found.ft41),
+      ft40: calcStake(ft40Def, ht30Target, found.ft40),
+      ft41: calcStake(ft41Def, x2Target, found.ft41),
+      // Team B
       tg0: calcStake(zeroTarget, tg0Def, found.zeroGoals),
       tg6: calcStake(sixTarget, tg6Def, found.sixGoals),
       ht21: calcStake(ht21Target, ht21Def, found.ht21),
-      ht30: calcStake(ft40Target, ht30Def, found.ht30),
-      x2: calcStake(ft41Target, x2Def, found.x2),
+      ht30: calcStake(ht30Target, ht30Def, found.ht30),
+      x2: calcStake(x2Target, x2Def, found.x2),
     };
     setStakes(newStakes);
   };
 
   /* ================================================================
-     HDA RESULT HANDLER - Determines win/loss for each asset
+     LOSS HANDLER - All stakes pile into their respective targets/deficits
      ================================================================ */
-  const resolveHdaResult = (result) => {
+  const handleLoss = () => {
     if (!fixture) return;
     
-    // For now, we need to know which assets win based on the result
-    // This mapping depends on your specific game logic
-    // Example: If result is "H", certain assets win, others lose
-    
-    setClicked(prev => new Set([...prev, result]));
-    
-    // Process losses first (all assets lose except the winning ones)
-    // You need to define which assets win for each result (H, D, A)
-    
-    // For demonstration, let's assume all assets lose on H, D, A results
-    // You'll need to customize this based on your actual game logic
-    
-    // Loss handling - all stakes go into respective deficits/targets
-    // Team A stakes → add to their targets
+    // Team A stakes → add to their respective targets
     if (stakes.oneX > 0) setZeroTarget(prev => prev + stakes.oneX);
     if (stakes.twoX > 0) setSixTarget(prev => prev + stakes.twoX);
     if (stakes.ht12 > 0) setHt21Target(prev => prev + stakes.ht12);
-    if (stakes.ft40 > 0) setFt40Target(prev => prev + stakes.ft40);
-    if (stakes.ft41 > 0) setFt41Target(prev => prev + stakes.ft41);
+    if (stakes.ft40 > 0) setHt30Target(prev => prev + stakes.ft40);
+    if (stakes.ft41 > 0) setX2Target(prev => prev + stakes.ft41);
     
     // Team B stakes → add to their own deficits
     if (stakes.tg0 > 0) setTg0Def(prev => prev + stakes.tg0);
@@ -205,12 +193,6 @@ const Homepage = () => {
     if (stakes.ht21 > 0) setHt21Def(prev => prev + stakes.ht21);
     if (stakes.ht30 > 0) setHt30Def(prev => prev + stakes.ht30);
     if (stakes.x2 > 0) setX2Def(prev => prev + stakes.x2);
-    
-    // If there are winning assets, you would handle them here
-    // For example, if 1X wins:
-    // setOneXDef(100);
-    // setZeroTarget(150);
-    // setBank(prev => prev + 150);
     
     clearForNext();
   };
@@ -226,22 +208,22 @@ const Homepage = () => {
     if (setDef) setDef(defValue);
     if (setTarget) setTarget(targetValue);
     setBank(prev => prev + bankAdd);
-    
-    // Don't call clearForNext here - wait for HDA result
   };
 
   // Win configurations
   const wins = {
-    oneX: { setDef: setOneXDef, defValue: 100, setTarget: setZeroTarget, targetValue: 150, bankAdd: 150 },
-    twoX: { setDef: setTwoXDef, defValue: 100, setTarget: setSixTarget, targetValue: 150, bankAdd: 150 },
-    ht12: { setDef: setHt12Def, defValue: 100, setTarget: setHt21Target, targetValue: 150, bankAdd: 150 },
-    ft40: { setDef: setFt40Def, defValue: 100, setTarget: setFt40Target, targetValue: 150, bankAdd: 150 },
-    ft41: { setDef: setFt41Def, defValue: 100, setTarget: setFt41Target, targetValue: 150, bankAdd: 150 },
+    // Team A wins: deficit back to 200, target to 100, bank +200
+    oneX: { setDef: setOneXDef, defValue: 200, setTarget: setZeroTarget, targetValue: 100, bankAdd: 200 },
+    twoX: { setDef: setTwoXDef, defValue: 200, setTarget: setSixTarget, targetValue: 100, bankAdd: 200 },
+    ht12: { setDef: setHt12Def, defValue: 200, setTarget: setHt21Target, targetValue: 100, bankAdd: 200 },
+    ft40: { setDef: setFt40Def, defValue: 200, setTarget: setHt30Target, targetValue: 100, bankAdd: 200 },
+    ft41: { setDef: setFt41Def, defValue: 200, setTarget: setX2Target, targetValue: 100, bankAdd: 200 },
+    // Team B wins: deficit to 0, target to 100, bank +100
     tg0: { setDef: setTg0Def, defValue: 0, setTarget: setZeroTarget, targetValue: 100, bankAdd: 100 },
     tg6: { setDef: setTg6Def, defValue: 0, setTarget: setSixTarget, targetValue: 100, bankAdd: 100 },
     ht21: { setDef: setHt21Def, defValue: 0, setTarget: setHt21Target, targetValue: 100, bankAdd: 100 },
-    ht30: { setDef: setHt30Def, defValue: 0, setTarget: setFt40Target, targetValue: 100, bankAdd: 100 },
-    x2: { setDef: setX2Def, defValue: 0, setTarget: setFt41Target, targetValue: 100, bankAdd: 100 },
+    ht30: { setDef: setHt30Def, defValue: 0, setTarget: setHt30Target, targetValue: 100, bankAdd: 100 },
+    x2: { setDef: setX2Def, defValue: 0, setTarget: setX2Target, targetValue: 100, bankAdd: 100 },
   };
 
   const handleJackpot = () => {
@@ -282,27 +264,32 @@ const Homepage = () => {
       </div>
 
       <div className="flex-1 flex flex-col px-4 pb-4 gap-3 overflow-y-auto">
-        {/* WINNER + JACKPOT */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* WINNER + JACKPOT + LOSS */}
+        <div className="grid grid-cols-3 gap-3">
           <button onClick={handleJackpot}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${clicked.has("six") ? "bg-white text-yellow-500 ring-2 ring-yellow-400" : "bg-yellow-400 text-black"}`}>
             <div className="font-black">6–0</div>
             <div className="text-[11px] mt-0.5 opacity-80">{winnerStake || "–"}</div>
+          </button>
+          <button onClick={handleLoss} disabled={!fixture}
+            className="py-4 rounded-2xl font-extrabold text-sm bg-red-600 text-white hover:bg-red-500 transition active:scale-95 shadow">
+            <div className="font-black">LOSS</div>
+            <div className="text-[9px] mt-0.5 opacity-70">pile all stakes</div>
           </button>
           <div className="bg-white/10 rounded-2xl flex items-center justify-center text-[10px] font-mono">
             <div>Sm Def: {smallDeficit}</div>
           </div>
         </div>
 
-        {/* TEAM A */}
-        <div className="text-[9px] text-gray-400 text-center tracking-widest">— TEAM A (Def 100→share) —</div>
+        {/* TEAM A - 5 buttons */}
+        <div className="text-[9px] text-gray-400 text-center tracking-widest">— TEAM A (Def 200, Target 100) —</div>
         <div className="grid grid-cols-5 gap-2">
           {[
             { key: "oneX", label: "1X", stake: stakes.oneX, def: oneXDef, tgt: zeroTarget, handler: () => handleWin("oneX", wins.oneX), color: "bg-purple-600" },
             { key: "twoX", label: "2X", stake: stakes.twoX, def: twoXDef, tgt: sixTarget, handler: () => handleWin("twoX", wins.twoX), color: "bg-pink-600" },
             { key: "ht12", label: "HT12", stake: stakes.ht12, def: ht12Def, tgt: ht21Target, handler: () => handleWin("ht12", wins.ht12), color: "bg-blue-600" },
-            { key: "ft40", label: "FT40", stake: stakes.ft40, def: ft40Def, tgt: ft40Target, handler: () => handleWin("ft40", wins.ft40), color: "bg-indigo-600" },
-            { key: "ft41", label: "FT41", stake: stakes.ft41, def: ft41Def, tgt: ft41Target, handler: () => handleWin("ft41", wins.ft41), color: "bg-violet-600" },
+            { key: "ft40", label: "FT40", stake: stakes.ft40, def: ft40Def, tgt: ht30Target, handler: () => handleWin("ft40", wins.ft40), color: "bg-indigo-600" },
+            { key: "ft41", label: "FT41", stake: stakes.ft41, def: ft41Def, tgt: x2Target, handler: () => handleWin("ft41", wins.ft41), color: "bg-violet-600" },
           ].map(({ key, label, stake, def, tgt, handler, color }) => (
             <button key={key} onClick={handler} disabled={!fixture || clicked.has(key)}
               className={`py-4 rounded-2xl font-bold text-xs transition active:scale-95 ${
@@ -317,15 +304,15 @@ const Homepage = () => {
           ))}
         </div>
 
-        {/* TEAM B */}
-        <div className="text-[9px] text-gray-400 text-center tracking-widest">— TEAM B (Def 0→pile) —</div>
+        {/* TEAM B - 5 buttons */}
+        <div className="text-[9px] text-gray-400 text-center tracking-widest">— TEAM B (Def 0, Target 100) —</div>
         <div className="grid grid-cols-5 gap-2">
           {[
             { key: "tg0", label: "0G", stake: stakes.tg0, def: tg0Def, tgt: zeroTarget, handler: () => handleWin("tg0", wins.tg0), color: "bg-cyan-600" },
             { key: "tg6", label: "6G", stake: stakes.tg6, def: tg6Def, tgt: sixTarget, handler: () => handleWin("tg6", wins.tg6), color: "bg-teal-600" },
             { key: "ht21", label: "HT21", stake: stakes.ht21, def: ht21Def, tgt: ht21Target, handler: () => handleWin("ht21", wins.ht21), color: "bg-emerald-600" },
-            { key: "ht30", label: "HT30", stake: stakes.ht30, def: ht30Def, tgt: ft40Target, handler: () => handleWin("ht30", wins.ht30), color: "bg-green-600" },
-            { key: "x2", label: "X2", stake: stakes.x2, def: x2Def, tgt: ft41Target, handler: () => handleWin("x2", wins.x2), color: "bg-lime-600" },
+            { key: "ht30", label: "HT30", stake: stakes.ht30, def: ht30Def, tgt: ht30Target, handler: () => handleWin("ht30", wins.ht30), color: "bg-green-600" },
+            { key: "x2", label: "X2", stake: stakes.x2, def: x2Def, tgt: x2Target, handler: () => handleWin("x2", wins.x2), color: "bg-lime-600" },
           ].map(({ key, label, stake, def, tgt, handler, color }) => (
             <button key={key} onClick={handler} disabled={!fixture || clicked.has(key)}
               className={`py-4 rounded-2xl font-bold text-xs transition active:scale-95 ${
@@ -338,22 +325,6 @@ const Homepage = () => {
               <div className="text-[8px] opacity-60">T:{tgt}</div>
             </button>
           ))}
-        </div>
-
-        {/* HDA ROW */}
-        <div className="grid grid-cols-3 gap-3">
-          <button onClick={() => resolveHdaResult("H")} disabled={!fixture}
-            className="py-4 rounded-2xl font-extrabold text-sm bg-green-600 text-white hover:bg-green-500 transition">
-            {teamA}
-          </button>
-          <button onClick={() => resolveHdaResult("D")} disabled={!fixture}
-            className="py-4 rounded-2xl font-extrabold text-sm bg-gray-500 text-white hover:bg-gray-400 transition">
-            DRAW
-          </button>
-          <button onClick={() => resolveHdaResult("A")} disabled={!fixture}
-            className="py-4 rounded-2xl font-extrabold text-sm bg-red-600 text-white hover:bg-red-500 transition">
-            {teamB}
-          </button>
         </div>
 
         {/* INPUTS */}
