@@ -25,10 +25,7 @@ export const odds = [
   { id: "cheast", home: "che", away: "ast", winner: 568, win: 2.13, draw: 3.19, lose: 3.76, fiveZero: 157, fiveOne: 126, code: "ADH", oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 },
   { id: "breche", home: "bre", away: "che", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183, code: "DHA", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
   { id: "newche", home: "new", away: "che", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183, code: "DHA", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
-  { id: "arsche", home: "ars", away: "che", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183, code: "DHA", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 }
-];
-
-export const smallOdds = [
+  { id: "arsche", home: "ars", away: "che", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183, code: "DHA", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 }, 
   { id: "cheful", home: "che", away: "ful", winner: 105, fiveZero: 40.4, fiveOne: 45.5, oneX: 20.4, twoX: 20.4, x2: 23.0, zeroGoals: 14.7, sixGoals: 15.5, ht12: 33.1, ht21: 12.6, ht30: 14.9, ft40: 18.0, ft41: 20.6 },
   { id: "chenot", home: "che", away: "not", winner: 105, fiveZero: 40.4, fiveOne: 45.5, oneX: 20.4, twoX: 20.4, x2: 23.0, zeroGoals: 14.7, sixGoals: 15.5, ht12: 33.1, ht21: 12.6, ht30: 14.9, ft40: 18.0, ft41: 20.6 },
   { id: "chewhu", home: "che", away: "whu", winner: 105, fiveZero: 40.4, fiveOne: 45.5, oneX: 20.4, twoX: 20.4, x2: 23.0, zeroGoals: 14.7, sixGoals: 15.5, ht12: 33.1, ht21: 12.6, ht30: 14.9, ft40: 18.0, ft41: 20.6 },
