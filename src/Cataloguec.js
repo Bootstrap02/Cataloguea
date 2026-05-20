@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { odds, smallOdds } from "./Scores";
+import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
@@ -135,8 +135,7 @@ const Homepage = () => {
     const home = sanitizeTeam(inputA) || "che";
     const away = sanitizeTeam(inputB) || "che";
 
-    let found = smallOdds.find((o) => o.home === home && o.away === away)
-             || odds.find((o) => o.home === home && o.away === away);
+    let found = odds.find((o) => o.home === home && o.away === away);
 
     if (!found) { alert(`No odds found for "${home}" vs "${away}"`); return; }
 
@@ -239,7 +238,6 @@ const Homepage = () => {
     setOneXDef(200);
     setZeroTarget(100);
     setBank((p) => p + 200);
-    setSmallDeficit((p) => Math.max(0, p - (oneXStake * (found?.oneX || 1))));
   };
 
   // ── 2X WIN ──
