@@ -91,103 +91,241 @@ const Homepage = () => {
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
+  
   const handleSubmit = (e) => {
-    e.preventDefault();
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
-    let found = odds.find((o) => o.home === home && o.away === away);
-    if (!found) { alert(`No odds found for "${home}" vs "${away}"`); return; }
+  e.preventDefault();
 
-    setFixture(found);
-    setClicked(new Set());
+  const home = sanitizeTeam(inputA) || "che";
+  const away = sanitizeTeam(inputB) || "che";
 
-    // 1. Winner stake
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
-    
-    // 2. Winner stake goes into smallDeficit
-    setSmallDeficit(prev => prev + wStake);
+  const found = odds.find(
+    (o) => o.home === home && o.away === away
+  );
 
-    // 3. Winner stake divided by 5 = share for each Team A deficit
-    const share = Math.ceil(wStake / 5);
-    
-    let bankNow = bank;
-    
-    // Try to take from bank first
-    if (bankNow >= share * 5) {
-      bankNow -= share * 5;
-    } else {
-      const totalNeeded = share * 5;
-      const residue = totalNeeded - bankNow;
-      bankNow = 0;
-      // Add residue equally to all 5 deficits
-      const residueShare = Math.ceil(residue / 5);
-      setOneXDef(prev => prev + residueShare);
-      setTwoXDef(prev => prev + residueShare);
-      setHt12Def(prev => prev + residueShare);
-      setFt40Def(prev => prev + residueShare);
-      setFt41Def(prev => prev + residueShare);
-    }
-    setBank(bankNow);
+  if (!found) {
+    alert(`No odds found for "${home}" vs "${away}"`);
+    return;
+  }
 
-    // 4. Calculate all stakes
-    // Team A stakes: (def) / (odd - 1) - they use their own deficit
-    // Team B stakes: (Team A's corresponding deficit + own deficit) / (odd - 1)
-    
-    const calcStake = (def, odd) => {
-      if (!odd || odd <= 1.01) return 0;
-      return Math.max(Math.round(def / (odd - 1)), 10);
-    };
-    
-    const calcStakeWithTarget = (targetDef, ownDef, odd) => {
-      if (!odd || odd <= 1.01) return 0;
-      const total = targetDef + ownDef;
-      return Math.max(Math.round(total / (odd - 1)), 10);
-    };
+  setFixture(found);
+  setClicked(new Set());
 
-    const newStakes = {
-      // Team A - use their own deficit
-      oneX: calcStake(oneXDef, found.oneX),
-      twoX: calcStake(twoXDef, found.twoX),
-      ht12: calcStake(ht12Def, found.ht12),
-      ft40: calcStake(ft40Def, found.ft40),
-      ft41: calcStake(ft41Def, found.ft41),
-      // Team B - use corresponding Team A deficit + own deficit
-      tg0: calcStakeWithTarget(oneXDef, tg0Def, found.zeroGoals),
-      tg6: calcStakeWithTarget(twoXDef, tg6Def, found.sixGoals),
-      ht21: calcStakeWithTarget(ht12Def, ht21Def, found.ht21),
-      ht30: calcStakeWithTarget(ft40Def, ht30Def, found.ht30),
-      x2: calcStakeWithTarget(ft41Def, x2Def, found.x2),
-    };
-    setStakes(newStakes);
+  /* =========================================================
+     MAIN WINNER SYSTEM
+     ========================================================= */
+
+  const newBase = baseStake + deficit;
+
+  setBaseStake(newBase);
+  setDeficit(0);
+
+  const wStake = Math.max(
+    Math.round(newBase / found.winner),
+    10
+  );
+
+  setWinnerStake(wStake);
+
+  setSmallDeficit((prev) => prev + wStake);
+
+  /* =========================================================
+     TEAM A TARGET STATES
+     DEFAULT TARGET = 200
+     ========================================================= */
+
+  const TEAM_A_TARGET = 200;
+
+  /* =========================================================
+     BANK LOGIC
+     ========================================================= */
+
+  let bankNow = bank;
+
+  const totalNeeded = TEAM_A_TARGET * 5;
+
+  if (bankNow >= totalNeeded) {
+    bankNow -= totalNeeded;
+  } else {
+    const residue = totalNeeded - bankNow;
+
+    bankNow = 0;
+
+    const residueShare = Math.ceil(residue / 5);
+
+    setOneXDef((prev) => prev + residueShare);
+    setTwoXDef((prev) => prev + residueShare);
+    setHt12Def((prev) => prev + residueShare);
+    setFt40Def((prev) => prev + residueShare);
+    setFt41Def((prev) => prev + residueShare);
+  }
+
+  setBank(bankNow);
+
+  /* =========================================================
+     STAKE CALCULATORS
+     ========================================================= */
+
+  const calcStake = (target, deficitState, odd) => {
+    if (!odd || odd <= 1.01) return 0;
+
+    const total = target + deficitState;
+
+    return Math.max(
+      Math.round(total / (odd - 1)),
+      10
+    );
   };
+
+  /* =========================================================
+     TEAM A
+     TARGET = 200
+     DEFICIT = own deficit
+     ========================================================= */
+
+  const newStakes = {
+    oneX: calcStake(
+      TEAM_A_TARGET,
+      oneXDef,
+      found.oneX
+    ),
+
+    twoX: calcStake(
+      TEAM_A_TARGET,
+      twoXDef,
+      found.twoX
+    ),
+
+    ht12: calcStake(
+      TEAM_A_TARGET,
+      ht12Def,
+      found.ht12
+    ),
+
+    ft40: calcStake(
+      TEAM_A_TARGET,
+      ft40Def,
+      found.ft40
+    ),
+
+    ft41: calcStake(
+      TEAM_A_TARGET,
+      ft41Def,
+      found.ft41
+    ),
+
+    /* =====================================================
+       TEAM B
+       TARGET = TEAM A DEFICIT STATE
+       + own deficit state
+       ===================================================== */
+
+    tg0: calcStake(
+      oneXDef,
+      tg0Def,
+      found.zeroGoals
+    ),
+
+    tg6: calcStake(
+      twoXDef,
+      tg6Def,
+      found.sixGoals
+    ),
+
+    ht21: calcStake(
+      ht12Def,
+      ht21Def,
+      found.ht21
+    ),
+
+    ht30: calcStake(
+      ft40Def,
+      ht30Def,
+      found.ht30
+    ),
+
+    x2: calcStake(
+      ft41Def,
+      x2Def,
+      found.x2
+    ),
+  };
+
+  setStakes(newStakes);
+};
+  
 
   /* ================================================================
      LOSS HANDLER (when NEXT is clicked with no wins)
      - All stakes go to their respective private deficits
      ================================================================ */
+  
   const handleNextWithLoss = () => {
-    if (!fixture) return;
-    
-    // Team A stakes → add to their own deficits
-    if (stakes.oneX > 0) setOneXDef(prev => prev + stakes.oneX);
-    if (stakes.twoX > 0) setTwoXDef(prev => prev + stakes.twoX);
-    if (stakes.ht12 > 0) setHt12Def(prev => prev + stakes.ht12);
-    if (stakes.ft40 > 0) setFt40Def(prev => prev + stakes.ft40);
-    if (stakes.ft41 > 0) setFt41Def(prev => prev + stakes.ft41);
-    
-    // Team B stakes → add to their own deficits
-    if (stakes.tg0 > 0) setTg0Def(prev => prev + stakes.tg0);
-    if (stakes.tg6 > 0) setTg6Def(prev => prev + stakes.tg6);
-    if (stakes.ht21 > 0) setHt21Def(prev => prev + stakes.ht21);
-    if (stakes.ht30 > 0) setHt30Def(prev => prev + stakes.ht30);
-    if (stakes.x2 > 0) setX2Def(prev => prev + stakes.x2);
-    
-    clearForNext();
-  };
+  if (!fixture) return;
+
+  /* =========================================================
+     TEAM A
+     TARGET STATES stay at 200 permanently
+     DEFICIT STATES receive the stakes
+     ========================================================= */
+
+  // 1X
+  if (!clicked.has("oneX")) {
+    setOneXDef((prev) => prev + stakes.oneX);
+  }
+
+  // 2X
+  if (!clicked.has("twoX")) {
+    setTwoXDef((prev) => prev + stakes.twoX);
+  }
+
+  // HT12
+  if (!clicked.has("ht12")) {
+    setHt12Def((prev) => prev + stakes.ht12);
+  }
+
+  // FT40
+  if (!clicked.has("ft40")) {
+    setFt40Def((prev) => prev + stakes.ft40);
+  }
+
+  // FT41
+  if (!clicked.has("ft41")) {
+    setFt41Def((prev) => prev + stakes.ft41);
+  }
+
+  /* =========================================================
+     TEAM B
+     Uses Team A deficit states as target states
+     But also has its own deficits
+     ========================================================= */
+
+  // TG0 uses oneXDef as target
+  if (!clicked.has("tg0")) {
+    setTg0Def((prev) => prev + stakes.tg0);
+  }
+
+  // TG6 uses twoXDef as target
+  if (!clicked.has("tg6")) {
+    setTg6Def((prev) => prev + stakes.tg6);
+  }
+
+  // HT21 uses ht12Def as target
+  if (!clicked.has("ht21")) {
+    setHt21Def((prev) => prev + stakes.ht21);
+  }
+
+  // HT30 uses ft40Def as target
+  if (!clicked.has("ht30")) {
+    setHt30Def((prev) => prev + stakes.ht30);
+  }
+
+  // X2 uses ft41Def as target
+  if (!clicked.has("x2")) {
+    setX2Def((prev) => prev + stakes.x2);
+  }
+
+  clearForNext();
+};
 
   /* ================================================================
      WIN HANDLERS
