@@ -210,11 +210,11 @@ const Homepage = () => {
     if (lost("ft41") && stakes.ft41 > 0) setFt41Def((p) => p + stakes.ft41);
 
     /* Team A wins → reset deficit to 100, target stays 200, bank +200 */
-    if (winners.has("oneX"))  { setOneXDef(100);  setBank((p) => p + 200); }
-    if (winners.has("twoX"))  { setTwoXDef(100);  setBank((p) => p + 200); }
-    if (winners.has("ht12"))  { setHt12Def(100);  setBank((p) => p + 200); }
-    if (winners.has("ft40"))  { setFt40Def(100);  setBank((p) => p + 200); }
-    if (winners.has("ft41"))  { setFt41Def(100);  setBank((p) => p + 200); }
+    if (winners.has("oneX"))  { setOneXDef(100);  setOneXTgt(200);    setBank((p) => p + 200); }
+    if (winners.has("twoX"))  { setTwoXDef(100);  setTwoXTgt(200);    setBank((p) => p + 200); }
+    if (winners.has("ht12"))  { setHt12Def(100);  setHt12Tgt(200);    setBank((p) => p + 200); }
+    if (winners.has("ft40"))  { setFt40Def(100);  setFt40Tgt(200);    setBank((p) => p + 200); }
+    if (winners.has("ft41"))  { setFt41Def(100);  setFt41Tgt(200);    setBank((p) => p + 200); }
 
     /* Team B deficits */
     if (lost("tg0")  && stakes.tg0  > 0) setTg0Def((p)  => p + stakes.tg0);
@@ -224,11 +224,11 @@ const Homepage = () => {
     if (lost("x2")   && stakes.x2   > 0) setX2Def((p)   => p + stakes.x2);
 
     /* Team B wins → reset own deficit to 0, bank +100 */
-    if (winners.has("tg0"))  { setTg0Def(0);  setBank((p) => p + 100); }
-    if (winners.has("tg6"))  { setTg6Def(0);  setBank((p) => p + 100); }
-    if (winners.has("ht21")) { setHt21Def(0); setBank((p) => p + 100); }
-    if (winners.has("ht30")) { setHt30Def(0); setBank((p) => p + 100); }
-    if (winners.has("x2"))   { setX2Def(0);   setBank((p) => p + 100); }
+    if (winners.has("tg0"))  { setTg0Def(0);  setOneXDef(100);  setBank((p) => p + 100); }
+    if (winners.has("tg6"))  { setTg6Def(0);  setTwoXDef(100);  setBank((p) => p + 100); }
+    if (winners.has("ht21")) { setHt21Def(0); setHt21Def(100);   setBank((p) => p + 100); }
+    if (winners.has("ht30")) { setHt30Def(0); setHt30Def(100);   setBank((p) => p + 100); }
+    if (winners.has("x2"))   { setX2Def(0);   setX2Def(100);     setBank((p) => p + 100); }
 
     clearForNext();
   };
