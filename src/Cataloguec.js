@@ -226,9 +226,9 @@ const Homepage = () => {
     /* Team B wins → reset own deficit to 0, bank +100 */
     if (winners.has("tg0"))  { setTg0Def(0);  setOneXDef(100);  setBank((p) => p + 100); }
     if (winners.has("tg6"))  { setTg6Def(0);  setTwoXDef(100);  setBank((p) => p + 100); }
-    if (winners.has("ht21")) { setHt21Def(0); setHt21Def(100);   setBank((p) => p + 100); }
-    if (winners.has("ht30")) { setHt30Def(0); setHt30Def(100);   setBank((p) => p + 100); }
-    if (winners.has("x2"))   { setX2Def(0);   setX2Def(100);     setBank((p) => p + 100); }
+    if (winners.has("ht21")) { setHt21Def(0); setHt12Def(100);   setBank((p) => p + 100); }
+    if (winners.has("ht30")) { setHt30Def(0); setFt40Def(100);   setBank((p) => p + 100); }
+    if (winners.has("x2"))   { setX2Def(0);   setFt41Def(100);     setBank((p) => p + 100); }
 
     clearForNext();
   };
