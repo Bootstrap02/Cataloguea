@@ -257,23 +257,23 @@ const Homepage = () => {
       tg0: 0,  tg6: 0,  ht21: 0, ht30: 0, x2: 0,
     });
     if(tg0Def > 1000) {
-      setBaseStake((prev) => prev + 1000);
+      setOneXTgt((prev) => prev + 1000);
       setTg0Def((prev) => prev - 1000);
     } 
     if(tg6Def > 1000) {
-      setBaseStake((prev) => prev + 1000);
+      setTwoXTgt((prev) => prev + 1000);
       setTg6Def((prev) => prev - 1000);
     } 
     if(ht21Def > 1000) {
-      setBaseStake((prev) => prev + 1000);
+      setHt12Tgt((prev) => prev + 1000);
       setHt21Def((prev) => prev - 1000);
     } 
     if(ht30Def > 1000) {
-      setBaseStake((prev) => prev + 1000);
+      setFt40Tgt((prev) => prev + 1000);
       setHt30Def((prev) => prev - 1000);
     } 
     if(x2Def > 1000) {
-      setBaseStake((prev) => prev + 1000);
+      setFt41Tgt((prev) => prev + 1000);
       setX2Def((prev) => prev - 1000);
     } 
     saveBase();
