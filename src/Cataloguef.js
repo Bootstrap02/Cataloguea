@@ -46,7 +46,7 @@ const Homepage = () => {
 
     const home = sanitizeTeam(inputA) || "che";
     const away = sanitizeTeam(inputB) || "che";
-
+    
     /* Check smallOdds first */
     let found = smallOdds.find((o) => o.home === home && o.away === away);
     const isSmall = !!found;
@@ -59,9 +59,9 @@ const Homepage = () => {
 
     setFixture(found);
     setIsSmallOddsGame(isSmall);
-
-    const base = Math.round(baseStake / (found.winner - 1));
-    const winnerAmount = Math.round(base + deficit);
+    const mainStake = baseStake + deficit 
+    const base = Math.round(mainStake / found.winner);
+    const winnerAmount = Math.Max(Math.round(base), 10);
 
     if (isSmall) {
       /* Small odds: only 6-0 winner stake plays, no HDA ladder.
@@ -90,7 +90,7 @@ const Homepage = () => {
 
     for (const step of found.code) {
       const odd = oddsMap[step];
-      const stake = Math.round(runningTotal / (odd - 1));
+      const stake = Math.Max(Math.round(runningTotal / (odd - 1)), 10);
       ladder.push({ step, stake });
       if (step === "H") homeAmount = stake;
       if (step === "D") drawAmount = stake;
