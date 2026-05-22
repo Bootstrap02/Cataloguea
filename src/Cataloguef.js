@@ -264,7 +264,12 @@ const Homepage = () => {
             </button>
           </div>
         </form>
-
+            <button
+              onClick={clearForNext} 
+              className="mt-4 px-8 py-3 bg-green-600 text-white font-extrabold rounded-full shadow-lg hover:bg-red-700"
+            >
+              Next
+            </button>
         {/* STATS */}
         <div className="mt-6 grid grid-cols-2 gap-4 text-center text-sm font-mono text-gray-600">
           <div>Deficit: <strong className="text-red-600">{deficit}</strong></div>
