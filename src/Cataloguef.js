@@ -1,425 +1,276 @@
-import React, { useState, useEffect, } from "react";
-import axios from "axios";
-import { odds } from "./Scores";
-import { FiRefreshCw } from 'react-icons/fi';
+
+import React, { useState, useEffect } from "react";
+import { odds, smallOdds } from "./Scores";
 
 /* ---------------- UTILS ---------------- */
-const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-
-/* ---------------- API ---------------- */
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+const sanitizeTeam = (value) =>
+  value.toLowerCase().replace(/[^a-z]/g, "");
 
 const Homepage = () => {
+  /* ---------------- INPUTS ---------------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
 
+  /* ---------------- FIXTURE ---------------- */
   const [fixture, setFixture] = useState(null);
+  const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
-  const [bigDeficit, setBigDeficit] = useState(400);
-  const [bigShadow, setBigShadow] = useState(0);
-
-  const [smallDeficit, setSmallDeficit] = useState(0);
-  const [smallShadow, setSmallShadow] = useState(0);
-  const [isReloading, setIsReloading] = useState(false);
-
-  const [privateDeficits, setPrivateDeficits] = useState({
-    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
-  });
-  const [privateTotal, setPrivateTotal] = useState(0);
-
-  const [pendingStakes, setPendingStakes] = useState({
-    ht12: 0, x2: 0, ht30: 0, ft40: 0, ft41: 0,
-    oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
+  /* ---------------- STAKES ---------------- */
+  const [amounts, setAmounts] = useState({
+    winnerAmount: 0,
+    homeAmount: 0,
+    drawAmount: 0,
+    awayAmount: 0,
   });
 
-  const [pressedWins, setPressedWins] = useState(new Set());
+  /* ---------------- ORDERED LADDER ---------------- */
+  const [orderedStakes, setOrderedStakes] = useState([]);
 
-  const bigGameKeys = ["ht12", "x2", "ht30", "ft40", "ft41"];
-  const smallGameKeys = ["oneX", "twoX", "zeroGoals", "sixGoals", "ht21"];
-
-  const allKeys = [...bigGameKeys, ...smallGameKeys];
-
-  const labels = {
-    ht12: "HT 1-2", x2: "X2", ht30: "HT 3-0", ft40: "FT 4-0", ft41: "FT 4-1",
-    oneX: "1X", twoX: "2X", zeroGoals: "0 GOALS", sixGoals: "6 GOALS", ht21: "HT 2-1",
-  };
-
-  /* ---------------- LOAD / SAVE ---------------- */
-  const fetchAll = async () => {
-    try {
-      const res = await axios.get(API_BASE);
-      const data = res.data || {};
-
-      setBigDeficit(data.bigDeficit < 400 ?  400 : 0);
-      setBigShadow(data.bigDeficit < 400 ?  400 : 0);
-
-      setSmallDeficit(data.smallDeficit ?? 0);
-      setSmallShadow(data.deficitBank ?? 0);
-
-      setPrivateDeficits({
-        oneX: data.oneXDeficit ?? 0,
-        twoX: data.twoXDeficit ?? 0,
-        zeroGoals: data.zeroGoalsDeficit ?? 0,
-        sixGoals: data.sixGoalsDeficit ?? 0,
-        ht21: data.htTwoOneDeficit ?? 0,
-      });
-
-      setPrivateTotal(data.privateTotal ?? 0);
-      setPressedWins(new Set());
-    } catch (err) {
-      console.error("❌ Load failed:", err.message);
+  /* ---------------- DEFICIT & BANK ---------------- */
+  const [deficit, setDeficit] = useState(0);
+  const [bank,    setBank]    = useState(0);
+  const [baseStake,    setBaseStake]    = useState(10000);
+  /* ---------------- LOAD SESSION ---------------- */
+  useEffect(() => {
+    const saved = localStorage.getItem("virtual-epl-session");
+    if (saved) {
+      const data = JSON.parse(saved);
+      setDeficit(data.deficit || 0);
+      setBank(data.bank || 0);
     }
-  };
+  }, []);
 
-  const saveAll = async () => {
-    try {
-      const payload = {
-        bigDeficit: bigDeficit,
-        badGameShadow: bigShadow,
-        smallDeficit: smallDeficit,
-        deficitBank: smallShadow,
-
-        oneXDeficit: privateDeficits.oneX,
-        twoXDeficit: privateDeficits.twoX,
-        zeroGoalsDeficit: privateDeficits.zeroGoals,
-        sixGoalsDeficit: privateDeficits.sixGoals,
-        htTwoOneDeficit: privateDeficits.ht21,
-        privateTotal: privateTotal,
-      };
-
-      await axios.put(API_BASE, payload);
-      alert("✅ Saved:", payload);
-    } catch (err) {
-      console.error("❌ Save failed:", err.message);
-    }
-  };
-
-  const handleReload = async () => {
-    setIsReloading(true);
-    await fetchAll();
-    setIsReloading(false);
-  };
-// 1
-  useEffect(() => { fetchAll(); }, []);
-
-  /* ---------------- LOAD GAME ---------------- */
-  const handleLoadGame = (e) => {
+  /* ---------------- SUBMIT ---------------- */
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     const home = sanitizeTeam(inputA) || "che";
     const away = sanitizeTeam(inputB) || "che";
 
-    const found = odds.find((o) => o.home === home && o.away === away);
+    /* Check smallOdds first */
+    let found = smallOdds.find((o) => o.home === home && o.away === away);
+    const isSmall = !!found;
+    if (!found) found = odds.find((o) => o.home === home && o.away === away);
+
     if (!found) {
       alert(`No odds for ${home} vs ${away}`);
       return;
     }
 
     setFixture(found);
-    setPressedWins(new Set());
+    setIsSmallOddsGame(isSmall);
 
-    // Big games stake based on bigDeficit (default 400)
-    const currentBig = bigDeficit;
-    setBigShadow(currentBig)
-    const newPending = {};
+    const base = Math.round(basestake / (found.winner - 1));
+    const winnerAmount = Math.round(base + deficit);
 
-    bigGameKeys.forEach((key) => {
-      const odd = found[key] || 0;
-      let stake = odd > 1.01 ? Math.round(currentBig / odd) : 0;
-      newPending[key] = Math.max(stake, 10);
-    });
-
-    const bigStakesTotal = bigGameKeys.reduce((sum, key) => sum + (newPending[key] || 0), 0);
-
-    const newSmall = smallDeficit + bigStakesTotal;
-    setSmallDeficit(newSmall);
-    setSmallShadow(newSmall);
-
-    smallGameKeys.forEach((key) => {
-      const odd = found[key] || 0;
-      const target = newSmall + (privateDeficits[key] || 0);
-      
-      let stake = odd > 1.01 ? Math.round(target / (odd - 1)) : 0;
-      newPending[key] = Math.max(stake, 10);
-
-      setPrivateDeficits((prev) => ({
-        ...prev,
-        [key]: (prev[key] || 0) + newPending[key],
-      }));
-    });
-
-    setPendingStakes(newPending);
-
-    const updatedPrivateTotal = smallGameKeys.reduce((sum, key) => 
-      sum + ((privateDeficits[key] || 0) + (newPending[key] || 0)), 0
-    );
-    setPrivateTotal(updatedPrivateTotal);
-  };
-
-
-
-
-  const handleWin = (type) => {
-    if (!fixture) return;
-    const stake = pendingStakes[type];
-    if (stake <= 0) return;
-
-    setPressedWins((prev) => new Set([...prev, type]));
-
-    
-
-    if (bigGameKeys.includes(type)) {
-      if (bigDeficit > 0) {
-        setBigDeficit(0);
-      } else {
-        if (bigShadow > privateTotal) {
-          const residue = bigShadow - privateTotal
-          setPrivateTotal(0);
-          if(smallDeficit > residue){
-            setSmallDeficit((prev) => Math.max(0, prev - residue));
-          }else {
-              setSmallDeficit(0)
-          }
-        } else {
-          setPrivateTotal((prev) => Math.max(0, prev - bigShadow));
-        }
-      }
-    } 
-    else if (smallGameKeys.includes(type)) {
-      if (smallDeficit > 0) {
-        setSmallDeficit(0);
-        setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
-        setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
-        setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
-      } else {
-         if (smallShadow > bigDeficit) {
-          const residue = smallShadow - bigDeficit
-          setBigDeficit(0);
-          setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
-          setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
-          setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
-          if(privateTotal > residue){
-           const newPrivateTotal=  Math.max(0, privateTotal - residue)
-           const newValuePerAsset = Math.floor(newPrivateTotal / 5);
-        setPrivateDeficits({
-          oneX: newValuePerAsset,
-          twoX: newValuePerAsset,
-          zeroGoals: newValuePerAsset,
-          sixGoals: newValuePerAsset,
-          ht21: newValuePerAsset,
-        });
-
-        setPrivateTotal(newPrivateTotal);
-          }else{
-            setPrivateTotal(0)
-             setPrivateDeficits({
-        oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
+    if (isSmall) {
+      /* Small odds: only 6-0 winner stake plays, no HDA ladder.
+         Stake goes into bank. */
+      setBank((prev) => prev + winnerAmount);
+      setOrderedStakes([]);
+      setAmounts({
+        winnerAmount,
+        homeAmount: 0,
+        drawAmount: 0,
+        awayAmount: 0,
       });
-          }
-        } else {
-         setBigDeficit((prev) => Math.max(0, prev - smallShadow));
-          setPrivateDeficits((prev) => ({ ...prev, [type]: 0 }));
-          setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
-          setPrivateTotal((prev) => Math.max(0, prev - (privateDeficits[type] || 0)));
-        }
-      }
+      return;
     }
+
+    /* Normal game: full HDA ladder */
+    const oddsMap = {
+      H: found.win,
+      D: found.draw,
+      A: found.lose,
+    };
+
+    let runningTotal = winnerAmount;
+    let homeAmount = 0, drawAmount = 0, awayAmount = 0;
+    const ladder = [];
+
+    for (const step of found.code) {
+      const odd = oddsMap[step];
+      const stake = Math.round(runningTotal / (odd - 1));
+      ladder.push({ step, stake });
+      if (step === "H") homeAmount = stake;
+      if (step === "D") drawAmount = stake;
+      if (step === "A") awayAmount = stake;
+      runningTotal += stake;
+    }
+
+    setOrderedStakes(ladder);
+    setAmounts({ winnerAmount, homeAmount, drawAmount, awayAmount });
   };
 
+  /* ---------------- RESOLVE RESULT (normal games only) ---------------- */
+  const resolveResult = (step) => {
+    if (!fixture || isSmallOddsGame) return;
 
-  /* ---------------- NEXT GAME ---------------- */
-  const handleNextGame = async () => {
+    const index = orderedStakes.findIndex((s) => s.step === step);
+    const newDeficit = orderedStakes
+      .slice(index + 1)
+      .reduce((sum, s) => sum + s.stake, 0);
+
+    setDeficit(newDeficit);
+    clearForNext();
+  };
+
+  /* ---------------- SMALL ODDS WIN (6-0 clicked in small game) ---------------- */
+  const handleSmallWin = () => {
     if (!fixture) return;
+    /* Win → bank += 10000 */
+    setBaseStake(Bank);
+    setBank(0);
+    clearForNext();
+  };
 
-    setPendingStakes({
-      ht12: 0, x2: 0, ht30: 0, ft40: 0, ft41: 0,
-      oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
-    });
-   
-
-    // After big win, increase bigDeficit using shadow + privateTotal
-    if (bigDeficit === 0 ) {
-      const newBig = 400 + privateTotal;
-
-      setBigDeficit(newBig);
-      setBigShadow(newBig);        
-      setPrivateTotal(0);        
-       setPrivateDeficits({
-       oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0, ht21: 0,
-    });
-    }
-
-    setFixture(null);
+  /* ---------------- CLEAR ---------------- */
+  const clearForNext = () => {
     setInputA("");
     setInputB("");
-    setPressedWins(new Set());
-
-    await saveAll();
+    setFixture(null);
+    setIsSmallOddsGame(false);
+    setOrderedStakes([]);
+    setAmounts({
+      winnerAmount: 0,
+      homeAmount: 0,
+      drawAmount: 0,
+      awayAmount: 0,
+    });
   };
 
-  const isButtonPressed = (key) => pressedWins.has(key);
-  const isGameLoaded = !!fixture;
+  /* ---------------- SAVE ---------------- */
+  const handleSave = () => {
+    localStorage.setItem(
+      "virtual-epl-session",
+      JSON.stringify({ deficit, bank })
+    );
+    alert("Session saved");
+  };
+
+  const teamA = sanitizeTeam(inputA) || "che";
+  const teamB = sanitizeTeam(inputB) || "che";
 
   return (
-    <div>
-      <div className="max-lg:hidden min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-red-500">Two Deficit Strategy</h1>
-            <div className="flex gap-3">
-              <button onClick={saveAll} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm">
-                <FiRefreshCw className="w-4 h-4" /> Save
-              </button>
-              <button 
-                onClick={handleReload} 
-                disabled={isReloading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-xl text-sm"
-              >
-                <FiRefreshCw className={`w-4 h-4 ${isReloading ? 'animate-spin' : ''}`} /> 
-                {isReloading ? "Reloading..." : "Reload"}
-              </button>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
 
-          <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/10">
-            <div className="flex justify-center gap-4 mb-6">
-              <input 
-                value={inputA} 
-                onChange={(e) => setInputA(e.target.value)} 
-                placeholder="Home" 
-                className="w-28 px-4 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
-              />
-              <span className="self-center text-2xl text-red-500 font-black">VS</span>
-              <input 
-                value={inputB} 
-                onChange={(e) => setInputB(e.target.value)} 
-                placeholder="Away" 
-                className="w-28 px-4 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
-              />
-            </div>
-
-            <div className="flex justify-center gap-3 mb-8">
-              <button 
-                onClick={handleLoadGame} 
-                disabled={isGameLoaded} 
-                className={`px-8 py-3 text-white font-bold rounded-2xl transition text-sm ${isGameLoaded ? "bg-gray-600" : "bg-red-600 hover:bg-red-700"}`}
-              >
-                LOAD GAME
-              </button>
-              <button 
-                onClick={handleNextGame} 
-                className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl text-sm transition"
-              >
-                NEXT GAME
-              </button>
-            </div>
-
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mb-8">
-              {allKeys.map((key) => (
-                <button 
-                  key={key}
-                  onClick={() => handleWin(key)}
-                  disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
-                  className={`py-4 rounded-2xl font-medium text-xs transition ${
-                    isButtonPressed(key) ? "bg-yellow-500 text-black" : "bg-blue-600 hover:bg-blue-500 text-white"
-                  } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50" : ""}`}
-                >
-                  {labels[key]}<br />
-                  <span className="text-[10px]">({pendingStakes[key] || "–"})</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-black/30 p-5 rounded-2xl">
-              <div>Big Def: <strong className="text-red-400">{bigDeficit}</strong> (Shadow: {bigShadow})</div>
-              <div>Small Def: <strong className="text-purple-400">{smallDeficit}</strong> (S: {smallShadow})</div>
-              <div>Private Tot: <strong className="text-orange-400">{privateTotal}</strong></div>
-
-              {smallGameKeys.map((key) => (
-                <div key={key} className="col-span-2 md:col-span-1">
-                  {labels[key]}: <strong>{privateDeficits[key] || 0}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* SAVE / RELOAD */}
+      <div className="absolute top-5 right-5 flex rounded-full overflow-hidden shadow-xl">
+        <button
+          onClick={handleSave}
+          className="px-5 py-2 bg-green-600 font-bold hover:bg-green-700"
+        >
+          💾 Save
+        </button>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-2 bg-red-600 font-bold hover:bg-red-700"
+        >
+          🔄 Reload
+        </button>
       </div>
 
-      {/* Mobile version - you can adjust similarly */}
-      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-6">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-red-500">Two Deficit</h1>
-          <button 
-            onClick={handleReload} 
-            disabled={isReloading}
-            className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-xl text-sm flex items-center gap-2 mx-auto transition"
-          >
-            <FiRefreshCw className={`inline ${isReloading ? 'animate-spin' : ''}`} /> 
-            {isReloading ? "Reloading..." : "Reload"}
-          </button>
-        </div>
+      {/* HEADER */}
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-extrabold text-red-500">
+          Virtual EPL Strategy
+        </h1>
+        <p className="text-gray-300">
+          {fixture
+            ? isSmallOddsGame
+              ? "SMALL ODDS — winner only"
+              : "Deficit-driven martingale balance"
+            : "Deficit-driven martingale balance"}
+        </p>
+      </div>
 
-        {/* Inputs */}
-        <div className="flex gap-2 mb-6 justify-center items-center">
-          <input 
-            value={inputA} 
-            onChange={(e) => setInputA(e.target.value)} 
-            placeholder="Home" 
-            className="flex-1 max-w-[110px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
-          />
-          <span className="text-xl text-red-500 font-black px-1">VS</span>
-          <input 
-            value={inputB} 
-            onChange={(e) => setInputB(e.target.value)} 
-            placeholder="Away" 
-            className="flex-1 max-w-[110px] px-3 py-2.5 border border-red-600 bg-transparent rounded-2xl text-center text-sm" 
-          />
-        </div>
+      {/* CARD */}
+      <div className="max-w-3xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
 
-        {/* Load & Next Buttons */}
-        <div className="flex gap-3 mb-8">
-          <button 
-            onClick={handleLoadGame} 
-            disabled={isGameLoaded} 
-            className={`flex-1 py-3 font-bold rounded-2xl text-sm transition ${
-              isGameLoaded ? "bg-gray-600" : "bg-red-600 hover:bg-red-700"
+        {/* BET BUTTONS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+
+          {/* 6-0 — clickable in small odds games to register a win */}
+          <button
+            onClick={handleSmallWin}
+            className={`py-6 rounded-2xl text-center shadow-xl transition ${
+              isSmallOddsGame && fixture
+                ? "bg-yellow-400 text-black hover:bg-yellow-300 cursor-pointer"
+                : "bg-yellow-400 text-black cursor-default"
             }`}
           >
-            LOAD
+            <div className="text-3xl font-extrabold">6–0</div>
+            <div className="font-bold">({amounts.winnerAmount})</div>
+            {isSmallOddsGame && fixture && (
+              <div className="text-xs mt-1 opacity-70">tap if wins</div>
+            )}
           </button>
-          <button 
-            onClick={handleNextGame} 
-            className="flex-1 py-3 bg-green-600 hover:bg-green-700 font-bold rounded-2xl text-sm transition"
+
+          {/* HOME */}
+          <button
+            onClick={() => resolveResult("H")}
+            disabled={!fixture || isSmallOddsGame}
+            className="py-6 rounded-2xl bg-green-600 text-white text-center shadow-xl disabled:opacity-40"
           >
-            NEXT
+            <div className="text-3xl font-extrabold">{teamA}</div>
+            <div className="font-bold">({amounts.homeAmount})</div>
           </button>
+
+          {/* DRAW */}
+          <button
+            onClick={() => resolveResult("D")}
+            disabled={!fixture || isSmallOddsGame}
+            className="py-6 rounded-2xl bg-gray-500 text-white text-center shadow-xl disabled:opacity-40"
+          >
+            <div className="text-3xl font-extrabold">draw</div>
+            <div className="font-bold">({amounts.drawAmount})</div>
+          </button>
+
+          {/* AWAY */}
+          <button
+            onClick={() => resolveResult("A")}
+            disabled={!fixture || isSmallOddsGame}
+            className="py-6 rounded-2xl bg-red-600 text-white text-center shadow-xl disabled:opacity-40"
+          >
+            <div className="text-3xl font-extrabold">{teamB}</div>
+            <div className="font-bold">({amounts.awayAmount})</div>
+          </button>
+
         </div>
 
-        {/* Win Buttons - 2 columns for mobile */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
-          {allKeys.map((key) => (
+        {/* FORM */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex justify-center gap-4 items-center">
+            <input
+              value={inputA}
+              onChange={(e) => setInputA(sanitizeTeam(e.target.value))}
+              placeholder="che"
+              className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
+            />
+            <span className="font-extrabold text-red-700">VS</span>
+            <input
+              value={inputB}
+              onChange={(e) => setInputB(sanitizeTeam(e.target.value))}
+              placeholder="che"
+              className="w-28 px-4 py-2 border-2 border-red-400 rounded-xl text-center font-bold"
+            />
+          </div>
+          <div className="text-center">
             <button
-              key={key}
-              onClick={() => handleWin(key)}
-              disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
-              className={`py-5 rounded-2xl font-medium text-sm transition ${
-                isButtonPressed(key) ? "bg-yellow-500 text-black" 
-                : "bg-blue-600 text-white"
-              } ${pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50" : ""}`}
+              type="submit"
+              className="mt-4 px-8 py-3 bg-red-600 text-white font-extrabold rounded-full shadow-lg hover:bg-red-700"
             >
-              {labels[key]}<br />
-              <span className="text-xs">({pendingStakes[key] || "–"})</span>
+              Calculate Stakes
             </button>
-          ))}
+          </div>
+        </form>
+
+        {/* STATS */}
+        <div className="mt-6 grid grid-cols-2 gap-4 text-center text-sm font-mono text-gray-600">
+          <div>Deficit: <strong className="text-red-600">{deficit}</strong></div>
+          <div>Bank: <strong className="text-green-600">{bank}</strong></div>
         </div>
 
-        {/* Stats - Mobile friendly */}
-        <div className="grid grid-cols-2 gap-4 text-xs bg-black/30 p-5 rounded-3xl">
-          <div>Big Def: <strong className="text-red-400">{bigDeficit}</strong></div>
-          <div>Shadow: <strong className="text-red-400">{bigShadow}</strong></div>
-          <div>Small Def: <strong className="text-purple-400">{smallDeficit}</strong></div>
-          <div>Private: <strong className="text-orange-400">{privateTotal}</strong></div>
-        </div>
       </div>
     </div>
   );
