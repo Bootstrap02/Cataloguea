@@ -111,7 +111,7 @@ const Homepage = () => {
       .slice(index + 1)
       .reduce((sum, s) => sum + s.stake, 0);
 
-    setDeficit(newDeficit);
+    setBaseStake((prev) => prev + newDeficit);
     clearForNext();
   };
 
@@ -272,7 +272,7 @@ const Homepage = () => {
             </button>
         {/* STATS */}
         <div className="mt-6 grid grid-cols-2 gap-4 text-center text-sm font-mono text-gray-600">
-          <div>Deficit: <strong className="text-red-600">{deficit}</strong></div>
+          <div>Base: <strong className="text-red-600">{baseStake}</strong></div>
           <div>Bank: <strong className="text-green-600">{bank}</strong></div>
         </div>
 
