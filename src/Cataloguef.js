@@ -61,7 +61,7 @@ const Homepage = () => {
     setIsSmallOddsGame(isSmall);
     const mainStake = baseStake + deficit 
     const base = Math.round(mainStake / found.winner);
-    const winnerAmount = Math.Max(Math.round(base), 10);
+    const winnerAmount = Math.max(Math.round(base), 10);
 
     if (isSmall) {
       /* Small odds: only 6-0 winner stake plays, no HDA ladder.
@@ -90,7 +90,7 @@ const Homepage = () => {
 
     for (const step of found.code) {
       const odd = oddsMap[step];
-      const stake = Math.Max(Math.round(runningTotal / (odd - 1)), 10);
+      const stake = Math.max(Math.round(runningTotal / (odd - 1)), 10);
       ladder.push({ step, stake });
       if (step === "H") homeAmount = stake;
       if (step === "D") drawAmount = stake;
