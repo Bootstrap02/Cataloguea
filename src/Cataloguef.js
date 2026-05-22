@@ -1,15 +1,20 @@
 
 import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { odds, smallOdds } from "./Scores";
 
 /* ---------------- UTILS ---------------- */
 const sanitizeTeam = (value) =>
   value.toLowerCase().replace(/[^a-z]/g, "");
 
+/* ---------------- API ---------------- */
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+
 const Homepage = () => {
   /* ---------------- INPUTS ---------------- */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
+  const [isReloading, setIsReloading] = useState(false);
 
   /* ---------------- FIXTURE ---------------- */
   const [fixture, setFixture] = useState(null);
@@ -28,16 +33,42 @@ const Homepage = () => {
 
   /* ---------------- DEFICIT & BANK ---------------- */
   const [deficit, setDeficit] = useState(0);
-  const [bank,    setBank]    = useState(0);
-  const [baseStake,    setBaseStake]    = useState(10000);
-  /* ---------------- LOAD SESSION ---------------- */
-  useEffect(() => {
-    const saved = localStorage.getItem("virtual-epl-session");
-    if (saved) {
-      const data = JSON.parse(saved);
-      setDeficit(data.deficit || 0);
-      setBank(data.bank || 0);
+  const [bank, setBank] = useState(0);
+  const [baseStake, setBaseStake] = useState(10000);
+
+  /* ---------------- SAVE & FETCH FUNCTIONS ---------------- */
+  const fetchBase = async () => {
+    setIsReloading(true);
+    try {
+      const res = await axios.get(API_BASE);
+      if (res.data) {
+        setBaseStake(res.data.base ?? 10000);
+        setDeficit(res.data.deficit ?? 0);
+        setBank(res.data.bank ?? 0);
+      }
+    } catch (err) {
+      console.error("❌ Fetch failed:", err.message);
+    } finally {
+      setIsReloading(false);
     }
+  };
+
+  const saveBase = async () => {
+    try {
+      await axios.put(API_BASE, {
+        base: baseStake,
+        deficit: deficit,
+        bank: bank,
+      });
+      console.log("✅ Saved successfully");
+    } catch (err) {
+      console.error("❌ Save failed:", err.message);
+    }
+  };
+
+  /* ---------------- LOAD SESSION ON MOUNT ---------------- */
+  useEffect(() => {
+    fetchBase();
   }, []);
 
   /* ---------------- SUBMIT ---------------- */
@@ -59,7 +90,7 @@ const Homepage = () => {
 
     setFixture(found);
     setIsSmallOddsGame(isSmall);
-    const mainStake = baseStake + deficit 
+    const mainStake = baseStake + deficit;
     const base = Math.round(mainStake / found.winner);
     const winnerAmount = Math.max(Math.round(base), 10);
 
@@ -118,7 +149,7 @@ const Homepage = () => {
   /* ---------------- SMALL ODDS WIN (6-0 clicked in small game) ---------------- */
   const handleSmallWin = () => {
     if (!fixture) return;
-    /* Win → bank += 10000 */
+    /* Win → baseStake gets bank value, bank resets to 0 */
     setBaseStake(bank);
     setBank(0);
     clearForNext();
@@ -139,15 +170,6 @@ const Homepage = () => {
     });
   };
 
-  /* ---------------- SAVE ---------------- */
-  const handleSave = () => {
-    localStorage.setItem(
-      "virtual-epl-session",
-      JSON.stringify({ deficit, bank })
-    );
-    alert("Session saved");
-  };
-
   const teamA = sanitizeTeam(inputA) || "che";
   const teamB = sanitizeTeam(inputB) || "che";
 
@@ -157,16 +179,17 @@ const Homepage = () => {
       {/* SAVE / RELOAD */}
       <div className="absolute top-5 right-5 flex rounded-full overflow-hidden shadow-xl">
         <button
-          onClick={handleSave}
+          onClick={saveBase}
           className="px-5 py-2 bg-green-600 font-bold hover:bg-green-700"
         >
           💾 Save
         </button>
         <button
-          onClick={() => window.location.reload()}
-          className="px-5 py-2 bg-red-600 font-bold hover:bg-red-700"
+          onClick={fetchBase}
+          disabled={isReloading}
+          className="px-5 py-2 bg-red-600 font-bold hover:bg-red-700 disabled:opacity-50"
         >
-          🔄 Reload
+          {isReloading ? "Loading..." : "🔄 Reload"}
         </button>
       </div>
 
@@ -264,16 +287,18 @@ const Homepage = () => {
             </button>
           </div>
         </form>
-            <button
-              onClick={clearForNext} 
-              className="mt-4 px-8 py-3 bg-green-600 text-white font-extrabold rounded-full shadow-lg hover:bg-red-700"
-            >
-              Next
-            </button>
+        <button
+          onClick={clearForNext} 
+          className="mt-4 px-8 py-3 bg-green-600 text-white font-extrabold rounded-full shadow-lg hover:bg-green-700"
+        >
+          Next
+        </button>
+        
         {/* STATS */}
-        <div className="mt-6 grid grid-cols-2 gap-4 text-center text-sm font-mono text-gray-600">
+        <div className="mt-6 grid grid-cols-3 gap-4 text-center text-sm font-mono text-gray-600">
           <div>Base: <strong className="text-red-600">{baseStake}</strong></div>
           <div>Bank: <strong className="text-green-600">{bank}</strong></div>
+          <div>Deficit: <strong className="text-orange-600">{deficit}</strong></div>
         </div>
 
       </div>
