@@ -60,7 +60,7 @@ const Homepage = () => {
     setFixture(found);
     setIsSmallOddsGame(isSmall);
 
-    const base = Math.round(basestake / (found.winner - 1));
+    const base = Math.round(baseStake / (found.winner - 1));
     const winnerAmount = Math.round(base + deficit);
 
     if (isSmall) {
@@ -119,7 +119,7 @@ const Homepage = () => {
   const handleSmallWin = () => {
     if (!fixture) return;
     /* Win → bank += 10000 */
-    setBaseStake(Bank);
+    setBaseStake(bank);
     setBank(0);
     clearForNext();
   };
