@@ -7,50 +7,54 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-const ASSETS = [
-  "oneX", "twoX", "x2", "tg0", "tg6", "ht12", "ht21", "ht30", "ft40", "ft41"
-];
+const ASSET_KEYS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
+const ASSET_LABELS = {
+  oneX:"1X", twoX:"2X", x2:"X2", tg0:"0G", tg6:"6G",
+  ht12:"HT12", ht21:"HT21", ht30:"HT30", ft40:"FT40", ft41:"FT41"
+};
+const ASSET_ODD_KEY = {
+  oneX:"oneX", twoX:"twoX", x2:"x2", tg0:"zeroGoals", tg6:"sixGoals",
+  ht12:"ht12", ht21:"ht21", ht30:"ht30", ft40:"ft40", ft41:"ft41"
+};
+const ASSET_COLORS = {
+  oneX:"bg-purple-600", twoX:"bg-pink-600", x2:"bg-lime-600",
+  tg0:"bg-cyan-600", tg6:"bg-teal-600", ht12:"bg-blue-600",
+  ht21:"bg-emerald-600", ht30:"bg-green-600", ft40:"bg-indigo-600", ft41:"bg-violet-600"
+};
+
+const emptyDefs = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
+const emptyStakes = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
 
 const Homepage = () => {
-
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
   const [fixture, setFixture] = useState(null);
 
-  /* ── WEEK COUNT ── */
-  const [week, setWeek] = useState(1);
-
   /* ── WINNER ── */
-  const [baseStake, setBaseStake] = useState(10000);
-  const [deficit, setDeficit] = useState(0);
-  const [winnerStake, setWinnerStake] = useState(0);
+  const [baseStake,    setBaseStake]    = useState(10000);
+  const [deficit,      setDeficit]      = useState(0);
+  const [winnerStake,  setWinnerStake]  = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
 
-  /* ── TOTAL DEFICIT (sum of all asset deficits) ── */
+  /* ── WEEK & WIN COUNT ── */
+  const [week,     setWeek]     = useState(1);
+  const [winCount, setWinCount] = useState(0);
+
+  /* ── ASSET DEFICITS ── */
+  const [assetDefs, setAssetDefs] = useState(emptyDefs());
+
+  /* ── TOTAL DEFICIT (sum of all asset defs) ── */
   const [totalDeficit, setTotalDeficit] = useState(0);
 
-  /* ── RESIDUE ── */
+  /* ── RESIDUE (pushed in when 16 wins reached) ── */
   const [residue, setResidue] = useState(0);
 
-  /* ── WINS COUNT (max 16) ── */
-  const [winsCount, setWinsCount] = useState(0);
-  const [martingaleActive, setMartingaleActive] = useState(true);
-
-  /* ── QUALIFIED ARRAY (assets that have won and now chase totalDeficit + residue) ── */
-  const [qualified, setQualified] = useState([]);
-
-  /* ── ASSET DEFICITS (all start at 0) ── */
-  const [assetDeficits, setAssetDeficits] = useState({
-    oneX: 0, twoX: 0, x2: 0, tg0: 0, tg6: 0,
-    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
-  });
+  /* ── QUALIFIED ARRAY (assets that have won, now chase totalDeficit+residue) ── */
+  const [qualified, setQualified] = useState([]); // array of keys
 
   /* ── CURRENT GAME STAKES ── */
-  const [stakes, setStakes] = useState({
-    oneX: 0, twoX: 0, x2: 0, tg0: 0, tg6: 0,
-    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
-  });
+  const [stakes, setStakes] = useState(emptyStakes());
 
   /* ── WINNERS THIS GAME ── */
   const [winners, setWinners] = useState(new Set());
@@ -60,15 +64,6 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     UPDATE TOTAL DEFICIT
-     ================================================================ */
-  const updateTotalDeficit = (deficits) => {
-    const total = Object.values(deficits).reduce((sum, val) => sum + val, 0);
-    setTotalDeficit(total);
-    return total;
-  };
-
-  /* ================================================================
      API
      ================================================================ */
   const fetchBase = async () => {
@@ -76,19 +71,15 @@ const Homepage = () => {
     try {
       const res = await axios.get(API_BASE);
       const d = res.data || {};
-      setWeek(d.week ?? 1);
       setBaseStake(d.base ?? 10000);
       setDeficit(d.deficit ?? 0);
       setSmallDeficit(d.smallDeficit ?? 0);
+      setWeek(d.week ?? 1);
+      setWinCount(d.winCount ?? 0);
+      setAssetDefs(d.assetDefs || emptyDefs());
       setTotalDeficit(d.totalDeficit ?? 0);
       setResidue(d.residue ?? 0);
-      setWinsCount(d.winsCount ?? 0);
-      setMartingaleActive(d.martingaleActive ?? true);
-      setQualified(d.qualified ?? []);
-      setAssetDeficits(d.assetDeficits ?? {
-        oneX: 0, twoX: 0, x2: 0, tg0: 0, tg6: 0,
-        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
-      });
+      setQualified(d.qualified || []);
     } catch (err) { console.error("❌ fetch:", err.message); }
     finally { setIsReloading(false); }
   };
@@ -96,30 +87,17 @@ const Homepage = () => {
   const saveBase = async () => {
     try {
       await axios.put(API_BASE, {
-        week, base: baseRef.current, deficit, smallDeficit,
-        totalDeficit, residue, winsCount, martingaleActive,
-        qualified, assetDeficits
+        base: baseRef.current, deficit, smallDeficit,
+        week, winCount, assetDefs, totalDeficit, residue, qualified,
       });
     } catch (err) { console.error("❌ save:", err.message); }
   };
 
   useEffect(() => { fetchBase(); }, []);
 
-  /* ================================================================
-     CALCULATE STAKE
-     ================================================================ */
-  const calcStake = (def, odd) => {
-    if (!odd || odd <= 1.01) return 0;
-    let chaseAmount = smallDeficit;
-    
-    // If asset is qualified, chase totalDeficit + residue
-    if (qualified.includes(def.assetName)) {
-      chaseAmount = totalDeficit + residue;
-    }
-    
-    const total = def.amount + chaseAmount;
-    return Math.max(Math.round(total / (odd - 1)), 10);
-  };
+  /* ── Compute totalDeficit from assetDefs ── */
+  const computeTotal = (defs) =>
+    Object.values(defs).reduce((s, v) => s + v, 0);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -136,7 +114,7 @@ const Homepage = () => {
     setClicked(new Set());
     setWinners(new Set());
 
-    /* ── Winner stake calculation ── */
+    /* ── Winner stake ── */
     const newBase = baseStake + deficit;
     setBaseStake(newBase);
     setDeficit(0);
@@ -144,120 +122,118 @@ const Homepage = () => {
     setWinnerStake(wStake);
     setSmallDeficit((prev) => prev + wStake);
 
-    /* ── Calculate stakes for all assets ── */
-    const oddsMap = {
-      oneX: found.oneX, twoX: found.twoX, x2: found.x2,
-      tg0: found.zeroGoals, tg6: found.sixGoals,
-      ht12: found.ht12, ht21: found.ht21, ht30: found.ht30,
-      ft40: found.ft40, ft41: found.ft41
-    };
-
-    const newStakes = {};
-    for (const asset of ASSETS) {
-      const odd = oddsMap[asset];
-      const assetDef = assetDeficits[asset];
-      
-      if (martingaleActive) {
-        let chaseAmount = smallDeficit;
-        if (qualified.includes(asset)) {
-          chaseAmount = totalDeficit + residue;
-        }
-        const total = assetDef + chaseAmount;
-        newStakes[asset] = odd > 1.01 ? Math.max(Math.round(total / (odd - 1)), 10) : 0;
-      } else {
-        newStakes[asset] = 0;
-      }
+    /* ── If 16 wins reached, martingale is paused — no asset stakes ── */
+    if (winCount >= 16) {
+      setStakes(emptyStakes());
+      return;
     }
-    
+
+    /* ── Calc asset stakes ── */
+    const newStakes = emptyStakes();
+    const curTotal = computeTotal(assetDefs);
+
+    ASSET_KEYS.forEach((key) => {
+      const odd = found[ASSET_ODD_KEY[key]] || 0;
+      if (odd <= 1.01) return;
+
+      if (qualified.includes(key)) {
+        /* Qualified: chase totalDeficit + residue */
+        const target = curTotal + residue;
+        newStakes[key] = target > 0 ? Math.max(Math.round(target / (odd - 1)), 10) : 10;
+      } else {
+        /* Normal: chase smallDeficit */
+        newStakes[key] = smallDeficit > 0
+          ? Math.max(Math.round((smallDeficit + wStake) / (odd - 1)), 10)
+          : Math.max(Math.round(wStake / (odd - 1)), 10);
+      }
+    });
+
     setStakes(newStakes);
   };
 
   /* ================================================================
-     WIN HANDLER
+     MARK WIN
      ================================================================ */
-  const handleWin = (asset) => {
-    if (!fixture || clicked.has(asset) || !martingaleActive) return;
-    setClicked((prev) => new Set([...prev, asset]));
-    setWinners((prev) => new Set([...prev, asset]));
-
-    // Update wins count
-    const newWinsCount = winsCount + 1;
-    setWinsCount(newWinsCount);
-
-    // If asset is already qualified, reset its deficit to 0
-    if (qualified.includes(asset)) {
-      setAssetDeficits(prev => {
-        const newDefs = { ...prev, [asset]: 0 };
-        updateTotalDeficit(newDefs);
-        return newDefs;
-      });
-      setResidue(0);
-      setTotalDeficit(0);
-    } else {
-      // Add to qualified array
-      setQualified(prev => [...prev, asset]);
-    }
-
-    // Check if we reached 16 wins
-    if (newWinsCount >= 16) {
-      setMartingaleActive(false);
-      // Push total deficit into residue
-      setResidue(prev => prev + totalDeficit);
-      // Reset total deficit and all asset deficits to 0
-      const resetDefs = {};
-      for (const a of ASSETS) {
-        resetDefs[a] = 0;
-      }
-      setAssetDeficits(resetDefs);
-      setTotalDeficit(0);
-    }
+  const markWin = (key) => {
+    if (!fixture || clicked.has(key) || winCount >= 16) return;
+    setClicked((prev) => new Set([...prev, key]));
+    setWinners((prev) => new Set([...prev, key]));
   };
 
   /* ================================================================
-     NEXT HANDLER
+     HANDLE NEXT — settle all, advance week
      ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
-    // Increment week
-    const newWeek = week + 1;
-    setWeek(newWeek);
+    const newDefs = { ...assetDefs };
+    let newQualified = [...qualified];
+    let newWinCount = winCount;
+    let newTotalDef = totalDeficit;
+    let newResidue  = residue;
 
-    // Handle losses - add non-win stakes to their deficits
-    const newDeficits = { ...assetDeficits };
-    
-    for (const asset of ASSETS) {
-      if (!winners.has(asset) && stakes[asset] > 0) {
-        newDeficits[asset] += stakes[asset];
+    /* ── Process each asset ── */
+    ASSET_KEYS.forEach((key) => {
+      const won = winners.has(key);
+
+      if (won) {
+        newWinCount += 1;
+
+        if (qualified.includes(key)) {
+          /* Qualified win: clear everything */
+          newDefs[key]   = 0;
+          newTotalDef    = 0;
+          newResidue     = 0;
+        } else {
+          /* First win: push into qualified, reset its deficit to 0 */
+          newDefs[key] = 0;
+          if (!newQualified.includes(key)) newQualified.push(key);
+        }
+      } else {
+        /* Loss: stake piles into asset deficit */
+        if (stakes[key] > 0) newDefs[key] += stakes[key];
       }
-    }
-    
-    setAssetDeficits(newDeficits);
-    updateTotalDeficit(newDeficits);
+    });
 
-    // Check if week 38 is complete
+    /* ── If 16 wins hit this round: pile totalDeficit into residue, zero everything ── */
+    if (newWinCount >= 16 && winCount < 16) {
+      const sumDefs = computeTotal(newDefs);
+      newResidue  = sumDefs;
+      newTotalDef = 0;
+      Object.keys(newDefs).forEach(k => { newDefs[k] = 0; });
+    }
+
+    /* ── Recompute totalDeficit ── */
+    newTotalDef = computeTotal(newDefs);
+
+    /* ── Advance week ── */
+    let newWeek = week + 1;
+    let resetAll = false;
     if (newWeek > 38) {
-      // Reset everything
-      setWeek(1);
-      setMartingaleActive(true);
-      setWinsCount(0);
-      setQualified([]);
-      setResidue(0);
-      const resetDefs = {};
-      for (const a of ASSETS) {
-        resetDefs[a] = 0;
-      }
-      setAssetDeficits(resetDefs);
-      setTotalDeficit(0);
-      setSmallDeficit(0);
+      newWeek    = 1;
+      resetAll   = true;
     }
+
+    if (resetAll) {
+      newWinCount  = 0;
+      newQualified = [];
+      newTotalDef  = 0;
+      newResidue   = 0;
+      Object.keys(newDefs).forEach(k => { newDefs[k] = 0; });
+    }
+
+    /* ── Apply ── */
+    setAssetDefs(newDefs);
+    setTotalDeficit(newTotalDef);
+    setResidue(newResidue);
+    setQualified(newQualified);
+    setWinCount(newWinCount);
+    setWeek(newWeek);
 
     clearForNext();
   };
 
-  /* ================================================================
-     6-0 JACKPOT
-     ================================================================ */
+  /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked((prev) => new Set([...prev, "six"]));
     setBaseStake(10000);
@@ -265,57 +241,49 @@ const Homepage = () => {
     setSmallDeficit(0);
   };
 
-  /* ================================================================
-     CLEAR
-     ================================================================ */
+  /* ── Clear ── */
   const clearForNext = () => {
     setInputA(""); setInputB("");
     setFixture(null);
     setClicked(new Set());
     setWinners(new Set());
     setWinnerStake(0);
-    setStakes({
-      oneX: 0, twoX: 0, x2: 0, tg0: 0, tg6: 0,
-      ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0
-    });
+    setStakes(emptyStakes());
     saveBase();
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
+  const martingalePaused = winCount >= 16;
 
-  const btnClass = (key, color) =>
-    `py-3 rounded-xl font-bold text-xs transition active:scale-95 ${
-      winners.has(key)
-        ? "bg-green-500 text-white ring-2 ring-green-300"
-        : !fixture
-        ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
-        : `${color} text-white`
-    }`;
-
-  const assetColors = {
-    oneX: "bg-purple-600", twoX: "bg-pink-600", x2: "bg-rose-600",
-    tg0: "bg-cyan-600", tg6: "bg-teal-600",
-    ht12: "bg-blue-600", ht21: "bg-emerald-600",
-    ht30: "bg-green-600", ft40: "bg-indigo-600", ft41: "bg-violet-600"
+  const btnClass = (key) => {
+    const isWinner  = winners.has(key);
+    const isQual    = qualified.includes(key);
+    const color     = ASSET_COLORS[key];
+    if (!fixture || martingalePaused)
+      return `py-4 rounded-2xl font-bold text-xs transition active:scale-95 bg-gray-700 opacity-40 cursor-not-allowed text-white`;
+    if (isWinner)
+      return `py-4 rounded-2xl font-bold text-xs transition active:scale-95 bg-green-500 text-white ring-2 ring-green-300`;
+    if (isQual)
+      return `py-4 rounded-2xl font-bold text-xs transition active:scale-95 ${color} text-white ring-2 ring-yellow-400`;
+    return `py-4 rounded-2xl font-bold text-xs transition active:scale-95 ${color} text-white`;
   };
 
-  const assetLabels = {
-    oneX: "1X", twoX: "2X", x2: "X2",
-    tg0: "0G", tg6: "6G",
-    ht12: "HT12", ht21: "HT21", ht30: "HT30",
-    ft40: "FT40", ft41: "FT41"
-  };
-
+  /* ================================================================
+     RENDER
+     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
       {/* TOP BAR */}
       <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
-        <h1 className="text-sm font-extrabold text-red-400">
-          Virtual EPL | Week {week}/38
-          {!martingaleActive && <span className="ml-2 text-[10px] bg-orange-500 px-2 py-0.5 rounded-full">MARTINGALE OFF</span>}
-        </h1>
+        <div>
+          <h1 className="text-sm font-extrabold text-red-400">Virtual EPL</h1>
+          <div className="text-[10px] text-gray-400">
+            Wk {week}/38 &nbsp;·&nbsp; Wins {winCount}/16
+            {martingalePaused && <span className="ml-1 text-yellow-400 font-bold">· PAUSED</span>}
+          </div>
+        </div>
         <div className="flex rounded-full overflow-hidden shadow">
           <button onClick={saveBase} className="px-3 py-1.5 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">💾</button>
           <button onClick={fetchBase} disabled={isReloading}
@@ -338,25 +306,34 @@ const Homepage = () => {
           <button onClick={handleNext} disabled={!fixture}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white" : "bg-green-700 text-white hover:bg-green-600"}`}>
             <div className="font-black">NEXT</div>
-            <div className="text-[9px] mt-0.5 opacity-70">week +1</div>
+            <div className="text-[9px] mt-0.5 opacity-70">settle + advance week</div>
           </button>
-          <div className="bg-white/10 rounded-2xl flex flex-col items-center justify-center text-[10px] font-mono gap-0.5">
-            <div>Small Def: <strong className="text-blue-300">{smallDeficit}</strong></div>
-            <div>Wins: <strong className="text-yellow-300">{winsCount}/16</strong></div>
+          <div className="bg-white/10 rounded-2xl flex flex-col items-center justify-center text-[10px] font-mono gap-0.5 px-2">
+            <div>SmDef: <strong className="text-blue-300">{smallDeficit}</strong></div>
+            <div>TotDef: <strong className="text-orange-300">{totalDeficit}</strong></div>
+            <div>Resid: <strong className="text-pink-300">{residue}</strong></div>
           </div>
         </div>
 
-        {/* ASSETS GRID */}
+        {/* ASSET BUTTONS */}
+        <div className="text-[9px] text-gray-400 text-center tracking-widest">
+          {martingalePaused
+            ? "— MARTINGALE PAUSED — (16 wins reached, resume week 1) —"
+            : "— TAP TO MARK WIN —"}
+        </div>
         <div className="grid grid-cols-5 gap-2">
-          {ASSETS.map((asset) => (
-            <button key={asset} onClick={() => handleWin(asset)} disabled={!fixture || !martingaleActive}
-              className={btnClass(asset, assetColors[asset])}>
-              <div className="font-black text-[11px]">{assetLabels[asset]}</div>
-              <div className="text-[10px] mt-0.5">{stakes[asset] || "–"}</div>
-              <div className="text-[8px] opacity-60 mt-0.5">D:{assetDeficits[asset]}</div>
-              {qualified.includes(asset) && <div className="text-[7px] text-yellow-300">★Q</div>}
-            </button>
-          ))}
+          {ASSET_KEYS.map((key) => {
+            const isQual = qualified.includes(key);
+            return (
+              <button key={key} onClick={() => markWin(key)} disabled={!fixture || martingalePaused}
+                className={btnClass(key)}>
+                <div className="font-black text-[11px]">{ASSET_LABELS[key]}</div>
+                <div className="text-[10px] mt-0.5">{stakes[key] || "–"}</div>
+                <div className="text-[8px] opacity-60 mt-0.5">D:{assetDefs[key]}</div>
+                {isQual && <div className="text-[7px] text-yellow-300 mt-0.5">★ QUAL</div>}
+              </button>
+            );
+          })}
         </div>
 
         {/* INPUTS */}
@@ -375,16 +352,25 @@ const Homepage = () => {
         </div>
 
         {/* STATS */}
-        <div className="bg-white/5 rounded-2xl p-3 text-[10px]">
-          <div className="grid grid-cols-3 gap-x-4 gap-y-1">
-            <div className="flex justify-between"><span className="text-gray-400">Base</span><strong className="text-green-400">{baseStake}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-400">Total Def</span><strong className="text-orange-400">{totalDeficit}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-400">Residue</span><strong className="text-purple-400">{residue}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-400">Qualified</span><strong className="text-yellow-400">{qualified.length}/10</strong></div>
+        <div className="bg-white/5 rounded-2xl p-3 text-[10px] grid grid-cols-2 gap-x-6 gap-y-1.5">
+          <div className="flex justify-between"><span className="text-gray-400">Base</span><strong className="text-green-400">{baseStake}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">SmallDef</span><strong className="text-blue-400">{smallDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">TotalDef</span><strong className="text-orange-400">{totalDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Residue</span><strong className="text-pink-400">{residue}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Wins</span><strong className="text-yellow-400">{winCount}/16</strong></div>
+          <div className="col-span-2 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-6 gap-y-1">
+            {ASSET_KEYS.map(key => (
+              <div key={key} className="flex justify-between">
+                <span className={`${qualified.includes(key) ? "text-yellow-300" : "text-gray-500"}`}>
+                  {ASSET_LABELS[key]}{qualified.includes(key) ? "★" : ""}
+                </span>
+                <strong className="text-white">{assetDefs[key]}</strong>
+              </div>
+            ))}
           </div>
           {fixture && (
-            <div className="pt-2 mt-2 border-t border-white/10 text-center font-bold">
+            <div className="col-span-2 pt-1 border-t border-white/10 text-center font-bold">
               <span className="uppercase">{teamA}</span>
               <span className="text-gray-400 mx-1">vs</span>
               <span className="uppercase">{teamB}</span>
