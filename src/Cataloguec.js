@@ -167,94 +167,153 @@ const Homepage = () => {
      HANDLE NEXT — settle all, advance week
      ================================================================ */
   const handleNext = () => {
-    if (!fixture) return;
+  if (!fixture) return;
 
-    const newDefs = { ...assetDefs };
-    let newQualified = [...qualified];
-    let newWinCount = winCount;
-    let newTotalDef = totalDeficit;
-    let newResidue  = residue;
+  const newDefs = { ...assetDefs };
 
-    /* ── Process each asset ── */
-    let qualifiedBankBonus = 0;
+  let newQualified = [...qualified];
+  let newWinCount = winCount;
+  let newTotalDef = totalDeficit;
+  let newResidue = residue;
+
+  let qualifiedBankBonus = 0;
+
+  /* ─────────────────────────────
+     Detect qualified reset first
+     ───────────────────────────── */
+  let qualifiedResetTriggered = false;
+  let winningQualifiedKey = null;
+  let capturedShadow = 0;
+
+  ASSET_KEYS.forEach((key) => {
+    const won = winners.has(key);
+
+    if (won) {
+      newWinCount += 1;
+
+      /* QUALIFIED WIN */
+      if (qualified.includes(key)) {
+        if (newTotalDef > 0 && !qualifiedResetTriggered) {
+          qualifiedResetTriggered = true;
+          winningQualifiedKey = key;
+          capturedShadow = newTotalDef;
+        } else if (newTotalDef <= 0) {
+          /* second+ qualified win */
+          qualifiedBankBonus += totalDeficitShadow;
+          newResidue = 0;
+          newDefs[key] = 0;
+        }
+      } else {
+        /* first ever win for this asset */
+        newDefs[key] = 0;
+
+        if (!newQualified.includes(key)) {
+          newQualified.push(key);
+        }
+      }
+    }
+  });
+
+  /* ─────────────────────────────
+     Apply normal losses ONLY if
+     qualified reset didn't happen
+     ───────────────────────────── */
+  if (!qualifiedResetTriggered) {
     ASSET_KEYS.forEach((key) => {
       const won = winners.has(key);
 
-      if (won) {
-        newWinCount += 1;
-
-        if (qualified.includes(key)) {
-          /* Qualified win: this asset won while chasing totalDeficit */
-          if (newTotalDef > 0) {
-            /* First qualified win:
-               - totalDeficit → 0 (shadow keeps the old value for bank later)
-               - all other asset defs reset to just their current game stake */
-            setTotalDeficitShadow(newTotalDef);
-            newTotalDef = 0;
-            /* Reset every asset def to its current game stake only */
-            ASSET_KEYS.forEach((k) => {
-              newDefs[k] = k === key ? 0 : (stakes[k] || 0);
-            });
-          } else {
-            /* Second+ qualified win: totalDeficit already 0,
-               shadow value moves to bank, residue → 0 */
-            qualifiedBankBonus += totalDeficitShadow;
-            newResidue = 0;
-            newDefs[key] = 0;
-          }
-        } else {
-          /* First win for this asset: push into qualified, reset its deficit to 0 */
-          newDefs[key] = 0;
-          if (!newQualified.includes(key)) newQualified.push(key);
+      if (!won) {
+        if (stakes[key] > 0) {
+          newDefs[key] += stakes[key];
         }
+      }
+    });
+  }
+
+  /* ─────────────────────────────
+     Qualified reset logic
+     Reset EVERY asset deficit
+     to current stake only
+     ───────────────────────────── */
+  if (qualifiedResetTriggered) {
+    setTotalDeficitShadow(capturedShadow);
+
+    ASSET_KEYS.forEach((k) => {
+      if (k === winningQualifiedKey) {
+        newDefs[k] = 0;
       } else {
-        /* Loss: stake piles into asset deficit */
-        if (stakes[key] > 0) newDefs[key] += stakes[key];
+        newDefs[k] = stakes[k] || 0;
       }
     });
 
-    /* ── Apply qualified bank bonus if any ── */
-    if (qualifiedBankBonus > 0) {
-      setBank((prev) => prev + qualifiedBankBonus);
-    }
+    newTotalDef = 0;
+  }
 
-    /* ── If 16 wins hit this round: pile totalDeficit into residue, zero everything ── */
-    if (newWinCount >= 16 && winCount < 16) {
-      const sumDefs = computeTotal(newDefs);
-      newResidue  = sumDefs;
-      newTotalDef = 0;
-      Object.keys(newDefs).forEach(k => { newDefs[k] = 0; });
-    }
+  /* ─────────────────────────────
+     Recompute total deficit
+     from new deficits
+     ───────────────────────────── */
+  newTotalDef = computeTotal(newDefs);
 
-    /* ── Recompute totalDeficit ── */
-    newTotalDef = computeTotal(newDefs);
+  /* ─────────────────────────────
+     Apply bank bonus
+     ───────────────────────────── */
+  if (qualifiedBankBonus > 0) {
+    setBank((prev) => prev + qualifiedBankBonus);
+  }
 
-    /* ── Advance week ── */
-    let newWeek = week + 1;
-    let resetAll = false;
-    if (newWeek > 38) {
-      newWeek    = 1;
-      resetAll   = true;
-    }
+  /* ─────────────────────────────
+     16 wins logic
+     ───────────────────────────── */
+  if (newWinCount >= 16 && winCount < 16) {
+    const sumDefs = computeTotal(newDefs);
 
-    if (resetAll) {
-      newWinCount  = 0;
-      newQualified = [];
-      newTotalDef  = 0;
-      newResidue   = 0;
-      Object.keys(newDefs).forEach(k => { newDefs[k] = 0; });
-    }
+    newResidue = sumDefs;
+    newTotalDef = 0;
 
-    /* ── Apply ── */
-    setAssetDefs(newDefs);
-    setTotalDeficit(newTotalDef);
-    setResidue(newResidue);
-    setQualified(newQualified);
-    setWinCount(newWinCount);
-    setWeek(newWeek);
+    Object.keys(newDefs).forEach((k) => {
+      newDefs[k] = 0;
+    });
+  }
 
-    clearForNext();
-  };
+  /* recompute after wipe */
+  newTotalDef = computeTotal(newDefs);
+
+  /* ─────────────────────────────
+     Advance week
+     ───────────────────────────── */
+  let newWeek = week + 1;
+  let resetAll = false;
+
+  if (newWeek > 38) {
+    newWeek = 1;
+    resetAll = true;
+  }
+
+  if (resetAll) {
+    newWinCount = 0;
+    newQualified = [];
+    newTotalDef = 0;
+    newResidue = 0;
+
+    Object.keys(newDefs).forEach((k) => {
+      newDefs[k] = 0;
+    });
+  }
+
+  /* ─────────────────────────────
+     APPLY
+     ───────────────────────────── */
+  setAssetDefs(newDefs);
+  setTotalDeficit(newTotalDef);
+  setResidue(newResidue);
+  setQualified(newQualified);
+  setWinCount(newWinCount);
+  setWeek(newWeek);
+
+  clearForNext();
+};
+
 
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
