@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -50,10 +51,10 @@ const Homepage = () => {
   /* ── RESIDUE (pushed in when 16 wins reached) ── */
   const [residue, setResidue] = useState(0);
 
-  /* ── TOTAL DEFICIT SHADOW (mirrors totalDeficit when set, used for bank on 2nd qualified win) ── */
+  /* ── TOTAL DEFICIT SHADOW ── */
   const [totalDeficitShadow, setTotalDeficitShadow] = useState(0);
 
-  /* ── QUALIFIED ARRAY (assets that have won, now chase totalDeficit+residue) ── */
+  /* ── QUALIFIED ARRAY ── */
   const [qualified, setQualified] = useState([]); // array of keys
 
   /* ── CURRENT GAME STAKES ── */
@@ -99,7 +100,6 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, []);
 
-  /* ── Compute totalDeficit from assetDefs ── */
   const computeTotal = (defs) =>
     Object.values(defs).reduce((s, v) => s + v, 0);
 
@@ -125,7 +125,13 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
     setSmallDeficit((prev) => prev + wStake);
-    /* ── If 16 wins reached, martingale is paused — no asset stakes ── */
+
+    /* ── Calculate the current accurate total deficit right now ── */
+    const curTotal = computeTotal(assetDefs);
+    setTotalDeficit(curTotal);
+    setTotalDeficitShadow(curTotal); // Instantly synchronize the shadow upon calculation
+
+    /* ── If 16 wins reached, martingale is paused ── */
     if (winCount >= 16) {
       setStakes(emptyStakes());
       return;
@@ -133,7 +139,6 @@ const Homepage = () => {
 
     /* ── Calc asset stakes ── */
     const newStakes = emptyStakes();
-    const curTotal = computeTotal(assetDefs);
 
     ASSET_KEYS.forEach((key) => {
       const odd = found[ASSET_ODD_KEY[key]] || 0;
@@ -166,11 +171,6 @@ const Homepage = () => {
   /* ================================================================
      HANDLE NEXT — settle all, advance week
      ================================================================ */
-  
-/* ================================================================
-     HANDLE NEXT — settle all, advance week
-     ================================================================ */
-  
   const handleNext = () => {
     if (!fixture) return;
 
@@ -186,6 +186,7 @@ const Homepage = () => {
     let newBank = bank;
 
     let newSmallShadow = smallDeficitShadow;
+    let currentTotalShadow = totalDeficitShadow; 
 
     let qualifiedBankBonus = 0;
 
@@ -211,13 +212,9 @@ const Homepage = () => {
        STEP 2: NORMAL SYSTEM & MIXED-WIN GUARD
        ───────────────────────────── */
     if (normalWins.length > 0 && qualifiedWins.length > 0) {
-      // MIXED WIN SITUATION: One normal asset and one qualified asset won.
-      // There isn't a consecutive target win here, so we clear the shadow.
-      // This explicitly prevents a false bank increase now or next week.
       newSmallShadow = 0;
       newSmallDef = 0; 
     } else if (normalWins.length > 0) {
-      // PURE NORMAL SYSTEM WINS
       normalWins.forEach(() => {
         if (newSmallDef > 0) {
           newSmallShadow = newSmallDef;
@@ -232,19 +229,21 @@ const Homepage = () => {
     }
 
     /* ─────────────────────────────
-       STEP 3: QUALIFIED SYSTEM
+       STEP 3: QUALIFIED SYSTEM (FIXED MULTI-WIN TRACKING)
        ───────────────────────────── */
     let qualifiedResetTriggered = false;
     let winningQualifiedKey = null;
-    let capturedTotalShadow = 0;
 
     qualifiedWins.forEach((key) => {
+      // If a reset hasn't been triggered yet, and we have a valid total deficit balance
       if (!qualifiedResetTriggered && newTotalDef > 0) {
         qualifiedResetTriggered = true;
         winningQualifiedKey = key;
-        capturedTotalShadow = newTotalDef;
-      } else if (newTotalDef <= 0) {
-        qualifiedBankBonus += totalDeficitShadow;
+        currentTotalShadow = newTotalDef; // Retain snapshot trace of target deficit balance
+        newTotalDef = 0;                  // Instantly zero out total balance to mark it wiped
+      } else {
+        // This execution frame captures subsequent wins within the current execution sequence
+        qualifiedBankBonus += currentTotalShadow;
         newResidue = 0;
         newDefs[key] = 0;
       }
@@ -253,8 +252,6 @@ const Homepage = () => {
     /* ─────────────────────────────
        STEP 4: NEW QUALIFIED PROMOTION
        ───────────────────────────── */
-    // Note: Your original code forgot to reset defs for first-time normal winners 
-    // and push them into the qualified array. Let's make sure they safely transition.
     normalWins.forEach((key) => {
       newDefs[key] = 0;
       if (!newQualified.includes(key)) {
@@ -263,7 +260,7 @@ const Homepage = () => {
     });
 
     /* ─────────────────────────────
-       APPLY LOSSES (ONLY IF NO RESET)
+       APPLY LOSSES (ONLY IF NO RESET OCCURRED)
        ───────────────────────────── */
     if (!qualifiedResetTriggered) {
       ASSET_KEYS.forEach((key) => {
@@ -274,15 +271,12 @@ const Homepage = () => {
     }
 
     /* ─────────────────────────────
-       QUALIFIED RESET
+       QUALIFIED RESET PROCESSOR
        ───────────────────────────── */
     if (qualifiedResetTriggered) {
-      setTotalDeficitShadow(capturedTotalShadow);
-
       ASSET_KEYS.forEach((k) => {
         newDefs[k] = k === winningQualifiedKey ? 0 : (stakes[k] || 0);
       });
-
       newTotalDef = 0;
     }
 
@@ -292,11 +286,14 @@ const Homepage = () => {
     newTotalDef = computeTotal(newDefs);
 
     /* ─────────────────────────────
-       BANK UPDATE (SAFE)
+       BANK UPDATE & SHADOW SYNCHRONIZATION
        ───────────────────────────── */
     if (qualifiedBankBonus > 0) {
       newBank += qualifiedBankBonus;
     }
+    
+    // Assign the tracking shadow balance explicitly for storage progression
+    setTotalDeficitShadow(currentTotalShadow);
 
     /* ─────────────────────────────
        16 WIN RULE
@@ -368,11 +365,7 @@ const Homepage = () => {
 
     clearForNext();
   };
-      
-   
-  
-    
-    
+        
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked((prev) => new Set([...prev, "six"]));
@@ -409,9 +402,6 @@ const Homepage = () => {
     return `py-4 rounded-2xl font-bold text-xs transition active:scale-95 ${color} text-white`;
   };
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
