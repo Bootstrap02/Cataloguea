@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -50,6 +49,9 @@ const Homepage = () => {
   /* ── RESIDUE (pushed in when 16 wins reached) ── */
   const [residue, setResidue] = useState(0);
 
+  /* ── TOTAL DEFICIT SHADOW (mirrors totalDeficit when set, used for bank on 2nd qualified win) ── */
+  const [totalDeficitShadow, setTotalDeficitShadow] = useState(0);
+
   /* ── QUALIFIED ARRAY (assets that have won, now chase totalDeficit+residue) ── */
   const [qualified, setQualified] = useState([]); // array of keys
 
@@ -79,6 +81,7 @@ const Homepage = () => {
       setAssetDefs(d.assetDefs || emptyDefs());
       setTotalDeficit(d.totalDeficit ?? 0);
       setResidue(d.residue ?? 0);
+      setTotalDeficitShadow(d.totalDeficitShadow ?? 0);
       setQualified(d.qualified || []);
     } catch (err) { console.error("❌ fetch:", err.message); }
     finally { setIsReloading(false); }
@@ -88,7 +91,7 @@ const Homepage = () => {
     try {
       await axios.put(API_BASE, {
         base: baseRef.current, deficit, smallDeficit,
-        week, winCount, assetDefs, totalDeficit, residue, qualified,
+        week, winCount, assetDefs, totalDeficit, residue, totalDeficitShadow, qualified,
       });
     } catch (err) { console.error("❌ save:", err.message); }
   };
@@ -173,6 +176,7 @@ const Homepage = () => {
     let newResidue  = residue;
 
     /* ── Process each asset ── */
+    let qualifiedBankBonus = 0;
     ASSET_KEYS.forEach((key) => {
       const won = winners.has(key);
 
@@ -180,12 +184,26 @@ const Homepage = () => {
         newWinCount += 1;
 
         if (qualified.includes(key)) {
-          /* Qualified win: clear everything */
-          newDefs[key]   = 0;
-          newTotalDef    = 0;
-          newResidue     = 0;
+          /* Qualified win: this asset won while chasing totalDeficit */
+          if (newTotalDef > 0) {
+            /* First qualified win:
+               - totalDeficit → 0 (shadow keeps the old value for bank later)
+               - all other asset defs reset to just their current game stake */
+            setTotalDeficitShadow(newTotalDef);
+            newTotalDef = 0;
+            /* Reset every asset def to its current game stake only */
+            ASSET_KEYS.forEach((k) => {
+              newDefs[k] = k === key ? 0 : (stakes[k] || 0);
+            });
+          } else {
+            /* Second+ qualified win: totalDeficit already 0,
+               shadow value moves to bank, residue → 0 */
+            qualifiedBankBonus += totalDeficitShadow;
+            newResidue = 0;
+            newDefs[key] = 0;
+          }
         } else {
-          /* First win: push into qualified, reset its deficit to 0 */
+          /* First win for this asset: push into qualified, reset its deficit to 0 */
           newDefs[key] = 0;
           if (!newQualified.includes(key)) newQualified.push(key);
         }
@@ -194,6 +212,11 @@ const Homepage = () => {
         if (stakes[key] > 0) newDefs[key] += stakes[key];
       }
     });
+
+    /* ── Apply qualified bank bonus if any ── */
+    if (qualifiedBankBonus > 0) {
+      setBank((prev) => prev + qualifiedBankBonus);
+    }
 
     /* ── If 16 wins hit this round: pile totalDeficit into residue, zero everything ── */
     if (newWinCount >= 16 && winCount < 16) {
@@ -277,11 +300,18 @@ const Homepage = () => {
 
       {/* TOP BAR */}
       <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
-        <div>
+        <div className="flex flex-col gap-1">
           <h1 className="text-sm font-extrabold text-red-400">Virtual EPL</h1>
-          <div className="text-[10px] text-gray-400">
-            Wk {week}/38 &nbsp;·&nbsp; Wins {winCount}/16
-            {martingalePaused && <span className="ml-1 text-yellow-400 font-bold">· PAUSED</span>}
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${week >= 35 ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}>
+              WK {week} / 38
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${winCount >= 16 ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}>
+              {winCount} / 16 WINS
+            </span>
+            {martingalePaused && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-yellow-400 text-black">PAUSED</span>
+            )}
           </div>
         </div>
         <div className="flex rounded-full overflow-hidden shadow">
@@ -358,7 +388,9 @@ const Homepage = () => {
           <div className="flex justify-between"><span className="text-gray-400">SmallDef</span><strong className="text-blue-400">{smallDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">TotalDef</span><strong className="text-orange-400">{totalDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Residue</span><strong className="text-pink-400">{residue}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">TotDefShad</span><strong className="text-orange-300">{totalDeficitShadow}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Wins</span><strong className="text-yellow-400">{winCount}/16</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Week</span><strong className={week >= 35 ? "text-red-400" : "text-white"}>{week}/38</strong></div>
           <div className="col-span-2 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-6 gap-y-1">
             {ASSET_KEYS.map(key => (
               <div key={key} className="flex justify-between">
