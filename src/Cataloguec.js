@@ -186,49 +186,49 @@ const Homepage = () => {
   let qualifiedBankBonus = 0;
 
   /* ─────────────────────────────
-     Qualified reset tracker
+     STEP 1: SPLIT WINS
+     ───────────────────────────── */
+  const normalWins = [];
+  const qualifiedWins = [];
+
+  ASSET_KEYS.forEach((key) => {
+    if (!winners.has(key)) return;
+
+    newWinCount += 1;
+
+    if (qualified.includes(key)) {
+      qualifiedWins.push(key);
+    } else {
+      normalWins.push(key);
+    }
+  });
+
+  /* ─────────────────────────────
+     STEP 2: NORMAL SYSTEM (smallDef ONLY HERE)
+     ───────────────────────────── */
+  if (normalWins.length > 0) {
+    normalWins.forEach(() => {
+      if (newSmallDef > 0) {
+        newSmallShadow = newSmallDef;
+        newSmallDef = 0;
+      } else {
+        if (newSmallShadow > 0) {
+          newBank += newSmallShadow;
+          newSmallShadow = 0;
+        }
+      }
+    });
+  }
+
+  /* ─────────────────────────────
+     STEP 3: QUALIFIED SYSTEM (NO smallDef TOUCH)
      ───────────────────────────── */
   let qualifiedResetTriggered = false;
   let winningQualifiedKey = null;
   let capturedTotalShadow = 0;
 
-  ASSET_KEYS.forEach((key) => {
-    const won = winners.has(key);
-
-    if (!won) return;
-
-    newWinCount += 1;
-
-    /* ─────────────────────────────
-       ANY WIN → reset small deficit OR push shadow to bank
-       ───────────────────────────── */
-    if (newSmallDef > 0) {
-      newSmallShadow = newSmallDef;
-      newSmallDef = 0;
-    } else {
-      if (newSmallShadow > 0) {
-        newBank += newSmallShadow;
-        newSmallShadow = 0;
-      }
-    }
-
-    /* ─────────────────────────────
-       FIRST TIME WIN (non-qualified)
-       ───────────────────────────── */
-    if (!qualified.includes(key)) {
-      newDefs[key] = 0;
-
-      if (!newQualified.includes(key)) {
-        newQualified.push(key);
-      }
-
-      return;
-    }
-
-    /* ─────────────────────────────
-       QUALIFIED WIN LOGIC
-       ───────────────────────────── */
-    if (newTotalDef > 0 && !qualifiedResetTriggered) {
+  qualifiedWins.forEach((key) => {
+    if (!qualifiedResetTriggered && newTotalDef > 0) {
       qualifiedResetTriggered = true;
       winningQualifiedKey = key;
       capturedTotalShadow = newTotalDef;
@@ -240,7 +240,7 @@ const Homepage = () => {
   });
 
   /* ─────────────────────────────
-     Loss processing (ONLY if no reset)
+     APPLY LOSSES (ONLY IF NO RESET)
      ───────────────────────────── */
   if (!qualifiedResetTriggered) {
     ASSET_KEYS.forEach((key) => {
@@ -251,7 +251,7 @@ const Homepage = () => {
   }
 
   /* ─────────────────────────────
-     Qualified reset (single clean pass)
+     QUALIFIED RESET
      ───────────────────────────── */
   if (qualifiedResetTriggered) {
     setTotalDeficitShadow(capturedTotalShadow);
@@ -264,19 +264,19 @@ const Homepage = () => {
   }
 
   /* ─────────────────────────────
-     Recompute total deficit
+     RECOMPUTE TOTAL DEFICIT
      ───────────────────────────── */
   newTotalDef = computeTotal(newDefs);
 
   /* ─────────────────────────────
-     Apply qualified bank bonus
+     BANK UPDATE (SAFE)
      ───────────────────────────── */
   if (qualifiedBankBonus > 0) {
     newBank += qualifiedBankBonus;
   }
 
   /* ─────────────────────────────
-     16 WIN RULE (bank vs residue)
+     16 WIN RULE
      ───────────────────────────── */
   if (newWinCount >= 16 && winCount < 16) {
     const sumDefs = computeTotal(newDefs);
@@ -297,7 +297,7 @@ const Homepage = () => {
   }
 
   /* ─────────────────────────────
-     Week progression
+     WEEK PROGRESSION
      ───────────────────────────── */
   let newWeek = week + 1;
   let resetAll = false;
@@ -308,7 +308,7 @@ const Homepage = () => {
   }
 
   /* ─────────────────────────────
-     END OF SEASON (bank vs small deficit)
+     END OF SEASON RULE (bank vs smallDef)
      ───────────────────────────── */
   if (resetAll) {
     if (newBank >= newSmallDef) {
@@ -345,6 +345,7 @@ const Homepage = () => {
 
   clearForNext();
 };
+       
   
     
     
