@@ -167,185 +167,209 @@ const Homepage = () => {
      HANDLE NEXT — settle all, advance week
      ================================================================ */
   
+/* ================================================================
+     HANDLE NEXT — settle all, advance week
+     ================================================================ */
+  
   const handleNext = () => {
-  if (!fixture) return;
+    if (!fixture) return;
 
-  const newDefs = { ...assetDefs };
+    const newDefs = { ...assetDefs };
 
-  let newQualified = [...qualified];
-  let newWinCount = winCount;
+    let newQualified = [...qualified];
+    let newWinCount = winCount;
 
-  let newTotalDef = totalDeficit;
-  let newResidue = residue;
+    let newTotalDef = totalDeficit;
+    let newResidue = residue;
 
-  let newSmallDef = smallDeficit;
-  let newBank = bank;
+    let newSmallDef = smallDeficit;
+    let newBank = bank;
 
-  let newSmallShadow = smallDeficitShadow;
+    let newSmallShadow = smallDeficitShadow;
 
-  let qualifiedBankBonus = 0;
+    let qualifiedBankBonus = 0;
 
-  /* ─────────────────────────────
-     STEP 1: SPLIT WINS
-     ───────────────────────────── */
-  const normalWins = [];
-  const qualifiedWins = [];
+    /* ─────────────────────────────
+       STEP 1: SPLIT WINS
+       ───────────────────────────── */
+    const normalWins = [];
+    const qualifiedWins = [];
 
-  ASSET_KEYS.forEach((key) => {
-    if (!winners.has(key)) return;
+    ASSET_KEYS.forEach((key) => {
+      if (!winners.has(key)) return;
 
-    newWinCount += 1;
+      newWinCount += 1;
 
-    if (qualified.includes(key)) {
-      qualifiedWins.push(key);
-    } else {
-      normalWins.push(key);
+      if (qualified.includes(key)) {
+        qualifiedWins.push(key);
+      } else {
+        normalWins.push(key);
+      }
+    });
+
+    /* ─────────────────────────────
+       STEP 2: NORMAL SYSTEM & MIXED-WIN GUARD
+       ───────────────────────────── */
+    if (normalWins.length > 0 && qualifiedWins.length > 0) {
+      // MIXED WIN SITUATION: One normal asset and one qualified asset won.
+      // There isn't a consecutive target win here, so we clear the shadow.
+      // This explicitly prevents a false bank increase now or next week.
+      newSmallShadow = 0;
+      newSmallDef = 0; 
+    } else if (normalWins.length > 0) {
+      // PURE NORMAL SYSTEM WINS
+      normalWins.forEach(() => {
+        if (newSmallDef > 0) {
+          newSmallShadow = newSmallDef;
+          newSmallDef = 0;
+        } else {
+          if (newSmallShadow > 0) {
+            newBank += newSmallShadow;
+            newSmallShadow = 0;
+          }
+        }
+      });
     }
-  });
 
-  /* ─────────────────────────────
-     STEP 2: NORMAL SYSTEM (smallDef ONLY HERE)
-     ───────────────────────────── */
-  if (normalWins.length > 0) {
-    normalWins.forEach(() => {
-      if (newSmallDef > 0) {
-        newSmallShadow = newSmallDef;
+    /* ─────────────────────────────
+       STEP 3: QUALIFIED SYSTEM
+       ───────────────────────────── */
+    let qualifiedResetTriggered = false;
+    let winningQualifiedKey = null;
+    let capturedTotalShadow = 0;
+
+    qualifiedWins.forEach((key) => {
+      if (!qualifiedResetTriggered && newTotalDef > 0) {
+        qualifiedResetTriggered = true;
+        winningQualifiedKey = key;
+        capturedTotalShadow = newTotalDef;
+      } else if (newTotalDef <= 0) {
+        qualifiedBankBonus += totalDeficitShadow;
+        newResidue = 0;
+        newDefs[key] = 0;
+      }
+    });
+
+    /* ─────────────────────────────
+       STEP 4: NEW QUALIFIED PROMOTION
+       ───────────────────────────── */
+    // Note: Your original code forgot to reset defs for first-time normal winners 
+    // and push them into the qualified array. Let's make sure they safely transition.
+    normalWins.forEach((key) => {
+      newDefs[key] = 0;
+      if (!newQualified.includes(key)) {
+        newQualified.push(key);
+      }
+    });
+
+    /* ─────────────────────────────
+       APPLY LOSSES (ONLY IF NO RESET)
+       ───────────────────────────── */
+    if (!qualifiedResetTriggered) {
+      ASSET_KEYS.forEach((key) => {
+        if (!winners.has(key) && stakes[key] > 0) {
+          newDefs[key] += stakes[key];
+        }
+      });
+    }
+
+    /* ─────────────────────────────
+       QUALIFIED RESET
+       ───────────────────────────── */
+    if (qualifiedResetTriggered) {
+      setTotalDeficitShadow(capturedTotalShadow);
+
+      ASSET_KEYS.forEach((k) => {
+        newDefs[k] = k === winningQualifiedKey ? 0 : (stakes[k] || 0);
+      });
+
+      newTotalDef = 0;
+    }
+
+    /* ─────────────────────────────
+       RECOMPUTE TOTAL DEFICIT
+       ───────────────────────────── */
+    newTotalDef = computeTotal(newDefs);
+
+    /* ─────────────────────────────
+       BANK UPDATE (SAFE)
+       ───────────────────────────── */
+    if (qualifiedBankBonus > 0) {
+      newBank += qualifiedBankBonus;
+    }
+
+    /* ─────────────────────────────
+       16 WIN RULE
+       ───────────────────────────── */
+    if (newWinCount >= 16 && winCount < 16) {
+      const sumDefs = computeTotal(newDefs);
+
+      if (newBank >= sumDefs) {
+        newBank -= sumDefs;
+        newResidue = 0;
+      } else {
+        newResidue = sumDefs - newBank;
+        newBank = 0;
+      }
+
+      newTotalDef = 0;
+
+      Object.keys(newDefs).forEach((k) => {
+        newDefs[k] = 0;
+      });
+    }
+
+    /* ─────────────────────────────
+       WEEK PROGRESSION
+       ───────────────────────────── */
+    let newWeek = week + 1;
+    let resetAll = false;
+
+    if (newWeek > 38) {
+      newWeek = 1;
+      resetAll = true;
+    }
+
+    /* ─────────────────────────────
+       END OF SEASON RULE (bank vs smallDef)
+       ───────────────────────────── */
+    if (resetAll) {
+      if (newBank >= newSmallDef) {
+        newBank -= newSmallDef;
         newSmallDef = 0;
       } else {
-        if (newSmallShadow > 0) {
-          newBank += newSmallShadow;
-          newSmallShadow = 0;
-        }
+        newSmallDef = newSmallDef - newBank;
+        newBank = 0;
       }
-    });
-  }
 
-  /* ─────────────────────────────
-     STEP 3: QUALIFIED SYSTEM (NO smallDef TOUCH)
-     ───────────────────────────── */
-  let qualifiedResetTriggered = false;
-  let winningQualifiedKey = null;
-  let capturedTotalShadow = 0;
-
-  qualifiedWins.forEach((key) => {
-    if (!qualifiedResetTriggered && newTotalDef > 0) {
-      qualifiedResetTriggered = true;
-      winningQualifiedKey = key;
-      capturedTotalShadow = newTotalDef;
-    } else if (newTotalDef <= 0) {
-      qualifiedBankBonus += totalDeficitShadow;
+      newWinCount = 0;
+      newQualified = [];
+      newTotalDef = 0;
       newResidue = 0;
-      newDefs[key] = 0;
-    }
-  });
 
-  /* ─────────────────────────────
-     APPLY LOSSES (ONLY IF NO RESET)
-     ───────────────────────────── */
-  if (!qualifiedResetTriggered) {
-    ASSET_KEYS.forEach((key) => {
-      if (!winners.has(key) && stakes[key] > 0) {
-        newDefs[key] += stakes[key];
-      }
-    });
-  }
-
-  /* ─────────────────────────────
-     QUALIFIED RESET
-     ───────────────────────────── */
-  if (qualifiedResetTriggered) {
-    setTotalDeficitShadow(capturedTotalShadow);
-
-    ASSET_KEYS.forEach((k) => {
-      newDefs[k] = k === winningQualifiedKey ? 0 : (stakes[k] || 0);
-    });
-
-    newTotalDef = 0;
-  }
-
-  /* ─────────────────────────────
-     RECOMPUTE TOTAL DEFICIT
-     ───────────────────────────── */
-  newTotalDef = computeTotal(newDefs);
-
-  /* ─────────────────────────────
-     BANK UPDATE (SAFE)
-     ───────────────────────────── */
-  if (qualifiedBankBonus > 0) {
-    newBank += qualifiedBankBonus;
-  }
-
-  /* ─────────────────────────────
-     16 WIN RULE
-     ───────────────────────────── */
-  if (newWinCount >= 16 && winCount < 16) {
-    const sumDefs = computeTotal(newDefs);
-
-    if (newBank >= sumDefs) {
-      newBank -= sumDefs;
-      newResidue = 0;
-    } else {
-      newResidue = sumDefs - newBank;
-      newBank = 0;
+      Object.keys(newDefs).forEach((k) => {
+        newDefs[k] = 0;
+      });
     }
 
-    newTotalDef = 0;
+    /* ─────────────────────────────
+       APPLY STATE
+       ───────────────────────────── */
+    setAssetDefs(newDefs);
+    setTotalDeficit(newTotalDef);
+    setResidue(newResidue);
+    setQualified(newQualified);
+    setWinCount(newWinCount);
+    setWeek(newWeek);
 
-    Object.keys(newDefs).forEach((k) => {
-      newDefs[k] = 0;
-    });
-  }
+    setSmallDeficit(newSmallDef);
+    setSmallDeficitShadow(newSmallShadow);
+    setBank(newBank);
 
-  /* ─────────────────────────────
-     WEEK PROGRESSION
-     ───────────────────────────── */
-  let newWeek = week + 1;
-  let resetAll = false;
-
-  if (newWeek > 38) {
-    newWeek = 1;
-    resetAll = true;
-  }
-
-  /* ─────────────────────────────
-     END OF SEASON RULE (bank vs smallDef)
-     ───────────────────────────── */
-  if (resetAll) {
-    if (newBank >= newSmallDef) {
-      newBank -= newSmallDef;
-      newSmallDef = 0;
-    } else {
-      newSmallDef = newSmallDef - newBank;
-      newBank = 0;
-    }
-
-    newWinCount = 0;
-    newQualified = [];
-    newTotalDef = 0;
-    newResidue = 0;
-
-    Object.keys(newDefs).forEach((k) => {
-      newDefs[k] = 0;
-    });
-  }
-
-  /* ─────────────────────────────
-     APPLY STATE
-     ───────────────────────────── */
-  setAssetDefs(newDefs);
-  setTotalDeficit(newTotalDef);
-  setResidue(newResidue);
-  setQualified(newQualified);
-  setWinCount(newWinCount);
-  setWeek(newWeek);
-
-  setSmallDeficit(newSmallDef);
-  setSmallDeficitShadow(newSmallShadow);
-  setBank(newBank);
-
-  clearForNext();
-};
-       
+    clearForNext();
+  };
+      
+   
   
     
     
