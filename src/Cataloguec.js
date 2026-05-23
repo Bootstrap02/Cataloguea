@@ -176,6 +176,8 @@ const Homepage = () => {
   let newWinCount = winCount;
   let newTotalDef = totalDeficit;
   let newResidue = residue;
+  let newSmallDef = smallDeficit;
+  let newBank = bank;
 
   let qualifiedBankBonus = 0;
 
@@ -192,20 +194,30 @@ const Homepage = () => {
     if (won) {
       newWinCount += 1;
 
+      /* ─────────────────────────
+         ANY WIN clears smallDef
+         ───────────────────────── */
+      newSmallDef = 0;
+
       /* QUALIFIED WIN */
       if (qualified.includes(key)) {
+
+        /* FIRST qualified win */
         if (newTotalDef > 0 && !qualifiedResetTriggered) {
           qualifiedResetTriggered = true;
           winningQualifiedKey = key;
           capturedShadow = newTotalDef;
-        } else if (newTotalDef <= 0) {
-          /* second+ qualified win */
+        }
+
+        /* SECOND+ qualified win */
+        else if (newTotalDef <= 0) {
           qualifiedBankBonus += totalDeficitShadow;
           newResidue = 0;
           newDefs[key] = 0;
         }
+
       } else {
-        /* first ever win for this asset */
+        /* FIRST NORMAL WIN */
         newDefs[key] = 0;
 
         if (!newQualified.includes(key)) {
@@ -216,8 +228,7 @@ const Homepage = () => {
   });
 
   /* ─────────────────────────────
-     Apply normal losses ONLY if
-     qualified reset didn't happen
+     Apply losses only if no reset
      ───────────────────────────── */
   if (!qualifiedResetTriggered) {
     ASSET_KEYS.forEach((key) => {
@@ -232,11 +243,10 @@ const Homepage = () => {
   }
 
   /* ─────────────────────────────
-     Qualified reset logic
-     Reset EVERY asset deficit
-     to current stake only
+     Qualified reset
      ───────────────────────────── */
   if (qualifiedResetTriggered) {
+
     setTotalDeficitShadow(capturedShadow);
 
     ASSET_KEYS.forEach((k) => {
@@ -252,7 +262,6 @@ const Homepage = () => {
 
   /* ─────────────────────────────
      Recompute total deficit
-     from new deficits
      ───────────────────────────── */
   newTotalDef = computeTotal(newDefs);
 
@@ -260,16 +269,25 @@ const Homepage = () => {
      Apply bank bonus
      ───────────────────────────── */
   if (qualifiedBankBonus > 0) {
-    setBank((prev) => prev + qualifiedBankBonus);
+    newBank += qualifiedBankBonus;
   }
 
   /* ─────────────────────────────
      16 wins logic
      ───────────────────────────── */
   if (newWinCount >= 16 && winCount < 16) {
-    const sumDefs = computeTotal(newDefs);
 
-    newResidue = sumDefs;
+    let sumDefs = computeTotal(newDefs);
+
+    /* BANK vs TOTAL DEFICIT */
+    if (newBank >= sumDefs) {
+      newBank -= sumDefs;
+      newResidue = 0;
+    } else {
+      newResidue = sumDefs - newBank;
+      newBank = 0;
+    }
+
     newTotalDef = 0;
 
     Object.keys(newDefs).forEach((k) => {
@@ -291,7 +309,20 @@ const Homepage = () => {
     resetAll = true;
   }
 
+  /* ─────────────────────────────
+     END OF SEASON RESET
+     ───────────────────────────── */
   if (resetAll) {
+
+    /* BANK vs SMALL DEF */
+    if (newBank >= newSmallDef) {
+      newBank -= newSmallDef;
+      newSmallDef = 0;
+    } else {
+      newSmallDef = newSmallDef - newBank;
+      newBank = 0;
+    }
+
     newWinCount = 0;
     newQualified = [];
     newTotalDef = 0;
@@ -311,10 +342,14 @@ const Homepage = () => {
   setQualified(newQualified);
   setWinCount(newWinCount);
   setWeek(newWeek);
+  setSmallDeficit(newSmallDef);
+  setBank(newBank);
 
   clearForNext();
 };
-
+  
+     
+  
 
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
