@@ -35,6 +35,7 @@ const Homepage = () => {
   const [deficit,      setDeficit]      = useState(0);
   const [winnerStake,  setWinnerStake]  = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
+  const [bank, setBank] = useState(0);
 
   /* ── WEEK & WIN COUNT ── */
   const [week,     setWeek]     = useState(1);
@@ -446,7 +447,7 @@ const Homepage = () => {
           <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">SmallDef</span><strong className="text-blue-400">{smallDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">TotalDef</span><strong className="text-orange-400">{totalDeficit}</strong></div>
-          <div className="flex justify-between"><span className="text-gray-400">Residue</span><strong className="text-pink-400">{residue}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Residue/Bank</span><strong className="text-pink-400">{residue} / {bank}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">TotDefShad</span><strong className="text-orange-300">{totalDeficitShadow}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Wins</span><strong className="text-yellow-400">{winCount}/16</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Week</span><strong className={week >= 35 ? "text-red-400" : "text-white"}>{week}/38</strong></div>
