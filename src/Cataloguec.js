@@ -78,6 +78,7 @@ const Homepage = () => {
       setBaseStake(d.base ?? 10000);
       setDeficit(d.deficit ?? 0);
       setSmallDeficit(d.smallDeficit ?? 0);
+      setBank(d.bank ?? 0);  
       setWeek(d.week ?? 1);
       setWinCount(d.winCount ?? 0);
       setAssetDefs(d.assetDefs || emptyDefs());
@@ -92,7 +93,7 @@ const Homepage = () => {
   const saveBase = async () => {
     try {
       await axios.put(API_BASE, {
-        base: baseRef.current, deficit, smallDeficit,
+        base: baseRef.current, deficit, bank, smallDeficit,
         week, winCount, assetDefs, totalDeficit, residue, totalDeficitShadow, qualified,
       });
     } catch (err) { console.error("❌ save:", err.message); }
