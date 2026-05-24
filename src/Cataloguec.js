@@ -133,7 +133,7 @@ const Homepage = () => {
     setTotalDeficitShadow(curTotal); // Instantly synchronize the shadow upon calculation
 
     /* ── If 16 wins reached, martingale is paused ── */
-    if (winCount >= 16) {
+    if (winCount >= 20) {
       setStakes(emptyStakes());
       return;
     }
@@ -164,7 +164,7 @@ const Homepage = () => {
      MARK WIN
      ================================================================ */
   const markWin = (key) => {
-    if (!fixture || clicked.has(key) || winCount >= 16) return;
+    if (!fixture || clicked.has(key) || winCount >= 20) return;
     setClicked((prev) => new Set([...prev, key]));
     setWinners((prev) => new Set([...prev, key]));
   };
@@ -299,7 +299,7 @@ const Homepage = () => {
     /* ─────────────────────────────
        16 WIN RULE
        ───────────────────────────── */
-    if (newWinCount >= 16 && winCount < 16) {
+    if (newWinCount >= 20 && winCount < 20) {
       const sumDefs = computeTotal(newDefs);
 
       if (newBank >= sumDefs) {
@@ -415,7 +415,7 @@ const Homepage = () => {
               WK {week} / 38
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${winCount >= 16 ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}>
-              {winCount} / 16 WINS
+              {winCount} / 20 WINS
             </span>
             {martingalePaused && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-yellow-400 text-black">PAUSED</span>
