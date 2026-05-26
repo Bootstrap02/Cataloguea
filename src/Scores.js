@@ -40,3 +40,32 @@ export const odds = [
   { id: "bouche", home: "bou", away: "che", winner: 168, fiveZero: 54.6, fiveOne: 54.6, oneX: 22.3, twoX: 22.3, x2: 25.5, zeroGoals: 15.3, sixGoals: 17.4, ht12: 33.8, ht21: 12.7, ht30: 17.7, ft40: 21.8, ft41: 21.8 },
   { id: "totche", home: "tot", away: "che", winner: 168, fiveZero: 54.6, fiveOne: 54.6, oneX: 22.3, twoX: 22.3, x2: 25.5, zeroGoals: 15.3, sixGoals: 17.4, ht12: 33.8, ht21: 12.7, ht30: 17.7, ft40: 21.8, ft41: 21.8 }
 ];
+
+export const odds2 = [
+  { id: "mncnew", home: "mnc", away: "new", oneX: 14.8, twoX: 14.8, x2: 14.7, zeroGoals: 15, sixGoals: 17.3, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 36, ft41: 30.3 },
+  { id: "mncbre", home: "mnc", away: "bre", oneX: 14.8, twoX: 14.8, x2: 14.7, zeroGoals: 15, sixGoals: 17.3, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 36, ft41: 30.3 },
+  { id: "mncars", home: "mnc", away: "ars", oneX: 14.8, twoX: 14.8, x2: 14.7, zeroGoals: 15, sixGoals: 17.3, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 36, ft41: 30.3 },
+  { id: "whumnc", home: "whu", away: "mnc", oneX: 18.4, twoX: 18.4, x2: 19.1, zeroGoals: 16.7, sixGoals: 20.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 },
+  { id: "fulmnc", home: "ful", away: "mnc", oneX: 18.4, twoX: 18.4, x2: 19.1, zeroGoals: 16.7, sixGoals: 20.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 },
+  { id: "notmnc", home: "not", away: "mnc", oneX: 18.4, twoX: 18.4, x2: 19.1, zeroGoals: 16.7, sixGoals: 20.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 },
+  { id: "mncmnc", home: "mnc", away: "mnc", oneX: 16.8, twoX: 16.8, x2: 13.3, zeroGoals: 13, sixGoals: 23.7, ht12: 24.7, ht21: 16.2, ht30: 40.2, ft40: 58.6, ft41: 44.3 },
+  { id: "wolmnc", home: "wol", away: "mnc", oneX: 16.8, twoX: 16.8, x2: 13.3, zeroGoals: 13, sixGoals: 23.7, ht12: 24.7, ht21: 16.2, ht30: 40.2, ft40: 58.6, ft41: 44.3 },
+  { id: "mncwol", home: "mnc", away: "wol", oneX: 16.6, twoX: 16.6, x2: 18.2, zeroGoals: 16, sixGoals: 17.2, ht12: 26.3, ht21: 13, ht30: 21.4, ft40: 27.7, ft41: 26.1 },
+  { id: "mncmnc2", home: "mnc", away: "mnc", oneX: 16.6, twoX: 16.6, x2: 18.2, zeroGoals: 16, sixGoals: 17.2, ht12: 26.3, ht21: 13, ht30: 21.4, ft40: 27.7, ft41: 26.1 },
+  { id: "mnumnc", home: "mnu", away: "mnc", oneX: 16.4, twoX: 16.4, x2: 16, zeroGoals: 14.8, sixGoals: 21.2, ht12: 25.3, ht21: 14.6, ht30: 32.3, ft40: 44.8, ft41: 36.3 },
+  { id: "burmnc", home: "bur", away: "mnc", oneX: 16.4, twoX: 16.4, x2: 16, zeroGoals: 14.8, sixGoals: 21.2, ht12: 25.3, ht21: 14.6, ht30: 32.3, ft40: 44.8, ft41: 36.3 },
+  { id: "leemnc", home: "lee", away: "mnc", oneX: 19.4, twoX: 19.4, x2: 23.7, zeroGoals: 18, sixGoals: 17.1, ht12: 27.7, ht21: 12, ht30: 21.2, ft40: 28.8, ft41: 24.2 },
+  { id: "evemnc", home: "eve", away: "mnc", oneX: 19.4, twoX: 19.4, x2: 23.7, zeroGoals: 18, sixGoals: 17.1, ht12: 27.7, ht21: 12, ht30: 21.2, ft40: 28.8, ft41: 24.2 },
+  { id: "sunmnc", home: "sun", away: "mnc", oneX: 19.4, twoX: 19.4, x2: 23.7, zeroGoals: 18, sixGoals: 17.1, ht12: 27.7, ht21: 12, ht30: 21.2, ft40: 28.8, ft41: 24.2 },
+  { id: "bhamnc", home: "bha", away: "mnc", oneX: 19.4, twoX: 19.4, x2: 23.7, zeroGoals: 18, sixGoals: 17.1, ht12: 27.7, ht21: 12, ht30: 21.2, ft40: 28.8, ft41: 24.2 },
+  { id: "crymnc", home: "cry", away: "mnc", oneX: 19.4, twoX: 19.4, x2: 23.7, zeroGoals: 18, sixGoals: 17.1, ht12: 27.7, ht21: 12, ht30: 21.2, ft40: 28.8, ft41: 24.2 },
+  { id: "astmnc", home: "ast", away: "mnc", oneX: 14.8, twoX: 14.8, x2: 9.55, zeroGoals: 13.8, sixGoals: 20.5, ht12: 18.5, ht21: 17, ht30: 50.8, ft40: 79.3, ft41: 57.7 },
+  { id: "livmnc", home: "liv", away: "mnc", oneX: 14.8, twoX: 14.8, x2: 9.55, zeroGoals: 13.8, sixGoals: 20.5, ht12: 18.5, ht21: 17, ht30: 50.8, ft40: 79.3, ft41: 57.7 },
+  { id: "mncbur", home: "mnc", away: "bur", oneX: 18.6, twoX: 18.6, x2: 21.1, zeroGoals: 16, sixGoals: 15.1, ht12: 27.6, ht21: 12, ht30: 17, ft40: 22, ft41: 21.6 },
+  { id: "mncmnu", home: "mnc", away: "mnu", oneX: 18.6, twoX: 18.6, x2: 21.1, zeroGoals: 16, sixGoals: 15.1, ht12: 27.6, ht21: 12, ht30: 17, ft40: 22, ft41: 21.6 },
+  { id: "bremnc", home: "bre", away: "mnc", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
+  { id: "newmnc", home: "new", away: "mnc", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
+  { id: "arsmnc", home: "ars", away: "mnc", oneX: 15.7, twoX: 15.7, x2: 11.6, zeroGoals: 12.9, sixGoals: 22, ht12: 21.5, ht21: 16.4, ht30: 46, ft40: 72.8, ft41: 50.6 },
+  { id: "mncast", home: "mnc", away: "ast", oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 },
+  { id: "mncliv", home: "mnc", away: "liv", oneX: 13.8, twoX: 13.8, x2: 11.9, zeroGoals: 11.1, sixGoals: 19, ht12: 20.5, ht21: 15.2, ht30: 36.2, ft40: 52.4, ft41: 41.1 }
+];
