@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { odds } from "./Scores";
+import { odds, odds2} from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
