@@ -17,8 +17,7 @@ const Homepage = () => {
   /* ── INPUTS ── */
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
-  const [isReloading, setIsReloading] = useState(false);
-
+  
   /* ── FIXTURE ── */
   const [fixture,        setFixture]        = useState(null);
   const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
