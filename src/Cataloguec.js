@@ -154,76 +154,68 @@ const Homepage = () => {
     if (!fixture || clicked.has(`small_${key}`)) return;
     setClicked(prev => new Set([...prev, `small_${key}`]));
     setSmallWinners(prev => new Set([...prev, key]));
-    
   };
 
   /* ================================================================
      NEXT — settle small odds assets + clear
      ================================================================ */
   const handleNext = () => {
-  if (!fixture) return;
+    if (!fixture) return;
 
-  let newDefs = { ...smallDefs };
-  let newSD = smallDeficit;
-  let newShadow = smallDeficitShadow;
-  let newBank = bank;
+    const newDefs = { ...smallDefs };
+    let newSD     = smallDeficit;
+    let newShadow = smallDeficitShadow;
+    let newBank   = bank;
 
-  const wonKeys = [...smallWinners];
-  const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
+    const wonKeys  = [...smallWinners];
+    const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
 
-  // 1. Handle Wins
-  if (wonKeys.length > 0) {
-    wonKeys.forEach((key) => {
-      newDefs[key] = 0; // Asset deficit instantly becomes 0
+    if (wonKeys.length === 0) {
+      /* No wins: all stakes pile into their deficits */
+      SMALL_KEYS.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
 
-      if (newSD > 0) {
-        // First win: drop SD to 0, store original SD in shadow
-        newShadow = newSD;
-        newSD = 0;
-      } else {
-        // Second/subsequent win: if SD is already 0, push shadow to bank
+    } else if (wonKeys.length === 1) {
+      /* First win: clear smallDeficit, push other assets' deficits into smallDeficit */
+      const winKey = wonKeys[0];
+      newDefs[winKey] = 0;
+      newShadow = newSD;
+      newSD = 0;
+      /* Push losing assets' deficits into smallDeficit */
+      lostKeys.forEach(k => {
+        newSD += newDefs[k];
+      });
+      /* Losing assets still pile their stakes into defs */
+      lostKeys.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
+
+    } else {
+      /* Multiple wins: first win clears SD, second win shadow → bank */
+      const [firstWin, ...restWins] = wonKeys;
+      newDefs[firstWin] = 0;
+      /* Shadow → bank for second win */
+      restWins.forEach(() => {
         newBank += newShadow;
         newShadow = 0;
-      }
-    });
-  }
+      });
+      restWins.forEach(k => { newDefs[k] = 0; });
+      newSD = 0;
+      /* Losing assets pile stakes */
+      lostKeys.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
+    }
 
-  // 2. Handle Losses (pile current stakes into their deficits)
-  lostKeys.forEach((k) => {
-    newDefs[k] += smallStakes[k] || 0;
-  });
+    setSmallDefs(newDefs);
+    setSmallDeficit(newSD);
+    setSmallDeficitShadow(newShadow);
+    setBank(newBank);
 
-  // 3. Recovery Shift
-  // If small deficit is 0, move total of ALL remaining asset deficits into smallDeficit
-  if (newSD === 0) {
-    const totalAssetDef = Object.values(newDefs).reduce((sum, val) => sum + val, 0);
-    newSD = totalAssetDef;
-    
-    // Clear all individual asset deficits to 0
-    SMALL_KEYS.forEach((k) => {
-      newDefs[k] = 0;
-    });
-  }
+    /* Save updated state */
+    localStorage.setItem("virt-epl", JSON.stringify({
+      deficit, baseStake: baseStake, smallDeficit: newSD,
+      smallDeficitShadow: newShadow, bank: newBank, smallDefs: newDefs
+    }));
 
-  // Update states safely
-  setSmallDefs(newDefs);
-  setSmallDeficit(newSD);
-  setSmallDeficitShadow(newShadow);
-  setBank(newBank);
+    settleAndClear();
+  };
 
-  // Save state back to local storage
-  localStorage.setItem("virt-epl", JSON.stringify({
-    deficit, 
-    baseStake, 
-    smallDeficit: newSD,
-    smallDeficitShadow: newShadow, 
-    bank: newBank, 
-    smallDefs: newDefs
-  }));
-
-  settleAndClear();
-};
-  
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked(prev => new Set([...prev, "six"]));
