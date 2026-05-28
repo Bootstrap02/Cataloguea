@@ -92,11 +92,13 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
+    // Only add winnerStake to smallDeficit for Small Odds games
+    let curSD = smallDeficit;
+    if (isSmall) {
+      curSD = smallDeficit + wStake;
+      setSmallDeficit(curSD);
+    }
 
-    if(is Small) {
-    setSmallDeficit((prev) => prev + wStake);
-    } 
-    
     /* ── Normal game: build HDA ladder ── */
     if (!isSmall) {
       const oddsMap = { H: found.win, D: found.draw, A: found.lose };
@@ -126,7 +128,7 @@ const Homepage = () => {
       setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     }
 
-    /* ── Small odds assets ── */
+    /* ── Small odds assets stakes calculation ── */
     const newSmallStakes = emptySmallStakes();
     SMALL_KEYS.forEach((key) => {
       const odd = found[SMALL_ODD_KEY[key]] || 0;
@@ -158,16 +160,13 @@ const Homepage = () => {
     setClicked(prev => new Set([...prev, `small_${key}`]));
     setSmallWinners(prev => new Set([...prev, key]));
 
-    // This asset deficit becomes 0 immediately
     setSmallDefs(prev => ({ ...prev, [key]: 0 }));
 
     setSmallDeficit((prevSD) => {
       if (prevSD > 0) {
-        // First win this round
         setSmallDeficitShadow(prevSD);
         return 0;
       } else {
-        // Second or more wins: add shadow to bank
         setBank((prevBank) => prevBank + smallDeficitShadow);
         setSmallDeficitShadow(0);
         return 0;
@@ -188,30 +187,24 @@ const Homepage = () => {
 
     const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
 
-    // Accumulate losing stakes into their individual deficits
     lostKeys.forEach(k => {
       newDefs[k] += (smallStakes[k] || 0);
     });
 
-    // If there was at least one win this round (smallDeficit became 0)
     if (newSD === 0 && smallWinners.size > 0) {
-      // Move TOTAL of all asset deficits into smallDeficit
       const totalLosingDeficit = SMALL_KEYS.reduce((sum, k) => sum + (newDefs[k] || 0), 0);
       newSD = totalLosingDeficit;
 
-      // Reset all individual asset deficits to 0
       SMALL_KEYS.forEach(k => {
         newDefs[k] = 0;
       });
     }
 
-    // Update states
     setSmallDefs(newDefs);
     setSmallDeficit(newSD);
     setSmallDeficitShadow(newShadow);
     setBank(newBank);
 
-    // Save to localStorage
     handleSaveState({
       smallDeficit: newSD,
       smallDeficitShadow: newShadow,
@@ -229,7 +222,7 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setSmallDeficitShadow(0);
-    setBank(0); // Optional: reset bank on jackpot
+    setBank(0);
   };
 
   /* ── settle & clear ── */
@@ -249,9 +242,6 @@ const Homepage = () => {
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
       {/* TOP BAR */}
