@@ -64,63 +64,75 @@ const Homepage = () => {
      HANDLE SUBMIT
      ================================================================ */
   const handleSubmit = (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+  const home = sanitizeTeam(inputA) || "liv";
+  const away = sanitizeTeam(inputB) || "liv";
 
-    let found = smallOdds.find(o => o.home === home && o.away === away);
-    const isSmall = !!found;
-    if (!found) found = odds.find(o => o.home === home && o.away === away);
-    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+  let found = smallOdds.find((o) => o.home === home && o.away === away);
+  const isSmall = !!found;
+  if (!found) found = odds.find((o) => o.home === home && o.away === away);
+  if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
-    setFixture(found);
-    setIsSmallOddsGame(isSmall);
-    setClicked(new Set());
-    setSmallWinners(new Set());
+  setFixture(found);
+  setIsSmallOddsGame(isSmall);
+  setClicked(new Set());
+  setSmallWinners(new Set());
 
-    /* ── Winner stake → smallDeficit ── */
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
-    setSmallDeficit(prev => prev + wStake);
-    const curSD = smallDeficit + wStake;
+  const newBase = baseStake + deficit;
+  setBaseStake(newBase);
+  setDeficit(0);
+  
+  const wStake = Math.max(Math.round(newBase / found.winner), 10);
+  setWinnerStake(wStake);
+  
+  // Use a local variable for the updated deficit to ensure accuracy
+  const curSD = smallDeficit + wStake;
+  setSmallDeficit(curSD);
 
-    /* ── Normal game: build HDA ladder ── */
-    if (!isSmall) {
-      const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-      let running = wStake;
-      let homeAmount = 0, drawAmount = 0, awayAmount = 0;
-      const ladder = [];
-      for (const step of (found.code || "")) {
-        const odd = oddsMap[step];
-        if (!odd || odd <= 1.01) continue;
-        const stake = Math.max(Math.round(running / (odd - 1)), 10);
-        ladder.push({ step, stake });
-        if (step === "H") homeAmount = stake;
-        if (step === "D") drawAmount = stake;
-        if (step === "A") awayAmount = stake;
-        running += stake;
-      }
-      setOrderedStakes(ladder);
-      setAmounts({ winnerAmount: wStake, homeAmount, drawAmount, awayAmount });
-    } else {
-      setOrderedStakes([]);
-      setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  /* ── Normal game: build HDA ladder ── */
+  // USE THE LOCAL 'isSmall' HERE, NOT THE STATE 'isSmallOddsGame'
+  if (!isSmall) {
+    const oddsMap = { H: found.win, D: found.draw, A: found.lose };
+    let running = wStake;
+    let homeAmount = 0, drawAmount = 0, awayAmount = 0;
+    const ladder = [];
+    
+    // FALLBACK: If your data doesn't have .code, default to "HDA"
+    const gameCode = found.code || "HDA"; 
+
+    for (const step of gameCode) {
+      const odd = oddsMap[step];
+      if (!odd || odd <= 1.01) continue;
+      
+      const stake = Math.max(Math.round(running / (odd - 1)), 10);
+      ladder.push({ step, stake });
+      
+      if (step === "H") homeAmount = stake;
+      if (step === "D") drawAmount = stake;
+      if (step === "A") awayAmount = stake;
+      
+      running += stake;
     }
+    setOrderedStakes(ladder);
+    setAmounts({ winnerAmount: wStake, homeAmount, drawAmount, awayAmount });
+  } else {
+    setOrderedStakes([]);
+    setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+  }
 
-    /* ── Small odds assets — always calc regardless of game type ── */
-    const newSmallStakes = emptySmallStakes();
-    SMALL_KEYS.forEach(key => {
-      const odd = found[SMALL_ODD_KEY[key]] || 0;
-      if (odd <= 1.01) return;
-      const def = smallDefs[key] || 0;
-      newSmallStakes[key] = Math.max(Math.round((curSD + def) / (odd - 1)), 10);
-    });
-    setSmallStakes(newSmallStakes);
-  };
+  /* ── Small odds assets ── */
+  const newSmallStakes = emptySmallStakes();
+  SMALL_KEYS.forEach((key) => {
+    const odd = found[SMALL_ODD_KEY[key]] || 0;
+    if (odd <= 1.01) return;
+    const def = smallDefs[key] || 0;
+    // Use curSD (local) instead of smallDeficit (state)
+    newSmallStakes[key] = Math.max(Math.round((curSD + def) / (odd - 1)), 10);
+  });
+  setSmallStakes(newSmallStakes);
+};
+  
 
   /* ================================================================
      RESOLVE HDA (normal games only)
