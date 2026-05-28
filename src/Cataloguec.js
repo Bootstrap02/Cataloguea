@@ -92,9 +92,11 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit((prev) => prev + wStake);
 
+    if(is Small) {
+    setSmallDeficit((prev) => prev + wStake);
+    } 
+    
     /* ── Normal game: build HDA ladder ── */
     if (!isSmall) {
       const oddsMap = { H: found.win, D: found.draw, A: found.lose };
