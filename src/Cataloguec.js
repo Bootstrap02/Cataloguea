@@ -5,7 +5,7 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 
-// Standardized key names to fix the camelCase vs lowercase bugs
+// Standardized key names
 const SMALL_KEYS   = ["oneX", "twoX", "tg0", "tg6"];
 const SMALL_LABELS = { oneX: "1X", twoX: "2X", tg0: "0G", tg6: "6G" };
 const SMALL_ODD_KEY = { oneX: "oneX", twoX: "twoX", tg0: "zeroGoals", tg6: "sixGoals" };
@@ -34,8 +34,8 @@ const Homepage = () => {
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
   /* ── SMALL ODDS ASSETS ── */
-  const  [smallStakes, setSmallStakes] = useState(emptySmallStakes());
-  const  [smallDefs,   setSmallDefs]   = useState(emptySmallDefs()); // Using clean helper to ensure keys match exactly
+  const [smallStakes, setSmallStakes] = useState(emptySmallStakes());
+  const [smallDefs,   setSmallDefs]   = useState(emptySmallDefs());
 
   /* ── CLICKED / WINNERS ── */
   const [clicked,      setClicked]      = useState(new Set());
@@ -135,7 +135,6 @@ const Homepage = () => {
     setSmallStakes(newSmallStakes);
   };
   
-
   /* ================================================================
      RESOLVE HDA (normal games only)
      ================================================================ */
@@ -150,6 +149,9 @@ const Homepage = () => {
 
   /* ================================================================
      SMALL ODDS ASSET WIN
+     - Winning asset deficit becomes 0
+     - Small deficit becomes 0
+     - If small deficit was already 0 (second win), add shadow to bank
      ================================================================ */
   const markSmallWin = (key) => {
     if (!fixture || clicked.has(`small_${key}`)) return;
@@ -157,13 +159,16 @@ const Homepage = () => {
     setClicked(prev => new Set([...prev, `small_${key}`]));
     setSmallWinners(prev => new Set([...prev, key]));
 
+    // Set winning asset deficit to 0
     setSmallDefs(prev => ({ ...prev, [key]: 0 }));
 
     setSmallDeficit((prevSD) => {
       if (prevSD > 0) {
+        // First win: store current small deficit as shadow, set small deficit to 0
         setSmallDeficitShadow(prevSD);
         return 0;
       } else {
+        // Second win (small deficit already 0): add shadow to bank
         setBank((prevBank) => prevBank + smallDeficitShadow);
         setSmallDeficitShadow(0);
         return 0;
@@ -172,7 +177,9 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     NEXT — settle small odds assets + clear
+     NEXT — settle small odds assets
+     - Move non-winning asset deficits into small deficit
+     - Then set those asset deficits to 0
      ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
@@ -182,32 +189,32 @@ const Homepage = () => {
     let newShadow = smallDeficitShadow;
     let newBank = bank;
 
+    // Find which assets lost (didn't win this game)
     const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
 
-    // First handle normal losing asset stake accumulation
+    // Add losing asset stakes to their deficits
     lostKeys.forEach(k => {
       newDefs[k] += smallStakes[k] || 0;
     });
 
-    // Rounding Up logic: If there was a win during this fixture (meaning SD drops to 0)
+    // If small deficit is 0, move all losing asset deficits into small deficit
     if (newSD === 0) {
-      // Sum up the deficits of all losing assets
       const totalLosingDeficit = lostKeys.reduce((sum, k) => sum + newDefs[k], 0);
       newSD = totalLosingDeficit;
-
-      // Wipe out all individual asset deficits to 0
-      SMALL_KEYS.forEach(k => {
+      
+      // Set all losing asset deficits to 0
+      lostKeys.forEach(k => {
         newDefs[k] = 0;
       });
     }
 
-    // Apply accurate batch update states
+    // Apply updates
     setSmallDefs(newDefs);
     setSmallDeficit(newSD);
     setSmallDeficitShadow(newShadow);
     setBank(newBank);
 
-    // Write straight to storage avoiding standard async state-delay lag
+    // Save to localStorage
     handleSaveState({
       smallDeficit: newSD,
       smallDeficitShadow: newShadow,
@@ -225,6 +232,9 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setSmallDeficitShadow(0);
+    setBank(0);
+    // Reset all small deficits to 0
+    setSmallDefs(emptySmallDefs());
   };
 
   /* ── settle & clear ── */
@@ -286,7 +296,8 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── SMALL ODDS ASSETS — always shown ── */}
+        {/* ── SMALL ODDS ASSETS ── */}
+        <div className="text-[9px] text-gray-400 text-center tracking-widest">— SMALL ODDS —</div>
         <div className="grid grid-cols-4 gap-3">
           {SMALL_KEYS.map(key => {
             const won = smallWinners.has(key);
@@ -310,6 +321,9 @@ const Homepage = () => {
         </div>
 
         {/* ── HDA ROW (normal games only) ── */}
+        <div className={`text-[9px] text-gray-400 text-center tracking-widest transition-opacity ${isSmallOddsGame ? "opacity-30" : ""}`}>
+          — HDA (HOME / DRAW / AWAY) —
+        </div>
         <div className={`grid grid-cols-3 gap-3 transition-opacity ${isSmallOddsGame ? "opacity-30 pointer-events-none" : ""}`}>
           <button onClick={() => resolveResult("H")} disabled={!fixture || isSmallOddsGame}
             className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
