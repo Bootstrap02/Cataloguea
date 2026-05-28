@@ -19,25 +19,25 @@ const Homepage = () => {
   const [inputB, setInputB] = useState("");
   
   /* ── FIXTURE ── */
-  const [fixture,        setFixture]        = useState(null);
+  const [fixture, setFixture] = useState(null);
   const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
   /* ── WINNER / HDA ── */
-  const [baseStake,    setBaseStake]    = useState(10000);
-  const [deficit,      setDeficit]      = useState(0);
-  const [winnerStake,  setWinnerStake]  = useState(0);
+  const [baseStake, setBaseStake] = useState(10000);
+  const [deficit, setDeficit] = useState(0);
+  const [winnerStake, setWinnerStake] = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
   const [smallDeficitShadow, setSmallDeficitShadow] = useState(0);
-  const [bank,         setBank]         = useState(0);
+  const [bank, setBank] = useState(0);
   const [orderedStakes, setOrderedStakes] = useState([]);
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
   /* ── SMALL ODDS ASSETS ── */
-  const [smallDefs,   setSmallDefs]   = useState(emptySmallDefs());
+  const [smallDefs, setSmallDefs] = useState(emptySmallDefs());
   const [smallStakes, setSmallStakes] = useState(emptySmallStakes());
 
   /* ── CLICKED ── */
-  const [clicked,     setClicked]     = useState(new Set());
+  const [clicked, setClicked] = useState(new Set());
   const [smallWinners, setSmallWinners] = useState(new Set());
 
   /* ── LOAD SESSION ── */
@@ -45,7 +45,7 @@ const Homepage = () => {
     const saved = localStorage.getItem("virt-epl");
     if (saved) {
       const d = JSON.parse(saved);
-      setDeficit(d.deficit   || 0);
+      setDeficit(d.deficit || 0);
       setBaseStake(d.baseStake || 10000);
       setSmallDeficit(d.smallDeficit || 0);
       setSmallDeficitShadow(d.smallDeficitShadow || 0);
@@ -53,13 +53,6 @@ const Homepage = () => {
       setSmallDefs(d.smallDefs || emptySmallDefs());
     }
   }, []);
-
-  const handleSaveState = (updatedFields) => {
-    const current = {
-      deficit, baseStake, smallDeficit, smallDeficitShadow, bank, smallDefs, ...updatedFields
-    };
-    localStorage.setItem("virt-epl", JSON.stringify(current));
-  };
 
   /* ================================================================
      HANDLE SUBMIT
@@ -80,58 +73,58 @@ const Homepage = () => {
     setClicked(new Set());
     setSmallWinners(new Set());
 
+    // 1. Calculate Winner Stake
     const newBase = baseStake + deficit;
     setBaseStake(newBase);
     setDeficit(0);
-    
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
     
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
+    // 2. Only add to Small Deficit if it is a smallOdds game
+    let currentSD = smallDeficit;
+    if (isSmall) {
+      currentSD = smallDeficit + wStake;
+      setSmallDeficit(currentSD);
+    }
 
-    /* ── Normal game: build HDA ladder ── */
+    /* ── Normal game: HDA ladder recovers ONLY the current wStake ── */
     if (!isSmall) {
       const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-      let running = wStake;
-      let homeAmount = 0, drawAmount = 0, awayAmount = 0;
-      const ladder = [];
-      
       const gameCode = found.code || "HDA"; 
+      let running = wStake; 
+      let hAmt = 0, dAmt = 0, aAmt = 0;
+      const ladder = [];
 
       for (const step of gameCode) {
         const odd = oddsMap[step];
         if (!odd || odd <= 1.01) continue;
-        
         const stake = Math.max(Math.round(running / (odd - 1)), 10);
         ladder.push({ step, stake });
-        
-        if (step === "H") homeAmount = stake;
-        if (step === "D") drawAmount = stake;
-        if (step === "A") awayAmount = stake;
-        
+        if (step === "H") hAmt = stake;
+        if (step === "D") dAmt = stake;
+        if (step === "A") aAmt = stake;
         running += stake;
       }
       setOrderedStakes(ladder);
-      setAmounts({ winnerAmount: wStake, homeAmount, drawAmount, awayAmount });
+      setAmounts({ winnerAmount: wStake, homeAmount: hAmt, drawAmount: dAmt, awayAmount: aAmt });
     } else {
       setOrderedStakes([]);
       setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     }
 
-    /* ── Small odds assets ── */
+    /* ── Small odds assets stake calculation ── */
     const newSmallStakes = emptySmallStakes();
     SMALL_KEYS.forEach((key) => {
       const odd = found[SMALL_ODD_KEY[key]] || 0;
       if (odd <= 1.01) return;
       const def = smallDefs[key] || 0;
-      newSmallStakes[key] = Math.max(Math.round((curSD + def) / (odd - 1)), 10);
+      newSmallStakes[key] = Math.max(Math.round((currentSD + def) / (odd - 1)), 10);
     });
     setSmallStakes(newSmallStakes);
   };
-  
+
   /* ================================================================
-     RESOLVE HDA (normal games only)
+     RESOLVE HDA
      ================================================================ */
   const resolveResult = (step) => {
     if (!fixture || isSmallOddsGame) return;
@@ -140,11 +133,12 @@ const Homepage = () => {
     const idx = orderedStakes.findIndex(s => s.step === step);
     const newDeficit = orderedStakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
     
+    // Carry current small values through settle
     settleAndClear(newDeficit, smallDefs, smallDeficit, smallDeficitShadow, bank);
   };
 
   /* ================================================================
-     SMALL ODDS ASSET WIN
+     MARK SMALL WIN
      ================================================================ */
   const markSmallWin = (key) => {
     if (!fixture || clicked.has(`small_${key}`)) return;
@@ -153,53 +147,83 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     NEXT — settle small odds assets + clear
+     HANDLE NEXT
      ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
-    const newDefs = { ...smallDefs };
-    let newSD     = smallDeficit;
+    let newDefs = { ...smallDefs };
+    let newSD = smallDeficit;
     let newShadow = smallDeficitShadow;
-    let newBank   = bank;
+    let newBank = bank;
 
-    const wonKeys  = [...smallWinners];
+    const wonKeys = [...smallWinners];
     const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
 
-    if (wonKeys.length === 0) {
-      /* No wins: all stakes pile into their deficits */
-      SMALL_KEYS.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
-
-    } else {
-      /* 
-        Process sequential hits inside the transaction loop:
-        Rule A: First win instantly sets asset deficit to 0, and clears smallDeficit to 0.
-        Rule B: Subsequent wins check if smallDeficit is already 0. If yes, that asset deficit 
-                drops to 0 and the shadow adds to the bank.
-      */
+    if (wonKeys.length > 0) {
       wonKeys.forEach((key) => {
+        newDefs[key] = 0; // Asset deficit instantly 0
+
         if (newSD > 0) {
-          // First Win Event
-          newDefs[key] = 0;
+          // First win logic
           newShadow = newSD;
           newSD = 0;
         } else {
-          // Second / Multiple Win Event (smallDeficit is already 0)
-          newDefs[key] = 0;
+          // Second win logic (SD is already 0)
           newBank += newShadow;
           newShadow = 0;
         }
       });
-
-      /* Losing assets still pile their stakes into defs */
-      lostKeys.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
     }
 
-    // Pass downstream calculated states directly into your clean recovery router
+    // Add stakes of losing assets to their individual deficits
+    lostKeys.forEach(k => {
+      newDefs[k] += (smallStakes[k] || 0);
+    });
+
+    // Recovery Shift: If SD is 0, move all asset deficits into it
+    if (newSD === 0) {
+      const sumAllAssets = Object.values(newDefs).reduce((a, b) => a + b, 0);
+      newSD = sumAllAssets;
+      newDefs = emptySmallDefs(); 
+    }
+
     settleAndClear(deficit, newDefs, newSD, newShadow, newBank);
   };
 
-  /* ── 6-0 jackpot ── */
+  /* ================================================================
+     SETTLE & CLEAR
+     ================================================================ */
+  const settleAndClear = (d, sDefs, sD, sShad, bnk) => {
+    // Reset UI
+    setFixture(null);
+    setIsSmallOddsGame(false);
+    setClicked(new Set());
+    setSmallWinners(new Set());
+    setOrderedStakes([]);
+    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    setSmallStakes(emptySmallStakes());
+    setWinnerStake(0);
+    setInputA(""); 
+    setInputB("");
+
+    // Update Stats
+    setDeficit(d);
+    setSmallDefs(sDefs);
+    setSmallDeficit(sD);
+    setSmallDeficitShadow(sShad);
+    setBank(bnk);
+
+    localStorage.setItem("virt-epl", JSON.stringify({
+      deficit: d,
+      baseStake: baseStake,
+      smallDeficit: sD,
+      smallDeficitShadow: sShad,
+      bank: bnk,
+      smallDefs: sDefs
+    }));
+  };
+
   const handleJackpot = () => {
     setClicked(prev => new Set([...prev, "six"]));
     setBaseStake(10000);
@@ -208,63 +232,11 @@ const Homepage = () => {
     setSmallDeficitShadow(0);
   };
 
-  /* ================================================================
-     SETTLE & CLEAR (Calculates your recovery shift rules)
-     ================================================================ */
-  const settleAndClear = (nextDeficit, nextDefs, nextSD, nextShadow, nextBank) => {
-    let finalSD = nextSD;
-    let finalDefs = { ...nextDefs };
-
-    /* 
-      Rule C: In clear function, if small deficit dropped to 0, move the total 
-      accumulated sum of ALL four asset deficits into smallDeficit, and drop them to 0.
-    */
-    if (finalSD === 0) {
-      const sumOfAllAssets = SMALL_KEYS.reduce((sum, k) => sum + (finalDefs[k] || 0), 0);
-      finalSD = sumOfAllAssets;
-      
-      // Wipe asset defs back down to 0
-      SMALL_KEYS.forEach(k => {
-        finalDefs[k] = 0;
-      });
-    }
-
-    // Apply synchronized states
-    setDeficit(nextDeficit);
-    setSmallDefs(finalDefs);
-    setSmallDeficit(finalSD);
-    setSmallDeficitShadow(nextShadow);
-    setBank(nextBank);
-
-    // Context Flush UI cleanup
-    setInputA(""); 
-    setInputB("");
-    setFixture(null);
-    setIsSmallOddsGame(false);
-    setOrderedStakes([]);
-    setClicked(new Set());
-    setSmallWinners(new Set());
-    setWinnerStake(0);
-    setSmallStakes(emptySmallStakes());
-    setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-
-    // LocalStorage Mirror Save
-    localStorage.setItem("virt-epl", JSON.stringify({
-      deficit: nextDeficit,
-      baseStake: baseStake,
-      smallDeficit: finalSD,
-      smallDeficitShadow: nextShadow,
-      bank: nextBank,
-      smallDefs: finalDefs
-    }));
-  };
-
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
-
       {/* TOP BAR */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
         <h1 className="text-base font-extrabold text-red-400 tracking-tight">
@@ -276,7 +248,7 @@ const Homepage = () => {
           )}
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={() => handleSaveState()}
+          <button onClick={() => settleAndClear(deficit, smallDefs, smallDeficit, smallDeficitShadow, bank)}
             className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
             💾 Save
           </button>
@@ -289,8 +261,7 @@ const Homepage = () => {
       </div>
 
       <div className="flex-1 flex flex-col px-4 pb-6 gap-4 overflow-y-auto">
-
-        {/* ── WINNER ROW (6-0) ── */}
+        {/* 6-0 JACKPOT */}
         <div className="grid grid-cols-1 gap-3">
           <button onClick={handleJackpot}
             className={`py-5 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${
@@ -301,14 +272,14 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── SMALL ODDS ASSETS ── */}
+        {/* SMALL ODDS ASSETS */}
         <div className="grid grid-cols-4 gap-3">
           {SMALL_KEYS.map(key => {
             const won = smallWinners.has(key);
             const color = SMALL_COLORS[key];
             return (
               <button key={key} onClick={() => markSmallWin(key)}
-                disabled={!fixture || clicked.has(`small_${key}`)}
+                disabled={!fixture}
                 className={`py-4 rounded-2xl font-bold text-sm transition active:scale-95 shadow ${
                   won
                     ? "bg-white text-green-600 ring-2 ring-green-400"
@@ -324,38 +295,32 @@ const Homepage = () => {
           })}
         </div>
 
-        {/* ── HDA ROW ── */}
+        {/* HDA ROW */}
         <div className={`grid grid-cols-3 gap-3 transition-opacity ${isSmallOddsGame ? "opacity-30 pointer-events-none" : ""}`}>
           <button onClick={() => resolveResult("H")} disabled={!fixture || isSmallOddsGame}
             className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
-              clicked.has("hda_H") ? "bg-white text-green-600 ring-2 ring-green-500"
-              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
-              : "bg-green-500 hover:bg-green-400"
+              clicked.has("hda_H") ? "bg-white text-green-600 ring-2 ring-green-500" : "bg-green-500 hover:bg-green-400"
             }`}>
             <div className="text-base font-extrabold uppercase">{teamA}</div>
             <div className="text-[11px] mt-1 opacity-80">{amounts.homeAmount || "–"}</div>
           </button>
           <button onClick={() => resolveResult("D")} disabled={!fixture || isSmallOddsGame}
             className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
-              clicked.has("hda_D") ? "bg-white text-gray-600 ring-2 ring-gray-400"
-              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
-              : "bg-gray-400 hover:bg-gray-300"
+              clicked.has("hda_D") ? "bg-white text-gray-600 ring-2 ring-gray-400" : "bg-gray-400 hover:bg-gray-300"
             }`}>
-            <div className="text-base font-extrabold">DRAW</div>
+            <div className="text-base font-extrabold uppercase">DRAW</div>
             <div className="text-[11px] mt-1 opacity-80">{amounts.drawAmount || "–"}</div>
           </button>
           <button onClick={() => resolveResult("A")} disabled={!fixture || isSmallOddsGame}
             className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
-              clicked.has("hda_A") ? "bg-white text-red-600 ring-2 ring-red-500"
-              : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed"
-              : "bg-red-500 hover:bg-red-400"
+              clicked.has("hda_A") ? "bg-white text-red-600 ring-2 ring-red-500" : "bg-red-500 hover:bg-red-400"
             }`}>
             <div className="text-base font-extrabold uppercase">{teamB}</div>
             <div className="text-[11px] mt-1 opacity-80">{amounts.awayAmount || "–"}</div>
           </button>
         </div>
 
-        {/* ── INPUTS + ACTIONS ── */}
+        {/* INPUTS & ACTIONS */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
@@ -366,42 +331,23 @@ const Homepage = () => {
           </div>
           <div className="flex gap-3">
             <button onClick={handleSubmit} disabled={!!fixture}
-              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${
-                fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-red-700 hover:bg-red-600 text-white"
-              }`}>
-              CALCULATE
-            </button>
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition shadow ${
+                fixture ? "bg-gray-700 opacity-50" : "bg-red-700 hover:bg-red-600"
+              }`}>CALCULATE</button>
             <button onClick={handleNext} disabled={!fixture}
-              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 shadow ${
-                !fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-green-700 hover:bg-green-600 text-white"
-              }`}>
-              NEXT
-            </button>
+              className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition shadow ${
+                !fixture ? "bg-gray-700 opacity-50" : "bg-green-700 hover:bg-green-600"
+              }`}>NEXT</button>
           </div>
         </div>
 
-        {/* ── STATS ── */}
+        {/* STATS */}
         <div className="bg-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Base</span>
-            <strong className="text-green-400">{baseStake}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Deficit</span>
-            <strong className="text-red-400">{deficit}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Small Def</span>
-            <strong className="text-blue-400">{smallDeficit}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">SD Shadow</span>
-            <strong className="text-blue-300">{smallDeficitShadow}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Bank</span>
-            <strong className="text-emerald-400">{bank}</strong>
-          </div>
+          <div className="flex justify-between"><span>Base</span><strong className="text-green-400">{baseStake}</strong></div>
+          <div className="flex justify-between"><span>Deficit</span><strong className="text-red-400">{deficit}</strong></div>
+          <div className="flex justify-between"><span>Small Def</span><strong className="text-blue-400">{smallDeficit}</strong></div>
+          <div className="flex justify-between"><span>SD Shadow</span><strong className="text-blue-300">{smallDeficitShadow}</strong></div>
+          <div className="flex justify-between"><span>Bank</span><strong className="text-emerald-400">{bank}</strong></div>
           <div className="col-span-2 border-t border-white/10 pt-2 grid grid-cols-2 gap-x-6 gap-y-1">
             {SMALL_KEYS.map(key => (
               <div key={key} className="flex justify-between">
@@ -410,16 +356,7 @@ const Homepage = () => {
               </div>
             ))}
           </div>
-          {fixture && (
-            <div className="col-span-2 pt-2 border-t border-white/10 text-center">
-              <span className="text-white font-bold uppercase">{teamA}</span>
-              <span className="text-gray-400 mx-2">vs</span>
-              <span className="text-white font-bold uppercase">{teamB}</span>
-              {isSmallOddsGame && <span className="ml-2 text-yellow-400 font-bold text-[10px]">· SMALL ODDS</span>}
-            </div>
-          )}
         </div>
-
       </div>
     </div>
   );
