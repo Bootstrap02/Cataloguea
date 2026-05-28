@@ -93,7 +93,7 @@ const Homepage = () => {
     setWinnerStake(wStake);
 
     const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
+    setSmallDeficit((prev) => prev + wStake);
 
     /* ── Normal game: build HDA ladder ── */
     if (!isSmall) {
