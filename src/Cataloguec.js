@@ -168,6 +168,7 @@ const Homepage = () => {
         return 0;
       } else {
         setBank((prevBank) => prevBank + smallDeficitShadow);
+        setBaseStake((prevBaseStake) => prevBaseStake + smallDeficitShadow);
         setSmallDeficitShadow(0);
         return 0;
       }
@@ -220,9 +221,8 @@ const Homepage = () => {
     setClicked(prev => new Set([...prev, "six"]));
     setBaseStake(10000);
     setDeficit(0);
-    setSmallDeficit(0);
-    setSmallDeficitShadow(0);
-    setBank(0);
+    
+  
   };
 
   /* ── settle & clear ── */
