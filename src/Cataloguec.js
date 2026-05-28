@@ -54,86 +54,82 @@ const Homepage = () => {
     }
   }, []);
 
-  const handleSave = () => {
-    localStorage.setItem("virt-epl", JSON.stringify({
-      deficit, baseStake, smallDeficit, smallDeficitShadow, bank, smallDefs
-    }));
+  const handleSaveState = (updatedFields) => {
+    const current = {
+      deficit, baseStake, smallDeficit, smallDeficitShadow, bank, smallDefs, ...updatedFields
+    };
+    localStorage.setItem("virt-epl", JSON.stringify(current));
   };
 
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
   const handleSubmit = (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const home = sanitizeTeam(inputA) || "liv";
-  const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "liv";
+    const away = sanitizeTeam(inputB) || "liv";
 
-  let found = smallOdds.find((o) => o.home === home && o.away === away);
-  const isSmall = !!found;
-  if (!found) found = odds.find((o) => o.home === home && o.away === away);
-  if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+    let found = smallOdds.find((o) => o.home === home && o.away === away);
+    const isSmall = !!found;
+    if (!found) found = odds.find((o) => o.home === home && o.away === away);
+    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
-  setFixture(found);
-  setIsSmallOddsGame(isSmall);
-  setClicked(new Set());
-  setSmallWinners(new Set());
+    setFixture(found);
+    setIsSmallOddsGame(isSmall);
+    setClicked(new Set());
+    setSmallWinners(new Set());
 
-  const newBase = baseStake + deficit;
-  setBaseStake(newBase);
-  setDeficit(0);
-  
-  const wStake = Math.max(Math.round(newBase / found.winner), 10);
-  setWinnerStake(wStake);
-  
-  // Use a local variable for the updated deficit to ensure accuracy
-  const curSD = smallDeficit + wStake;
-  setSmallDeficit(curSD);
-
-  /* ── Normal game: build HDA ladder ── */
-  // USE THE LOCAL 'isSmall' HERE, NOT THE STATE 'isSmallOddsGame'
-  if (!isSmall) {
-    const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-    let running = wStake;
-    let homeAmount = 0, drawAmount = 0, awayAmount = 0;
-    const ladder = [];
+    const newBase = baseStake + deficit;
+    setBaseStake(newBase);
+    setDeficit(0);
     
-    // FALLBACK: If your data doesn't have .code, default to "HDA"
-    const gameCode = found.code || "HDA"; 
+    const wStake = Math.max(Math.round(newBase / found.winner), 10);
+    setWinnerStake(wStake);
+    
+    const curSD = smallDeficit + wStake;
+    setSmallDeficit(curSD);
 
-    for (const step of gameCode) {
-      const odd = oddsMap[step];
-      if (!odd || odd <= 1.01) continue;
+    /* ── Normal game: build HDA ladder ── */
+    if (!isSmall) {
+      const oddsMap = { H: found.win, D: found.draw, A: found.lose };
+      let running = wStake;
+      let homeAmount = 0, drawAmount = 0, awayAmount = 0;
+      const ladder = [];
       
-      const stake = Math.max(Math.round(running / (odd - 1)), 10);
-      ladder.push({ step, stake });
-      
-      if (step === "H") homeAmount = stake;
-      if (step === "D") drawAmount = stake;
-      if (step === "A") awayAmount = stake;
-      
-      running += stake;
+      const gameCode = found.code || "HDA"; 
+
+      for (const step of gameCode) {
+        const odd = oddsMap[step];
+        if (!odd || odd <= 1.01) continue;
+        
+        const stake = Math.max(Math.round(running / (odd - 1)), 10);
+        ladder.push({ step, stake });
+        
+        if (step === "H") homeAmount = stake;
+        if (step === "D") drawAmount = stake;
+        if (step === "A") awayAmount = stake;
+        
+        running += stake;
+      }
+      setOrderedStakes(ladder);
+      setAmounts({ winnerAmount: wStake, homeAmount, drawAmount, awayAmount });
+    } else {
+      setOrderedStakes([]);
+      setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     }
-    setOrderedStakes(ladder);
-    setAmounts({ winnerAmount: wStake, homeAmount, drawAmount, awayAmount });
-  } else {
-    setOrderedStakes([]);
-    setAmounts({ winnerAmount: wStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-  }
 
-  /* ── Small odds assets ── */
-  const newSmallStakes = emptySmallStakes();
-  SMALL_KEYS.forEach((key) => {
-    const odd = found[SMALL_ODD_KEY[key]] || 0;
-    if (odd <= 1.01) return;
-    const def = smallDefs[key] || 0;
-    // Use curSD (local) instead of smallDeficit (state)
-    newSmallStakes[key] = Math.max(Math.round((curSD + def) / (odd - 1)), 10);
-  });
-  setSmallStakes(newSmallStakes);
-};
+    /* ── Small odds assets ── */
+    const newSmallStakes = emptySmallStakes();
+    SMALL_KEYS.forEach((key) => {
+      const odd = found[SMALL_ODD_KEY[key]] || 0;
+      if (odd <= 1.01) return;
+      const def = smallDefs[key] || 0;
+      newSmallStakes[key] = Math.max(Math.round((curSD + def) / (odd - 1)), 10);
+    });
+    setSmallStakes(newSmallStakes);
+  };
   
-
   /* ================================================================
      RESOLVE HDA (normal games only)
      ================================================================ */
@@ -143,8 +139,8 @@ const Homepage = () => {
 
     const idx = orderedStakes.findIndex(s => s.step === step);
     const newDeficit = orderedStakes.slice(idx + 1).reduce((sum, s) => sum + s.stake, 0);
-    setDeficit(newDeficit);
-    settleAndClear();
+    
+    settleAndClear(newDeficit, smallDefs, smallDeficit, smallDeficitShadow, bank);
   };
 
   /* ================================================================
@@ -174,46 +170,33 @@ const Homepage = () => {
       /* No wins: all stakes pile into their deficits */
       SMALL_KEYS.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
 
-    } else if (wonKeys.length === 1) {
-      /* First win: clear smallDeficit, push other assets' deficits into smallDeficit */
-      const winKey = wonKeys[0];
-      newDefs[winKey] = 0;
-      newShadow = newSD;
-      newSD = 0;
-      /* Push losing assets' deficits into smallDeficit */
-      lostKeys.forEach(k => {
-        newSD += newDefs[k];
-      });
-      /* Losing assets still pile their stakes into defs */
-      lostKeys.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
-
     } else {
-      /* Multiple wins: first win clears SD, second win shadow → bank */
-      const [firstWin, ...restWins] = wonKeys;
-      newDefs[firstWin] = 0;
-      /* Shadow → bank for second win */
-      restWins.forEach(() => {
-        newBank += newShadow;
-        newShadow = 0;
+      /* 
+        Process sequential hits inside the transaction loop:
+        Rule A: First win instantly sets asset deficit to 0, and clears smallDeficit to 0.
+        Rule B: Subsequent wins check if smallDeficit is already 0. If yes, that asset deficit 
+                drops to 0 and the shadow adds to the bank.
+      */
+      wonKeys.forEach((key) => {
+        if (newSD > 0) {
+          // First Win Event
+          newDefs[key] = 0;
+          newShadow = newSD;
+          newSD = 0;
+        } else {
+          // Second / Multiple Win Event (smallDeficit is already 0)
+          newDefs[key] = 0;
+          newBank += newShadow;
+          newShadow = 0;
+        }
       });
-      restWins.forEach(k => { newDefs[k] = 0; });
-      newSD = 0;
-      /* Losing assets pile stakes */
+
+      /* Losing assets still pile their stakes into defs */
       lostKeys.forEach(k => { newDefs[k] += smallStakes[k] || 0; });
     }
 
-    setSmallDefs(newDefs);
-    setSmallDeficit(newSD);
-    setSmallDeficitShadow(newShadow);
-    setBank(newBank);
-
-    /* Save updated state */
-    localStorage.setItem("virt-epl", JSON.stringify({
-      deficit, baseStake: baseStake, smallDeficit: newSD,
-      smallDeficitShadow: newShadow, bank: newBank, smallDefs: newDefs
-    }));
-
-    settleAndClear();
+    // Pass downstream calculated states directly into your clean recovery router
+    settleAndClear(deficit, newDefs, newSD, newShadow, newBank);
   };
 
   /* ── 6-0 jackpot ── */
@@ -225,9 +208,37 @@ const Homepage = () => {
     setSmallDeficitShadow(0);
   };
 
-  /* ── settle & clear ── */
-  const settleAndClear = () => {
-    setInputA(""); setInputB("");
+  /* ================================================================
+     SETTLE & CLEAR (Calculates your recovery shift rules)
+     ================================================================ */
+  const settleAndClear = (nextDeficit, nextDefs, nextSD, nextShadow, nextBank) => {
+    let finalSD = nextSD;
+    let finalDefs = { ...nextDefs };
+
+    /* 
+      Rule C: In clear function, if small deficit dropped to 0, move the total 
+      accumulated sum of ALL four asset deficits into smallDeficit, and drop them to 0.
+    */
+    if (finalSD === 0) {
+      const sumOfAllAssets = SMALL_KEYS.reduce((sum, k) => sum + (finalDefs[k] || 0), 0);
+      finalSD = sumOfAllAssets;
+      
+      // Wipe asset defs back down to 0
+      SMALL_KEYS.forEach(k => {
+        finalDefs[k] = 0;
+      });
+    }
+
+    // Apply synchronized states
+    setDeficit(nextDeficit);
+    setSmallDefs(finalDefs);
+    setSmallDeficit(finalSD);
+    setSmallDeficitShadow(nextShadow);
+    setBank(nextBank);
+
+    // Context Flush UI cleanup
+    setInputA(""); 
+    setInputB("");
     setFixture(null);
     setIsSmallOddsGame(false);
     setOrderedStakes([]);
@@ -236,15 +247,21 @@ const Homepage = () => {
     setWinnerStake(0);
     setSmallStakes(emptySmallStakes());
     setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
-    handleSave();
+
+    // LocalStorage Mirror Save
+    localStorage.setItem("virt-epl", JSON.stringify({
+      deficit: nextDeficit,
+      baseStake: baseStake,
+      smallDeficit: finalSD,
+      smallDeficitShadow: nextShadow,
+      bank: nextBank,
+      smallDefs: finalDefs
+    }));
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
@@ -259,7 +276,7 @@ const Homepage = () => {
           )}
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={handleSave}
+          <button onClick={() => handleSaveState()}
             className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
             💾 Save
           </button>
@@ -284,7 +301,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* ── SMALL ODDS ASSETS — always shown ── */}
+        {/* ── SMALL ODDS ASSETS ── */}
         <div className="grid grid-cols-4 gap-3">
           {SMALL_KEYS.map(key => {
             const won = smallWinners.has(key);
@@ -307,7 +324,7 @@ const Homepage = () => {
           })}
         </div>
 
-        {/* ── HDA ROW (normal games only) ── */}
+        {/* ── HDA ROW ── */}
         <div className={`grid grid-cols-3 gap-3 transition-opacity ${isSmallOddsGame ? "opacity-30 pointer-events-none" : ""}`}>
           <button onClick={() => resolveResult("H")} disabled={!fixture || isSmallOddsGame}
             className={`py-5 rounded-2xl font-bold text-sm transition active:scale-95 shadow text-white ${
