@@ -256,7 +256,8 @@ const Homepage = () => {
   };
 
   /* ---------- 6-0 ---------- */
-  if (!isSmallOddsGame) {
+
+    if (!isSmallOddsGame) {
     const mainLoss = calcLoss("6-0");
 
     setDeficit(mainLoss);
