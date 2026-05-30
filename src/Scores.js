@@ -1,23 +1,24 @@
-
 export const odds = [
-  { id: "livmnu", home: "liv", away: "mnu", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, oneX: 14.8, twoX: 14.8, zeroGoals: 15, sixGoals: 17.3 },
-  { id: "livnew", home: "liv", away: "new", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, oneX: 14.8, twoX: 14.8, zeroGoals: 15, sixGoals: 17.3 },
-  { id: "livche", home: "liv", away: "che", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, oneX: 14.8, twoX: 14.8, zeroGoals: 15, sixGoals: 17.3 },
-  { id: "mnuliv", home: "mnu", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, oneX: 15.7, twoX: 15.7, zeroGoals: 12.9, sixGoals: 22 },
-  { id: "newliv", home: "new", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, oneX: 15.7, twoX: 15.7, zeroGoals: 12.9, sixGoals: 22 },
-  { id: "cheliv", home: "che", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, oneX: 15.7, twoX: 15.7, zeroGoals: 12.9, sixGoals: 22 },
-  { id: "astliv", home: "ast", away: "liv", winner: 847, win: 4.17, draw: 3.82, lose: 1.83, oneX: 16.8, twoX: 16.8, zeroGoals: 13, sixGoals: 23.7 },
-  { id: "totliv", home: "tot", away: "liv", winner: 847, win: 4.17, draw: 3.82, lose: 1.83, oneX: 16.8, twoX: 16.8, zeroGoals: 13, sixGoals: 23.7 },
-  { id: "mncliv", home: "mnc", away: "liv", winner: 1226, win: 2.87, draw: 3.56, lose: 2.38, oneX: 14.8, twoX: 14.8, zeroGoals: 13.8, sixGoals: 20.5 },
-  { id: "arsliv", home: "ars", away: "liv", winner: 1226, win: 2.87, draw: 3.56, lose: 2.38, oneX: 14.8, twoX: 14.8, zeroGoals: 13.8, sixGoals: 20.5 },
-  { id: "livmnc", home: "liv", away: "mnc", winner: 568, win: 2.13, draw: 3.19, lose: 3.76, oneX: 13.8, twoX: 13.8, zeroGoals: 11.1, sixGoals: 19 },
-  { id: "livars", home: "liv", away: "ars", winner: 568, win: 2.13, draw: 3.19, lose: 3.76, oneX: 13.8, twoX: 13.8, zeroGoals: 11.1, sixGoals: 19 },
-  { id: "notliv", home: "not", away: "liv", winner: 560, win: 5.09, draw: 3.92, lose: 1.67, oneX: 16.4, twoX: 16.4, zeroGoals: 14.8, sixGoals: 21.2 },
-  { id: "bhaliv", home: "bha", away: "liv", winner: 560, win: 5.09, draw: 3.92, lose: 1.67, oneX: 16.4, twoX: 16.4, zeroGoals: 14.8, sixGoals: 21.2 },
-  { id: "bouliv", home: "bou", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, oneX: 18.4, twoX: 18.4, zeroGoals: 16.7, sixGoals: 20.1 },
-  { id: "fulliv", home: "ful", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, oneX: 18.4, twoX: 18.4, zeroGoals: 16.7, sixGoals: 20.1 },
-  { id: "cryliv", home: "cry", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, oneX: 18.4, twoX: 18.4, zeroGoals: 16.7, sixGoals: 20.1 }
+  { id: "livmnu", home: "liv", away: "mnu", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, fiveZero: 98.5, fiveOne: 86.1 },
+  { id: "livnew", home: "liv", away: "new", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, fiveZero: 98.5, fiveOne: 86.1 },
+  { id: "livche", home: "liv", away: "che", winner: 327, win: 1.77, draw: 3.65, lose: 4.73, fiveZero: 98.5, fiveOne: 86.1 },
+  { id: "mnuliv", home: "mnu", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183 },
+  { id: "newliv", home: "new", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183 },
+  { id: "cheliv", home: "che", away: "liv", winner: 1140, win: 3.53, draw: 3.66, lose: 2.03, fiveZero: 269, fiveOne: 183 },
+  { id: "astliv", home: "ast", away: "liv", winner: 847, win: 4.17, draw: 3.82, lose: 1.83, fiveZero: 211, fiveOne: 156 },
+  { id: "totliv", home: "tot", away: "liv", winner: 847, win: 4.17, draw: 3.82, lose: 1.83, fiveZero: 211, fiveOne: 156 },
+  { id: "mncliv", home: "mnc", away: "liv", winner: 1226, win: 2.87, draw: 3.56, lose: 2.38, fiveZero: 288, fiveOne: 202 },
+  { id: "arsliv", home: "ars", away: "liv", winner: 1226, win: 2.87, draw: 3.56, lose: 2.38, fiveZero: 288, fiveOne: 202 },
+  { id: "livmnc", home: "liv", away: "mnc", winner: 568, win: 2.13, draw: 3.19, lose: 3.76, fiveZero: 157, fiveOne: 126 },
+  { id: "livars", home: "liv", away: "ars", winner: 568, win: 2.13, draw: 3.19, lose: 3.76, fiveZero: 157, fiveOne: 126 },
+  { id: "notliv", home: "not", away: "liv", winner: 560, win: 5.09, draw: 3.92, lose: 1.67, fiveZero: 145, fiveOne: 118 },
+  { id: "bhaliv", home: "bha", away: "liv", winner: 560, win: 5.09, draw: 3.92, lose: 1.67, fiveZero: 145, fiveOne: 118 },
+  { id: "bouliv", home: "bou", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, fiveZero: 109, fiveOne: 93 },
+  { id: "fulliv", home: "ful", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, fiveZero: 109, fiveOne: 93 },
+  { id: "cryliv", home: "cry", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, fiveZero: 109, fiveOne: 93 }
 ];
+
+
 
 export const smallOdds = [
   { id: "livcry", home: "liv", away: "cry", winner: 105, fiveZero: 40.4, fiveOne: 45.5, zeroGoals: 14.7, oneGoal: 6.65, twoGoals: 4.17, threeGoals: 3.99, fourGoals: 5, fiveGoals: 8.14, sixGoals: 15.5 },
