@@ -118,8 +118,8 @@ const Homepage = () => {
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
 
     let found = smallOdds.find(o => o.home === home && o.away === away);
     const isSmall = !!found;
@@ -173,35 +173,59 @@ const Homepage = () => {
       setGroupBStakes(newGB);
 
       /* 5-0 and 5-1 still play HDA in small odds games */
-      const base50 = baseDeficit + zeroDeficit;
-      const zW = Math.max(Math.round(base50 / found.fiveZero), 10);
-      const r50 = buildLadder(zW, "5-0", found);
-      setZeroAmounts({ winnerAmount: zW, homeAmount: r50.H, drawAmount: r50.D, awayAmount: r50.A });
+      let smallStakesList = [];
 
-      const base51 = baseDeficit + oneDeficit;
-      const oW = Math.max(Math.round(base51 / found.fiveOne), 10);
-      const r51 = buildLadder(oW, "5-1", found);
-      setOneAmounts({ winnerAmount: oW, homeAmount: r51.H, drawAmount: r51.D, awayAmount: r51.A });
+      if (found.fiveZero) {
+        const base50 = baseDeficit + zeroDeficit;
+        const zW = Math.max(Math.round(base50 / found.fiveZero), 10);
+        const r50 = buildLadder(zW, "5-0", found);
+        setZeroAmounts({ winnerAmount: zW, homeAmount: r50.H, drawAmount: r50.D, awayAmount: r50.A });
+        smallStakesList = [...smallStakesList, ...r50.ladder];
+      } else {
+        setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+      }
 
-      setOrderedStakes([...r50.ladder, ...r51.ladder]);
+      if (found.fiveOne) {
+        const base51 = baseDeficit + oneDeficit;
+        const oW = Math.max(Math.round(base51 / found.fiveOne), 10);
+        const r51 = buildLadder(oW, "5-1", found);
+        setOneAmounts({ winnerAmount: oW, homeAmount: r51.H, drawAmount: r51.D, awayAmount: r51.A });
+        smallStakesList = [...smallStakesList, ...r51.ladder];
+      } else {
+        setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+      }
+
+      setOrderedStakes(smallStakesList);
       setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
     } else {
       /* ── NORMAL GAME: full HDA for all three ── */
-      const r6  = buildLadder(winnerAmt, "6-0", found);
+      const r6 = buildLadder(winnerAmt, "6-0", found);
       setAmounts({ winnerAmount: winnerAmt, homeAmount: r6.H, drawAmount: r6.D, awayAmount: r6.A });
 
-      const base50 = baseDeficit + zeroDeficit;
-      const zW = Math.max(Math.round(base50 / found.fiveZero), 10);
-      const r50 = buildLadder(zW, "5-0", found);
-      setZeroAmounts({ winnerAmount: zW, homeAmount: r50.H, drawAmount: r50.D, awayAmount: r50.A });
+      let allStakes = [...r6.ladder];
 
-      const base51 = baseDeficit + oneDeficit;
-      const oW = Math.max(Math.round(base51 / found.fiveOne), 10);
-      const r51 = buildLadder(oW, "5-1", found);
-      setOneAmounts({ winnerAmount: oW, homeAmount: r51.H, drawAmount: r51.D, awayAmount: r51.A });
+      if (found.fiveZero) {
+        const base50 = baseDeficit + zeroDeficit;
+        const zW = Math.max(Math.round(base50 / found.fiveZero), 10);
+        const r50 = buildLadder(zW, "5-0", found);
+        setZeroAmounts({ winnerAmount: zW, homeAmount: r50.H, drawAmount: r50.D, awayAmount: r50.A });
+        allStakes = [...allStakes, ...r50.ladder];
+      } else {
+        setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+      }
 
-      setOrderedStakes([...r6.ladder, ...r50.ladder, ...r51.ladder]);
+      if (found.fiveOne) {
+        const base51 = baseDeficit + oneDeficit;
+        const oW = Math.max(Math.round(base51 / found.fiveOne), 10);
+        const r51 = buildLadder(oW, "5-1", found);
+        setOneAmounts({ winnerAmount: oW, homeAmount: r51.H, drawAmount: r51.D, awayAmount: r51.A });
+        allStakes = [...allStakes, ...r51.ladder];
+      } else {
+        setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+      }
+
+      setOrderedStakes(allStakes);
       setGroupAStakes({ zeroGoals: 0, sixGoals: 0, fiveGoals: 0 });
       setGroupBStakes(emptyGroupB());
     }
@@ -218,7 +242,9 @@ const Homepage = () => {
       const s = orderedStakes.filter(x => x.type === type);
       const idx = s.findIndex(x => x.step === step);
       if (idx === -1) return 0;
-      return s.slice(idx + 1).reduce((sum, x) => sum + x.stake, 0);
+      // Stakes BEFORE the winning step are the unrecovered losses
+      // Stakes AFTER are covered by the winner's payout
+      return s.slice(0, idx).reduce((sum, x) => sum + x.stake, 0);
     };
 
     if (!isSmallOddsGame) {
