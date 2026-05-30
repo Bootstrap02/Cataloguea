@@ -346,25 +346,35 @@ const Homepage = () => {
   /* ================================================================
      NEXT FUNCTION
      ================================================================ */
-  const handleNext = () => {
+
+  
+    const handleNext = () => {
     if (!fixture) return;
 
     if (isSmallOddsGame) {
+      // 1. Create a local copy of current deficits to work with immediately
       let currentDeficits = { ...groupBDeficits };
+
+      // 2. Add losing stakes to the deficits of assets that didn't win
       GROUP_B.forEach(k => {
         if (!clicked.has(`gb_${k}`) && groupBStakes[k] > 0) {
           currentDeficits[k] = (Number(currentDeficits[k]) || 0) + Number(groupBStakes[k]);
         }
+        // Note: Winners were already set to 0 in handleGroupBWin
       });
 
+      // 3. If any win happened, redistribute the TOTAL of this local object
       if (groupBWinHappened) {
         const totalDeficit = GROUP_B.reduce((sum, k) => sum + (Number(currentDeficits[k]) || 0), 0);
         const equalShare = Math.floor(totalDeficit / 5);
+
+        // Apply the equal share to ALL assets (including the previous winners)
         GROUP_B.forEach(k => {
           currentDeficits[k] = equalShare;
         });
       }
       
+      // 4. Update the state once with the final calculated object
       setGroupBDeficits(currentDeficits);
       setGroupAWinCount(0);
     }
