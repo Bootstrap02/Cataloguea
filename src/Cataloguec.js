@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -55,6 +54,7 @@ const Homepage = () => {
 
   /* ── CLICKED ── */
   const [clicked, setClicked] = useState(new Set());
+  const [groupBWinners, setGroupBWinners] = useState(new Set());
 
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
@@ -275,27 +275,23 @@ const Homepage = () => {
   const handleGroupBWin = (key) => {
     if (!fixture || clicked.has(`gb_${key}`)) return;
     setClicked(prev => new Set([...prev, `gb_${key}`]));
+    setGroupBWinners(prev => new Set([...prev, key]));
 
     const newTargets  = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    /* Winner: clear target and deficit first */
+    /* Winner: clear target and deficit, set to 21 */
     newTargets[key]  = 0;
-    newDeficits[key] = 0;
+    newDeficits[key] = 21;
 
-    /* Each of the other 3 assets gives 7 to the winner */
-    let bonus = 0;
+    /* Each of the other 3 assets loses 7 unconditionally */
     GROUP_B.forEach(k => {
       if (k === key) return;
-      const give = Math.min(7, newDeficits[k] || 0);
-      newDeficits[k] = (newDeficits[k] || 0) - give;
-      bonus += give;
+      newDeficits[k] = (newDeficits[k] || 0) - 7;
     });
-    /* Winner gets the total contributed (up to 21) */
-    newDeficits[key] = bonus;
 
     /* Check if any Group B deficit >= 1000 → push to baseStake + deficit */
-    let newBase   = baseStake;
+    let newBase    = baseStake;
     let newDeficit = deficit;
     GROUP_B.forEach(k => {
       if (newDeficits[k] >= 1000) {
@@ -332,10 +328,24 @@ const Homepage = () => {
 
   /* ── Clear ── */
   const clearForNext = () => {
+    /* Pile losing Group B stakes into their deficits */
+    if (fixture && isSmallOddsGame) {
+      setGroupBDeficits(prev => {
+        const updated = { ...prev };
+        GROUP_B.forEach(k => {
+          if (!groupBWinners.has(k) && groupBStakes[k] > 0) {
+            updated[k] = (updated[k] || 0) + groupBStakes[k];
+          }
+        });
+        return updated;
+      });
+    }
+
     setInputA(""); setInputB("");
     setFixture(null); setIsSmallOddsGame(false);
     setOrderedStakes([]);
     setClicked(new Set());
+    setGroupBWinners(new Set());
     setGroupAStakes({ zeroGoals: 0, sixGoals: 0, fiveGoals: 0 });
     setGroupBStakes(emptyGroupB());
     setAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
