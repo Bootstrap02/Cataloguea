@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiRefreshCw, FiZap, FiTarget, FiGrid, FiShield, FiTrendingUp } from "react-icons/fi";
 
 /* ── CONFIGURATION & DATA ── */
 export const odds = [
@@ -50,12 +50,17 @@ const LOCAL_STORAGE_KEY = "virtual_epl_betking_v2_data";
 const GROUP_A = ["oneX", "twoX", "zeroGoals", "sixGoals", "ht21"];
 const GROUP_A_LABELS = { oneX: "1X", twoX: "2X", zeroGoals: "0G", sixGoals: "6G", ht21: "HT21" };
 const GROUP_A_ODD_KEY = { oneX: "oneX", twoX: "twoX", zeroGoals: "zeroGoals", sixGoals: "sixGoals", ht21: "ht21" };
-const GROUP_A_COLORS = { oneX: "bg-purple-900/80 hover:bg-purple-800", twoX: "bg-pink-900/80 hover:bg-pink-800", zeroGoals: "bg-cyan-900/80 hover:bg-cyan-800", sixGoals: "bg-teal-900/80 hover:bg-teal-800", ht21: "bg-amber-900/80 hover:bg-amber-800" };
+const GROUP_A_COLORS = { 
+  oneX: "bg-indigo-600 hover:bg-indigo-500 border-indigo-400/30", 
+  twoX: "bg-pink-600 hover:bg-pink-500 border-pink-400/30", 
+  zeroGoals: "bg-cyan-600 hover:bg-cyan-500 border-cyan-400/30", 
+  sixGoals: "bg-teal-600 hover:bg-teal-500 border-teal-400/30", 
+  ht21: "bg-amber-600 hover:bg-amber-500 border-amber-400/30" 
+};
 
 const GROUP_B = ["x1", "ht11", "O45", "ft11", "fourGoals", "htgg"];
 const GROUP_B_LABELS = { x1: "X1", ht11: "HT11", O45: "O4.5", ft11: "FT11", fourGoals: "4G", htgg: "HTGG" };
 const GROUP_B_ODD_KEY = { x1: "x1", ht11: "ht11", O45: "O45", ft11: "ft11", fourGoals: "fourGoals", htgg: "htgg" };
-const GROUP_B_COLORS = { x1: "bg-neutral-900", ht11: "bg-neutral-900", O45: "bg-neutral-900", ft11: "bg-neutral-900", fourGoals: "bg-neutral-900", htgg: "bg-neutral-900" };
 
 const emptyGroupB = () => Object.fromEntries(GROUP_B.map(k => [k, 0]));
 const emptyGroupA = () => Object.fromEntries(GROUP_A.map(k => [k, 0]));
@@ -109,15 +114,7 @@ const Homepage = () => {
 
   const saveLocalData = () => {
     try {
-      const dataToSave = {
-        base: Number(baseRef.current),
-        bank: Number(bank),
-        smallDeficit,
-        smallDeficitShadow,
-        groupBTargets,
-        groupBDeficits,
-        groupAWinCount,
-      };
+      const dataToSave = { base: Number(baseRef.current), bank: Number(bank), smallDeficit, smallDeficitShadow, groupBTargets, groupBDeficits, groupAWinCount };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (err) { console.error(err); }
   };
@@ -240,76 +237,104 @@ const Homepage = () => {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-neutral-950 text-white flex flex-col font-sans antialiased text-xs select-none p-1.5 gap-1.5">
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col font-sans antialiased text-sm select-none p-3 gap-3 overflow-hidden max-h-screen">
       
-      {/* COMPACT HEADER */}
-      <header className="flex items-center justify-between bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-800 shrink-0">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xs font-black uppercase tracking-wider text-red-500">EPL Matrix V2</h1>
-          <div className="flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded border border-neutral-800">
-            <span className="text-[9px] text-neutral-400 font-mono">A-Win Sequence:</span>
-            <span className={`h-1.5 w-1.5 rounded-full ${groupAWinCount >= 1 ? 'bg-yellow-400 shadow-sm' : 'bg-neutral-700'}`}></span>
-            <span className={`h-1.5 w-1.5 rounded-full ${groupAWinCount >= 2 ? 'bg-yellow-400 shadow-sm' : 'bg-neutral-700'}`}></span>
+      {/* ── TOP CONTROL & TELEMETRY NAV BAR ── */}
+      <header className="flex items-center justify-between bg-slate-900 border border-slate-800/80 rounded-xl p-2 px-3 shadow-xl shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="font-black text-sm tracking-wider text-red-500 uppercase">EPL Matrix V2</span>
+          <div className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-800 px-2 py-0.5 rounded-lg">
+            <span className="text-[10px] font-mono uppercase text-slate-400">A-Sequence</span>
+            <div className={`h-2 w-2 rounded-full transition-all duration-300 ${groupAWinCount >= 1 ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-800'}`}></div>
+            <div className={`h-2 w-2 rounded-full transition-all duration-300 ${groupAWinCount >= 2 ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-800'}`}></div>
           </div>
         </div>
-        <div className="flex gap-1.5">
-          <button onClick={saveLocalData} className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 font-bold text-[10px] rounded uppercase transition-all">Save</button>
-          <button onClick={loadLocalData} disabled={isReloading} className="flex items-center gap-1 px-2 py-0.5 bg-neutral-800 border border-neutral-700 text-[10px] rounded hover:bg-neutral-700 disabled:opacity-40">
-            <FiRefreshCw className={isReloading ? "animate-spin text-red-400" : ""} size={10} />
-            Sync
+        <div className="flex items-center gap-2">
+          <button onClick={saveLocalData} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-md shadow-emerald-900/20">Save</button>
+          <button onClick={loadLocalData} disabled={isReloading} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-xs font-medium transition-colors">
+            <FiRefreshCw className={isReloading ? "animate-spin text-red-400" : "text-slate-300"} size={12} />
+            Sync Engine
           </button>
         </div>
       </header>
 
-      {/* EMERGENCY BUTTON CONTAINER */}
+      {/* ── METRICS TRACKING DASHBOARD (HIGH READABILITY) ── */}
+      <section className="bg-slate-900/60 border border-slate-900 rounded-xl p-2.5 shadow-inner shrink-0">
+        <div className="grid grid-cols-4 gap-2.5 font-mono text-center">
+          <div className="bg-slate-950/40 border border-slate-800/60 rounded-lg p-1.5 flex flex-col justify-center">
+            <span className="text-slate-500 text-[10px] uppercase font-bold tracking-tight flex items-center justify-center gap-1"><FiTarget size={11}/> Base Stake</span>
+            <span className="text-slate-300 font-extrabold text-sm">{baseStake.toLocaleString()}</span>
+          </div>
+          <div className="bg-emerald-950/20 border border-emerald-900/40 rounded-lg p-1.5 flex flex-col justify-center">
+            <span className="text-emerald-400 text-[10px] uppercase font-bold tracking-tight flex items-center justify-center gap-1"><FiShield size={11}/> Vault Bank</span>
+            <span className="text-emerald-400 font-black text-sm">{bank.toLocaleString()}</span>
+          </div>
+          <div className="bg-blue-950/20 border border-blue-900/40 rounded-lg p-1.5 flex flex-col justify-center">
+            <span className="text-blue-400 text-[10px] uppercase font-bold tracking-tight flex items-center justify-center gap-1"><FiTrendingUp size={11}/> Pursuit Def.</span>
+            <span className="text-blue-400 font-extrabold text-sm">{smallDeficit.toLocaleString()}</span>
+          </div>
+          <div className="bg-purple-950/20 border border-purple-900/40 rounded-lg p-1.5 flex flex-col justify-center">
+            <span className="text-purple-400 text-[10px] uppercase font-bold tracking-tight flex items-center justify-center gap-1"><FiZap size={11}/> Mirror Shadow</span>
+            <span className="text-purple-400 font-extrabold text-sm">{smallDeficitShadow.toLocaleString()}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── CRISP EMERGENCY ACTION CONTROLLER ── */}
       <section className="shrink-0">
         <button onClick={handleJackpot}
-          className={`w-full py-1 px-2 rounded-lg border text-center transition-all flex items-center justify-between text-[11px] font-bold ${
-            clicked.has("winnerJackpot") ? "bg-white text-black border-yellow-400" : "bg-amber-950/20 border-amber-500/20 text-amber-200 hover:border-amber-500/40"
+          className={`w-full py-1.5 px-3 rounded-xl border text-center transition-all flex items-center justify-between font-bold shadow-lg ${
+            clicked.has("winnerJackpot") 
+              ? "bg-amber-500 border-amber-400 text-slate-950 shadow-amber-500/10" 
+              : "bg-amber-950/30 border-amber-800/60 text-amber-300 hover:bg-amber-950/50 hover:border-amber-700"
           }`}>
-          <span className="text-[9px] font-black uppercase tracking-wider opacity-60">Emergency Protocol</span>
-          <span className="font-black text-xs">RESET WINNER JACKPOT</span>
-          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-black/40 text-white">Alloc: {winnerAmount || "0"}</span>
+          <span className="text-[10px] uppercase font-black tracking-wider opacity-60">System Overlap</span>
+          <span className="font-black text-xs tracking-wide">RESET WINNER JACKPOT</span>
+          <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-950/80 text-amber-400 border border-slate-800">Alloc: {winnerAmount || "0"}</span>
         </button>
       </section>
 
-      {/* MAIN DYNAMIC CONTENT SPACE */}
-      <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+      {/* ── MAIN INTERACTION VIEWPORT (DYNAMIC FIT) ── */}
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
         {fixture ? (
-          <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+          <div className="flex-1 min-h-0 flex flex-col gap-3">
             
-            {/* GROUP A ROW */}
-            <section className="bg-neutral-900/60 border border-neutral-800 rounded-lg p-1.5 flex flex-col justify-center">
-              <div className="text-[9px] text-purple-400 font-bold tracking-widest uppercase mb-1 px-0.5">⚡ Group A // Deficit Pursuit</div>
-              <div className="grid grid-cols-5 gap-1">
+            {/* GROUP A MATRIX */}
+            <section className="bg-slate-900/50 border border-slate-900 rounded-xl p-2.5 flex flex-col justify-center shrink-0">
+              <div className="text-[11px] text-purple-400 font-extrabold tracking-widest uppercase mb-1.5 px-0.5 flex items-center gap-1">⚡ Group A Matrix // Deficit Targets</div>
+              <div className="grid grid-cols-5 gap-2">
                 {GROUP_A.map(key => (
                   <button key={key} onClick={() => handleGroupAWin(key)} disabled={clicked.has(`ga_${key}`)}
-                    className={`p-1.5 rounded border transition-all flex flex-col items-center justify-center ${
-                      clicked.has(`ga_${key}`) ? "bg-neutral-800 border-emerald-500/30 text-emerald-400" : `${GROUP_A_COLORS[key]} border-transparent text-white`
+                    className={`p-2.5 rounded-xl border transition-all flex flex-col items-center justify-center shadow-md relative group ${
+                      clicked.has(`ga_${key}`) 
+                        ? "bg-slate-800/80 border-emerald-500/40 text-emerald-400 line-through opacity-50" 
+                        : `${GROUP_A_COLORS[key]} border-white/10 text-white active:scale-[0.98]`
                     }`}>
-                    <span className="text-[10px] font-black">{GROUP_A_LABELS[key]}</span>
-                    <span className="text-[10px] font-mono mt-0.5 font-bold">{groupAStakes[key] || "–"}</span>
+                    <span className="text-xs font-black tracking-wider opacity-90">{GROUP_A_LABELS[key]}</span>
+                    <span className="text-xs font-mono font-black mt-0.5">{groupAStakes[key] ? groupAStakes[key].toLocaleString() : "–"}</span>
                   </button>
                 ))}
               </div>
             </section>
 
-            {/* GROUP B GRID */}
-            <section className="flex-1 min-h-0 bg-neutral-900/60 border border-neutral-800 rounded-lg p-1.5 flex flex-col">
-              <div className="text-[9px] text-cyan-400 font-bold tracking-widest uppercase mb-1 px-0.5 shrink-0">📊 Group B // Allocated Target Stack</div>
-              <div className="flex-1 min-h-0 grid grid-cols-3 gap-1">
+            {/* GROUP B DATA BLOCK */}
+            <section className="flex-1 min-h-0 bg-slate-900/50 border border-slate-900 rounded-xl p-2.5 flex flex-col">
+              <div className="text-[11px] text-cyan-400 font-extrabold tracking-widest uppercase mb-1.5 px-0.5 flex items-center gap-1 shrink-0"><FiGrid size={12}/> Group B Matrix // Dynamic Allocated Stack</div>
+              <div className="flex-1 min-h-0 grid grid-cols-3 gap-2">
                 {GROUP_B.map(key => (
                   <button key={key} onClick={() => handleGroupBWin(key)} disabled={clicked.has(`gb_${key}`)}
-                    className={`p-1 rounded border text-left flex flex-col justify-between transition-all min-h-0 overflow-hidden ${
-                      clicked.has(`gb_${key}`) ? "bg-neutral-800 border-emerald-500/30 text-emerald-400" : `${GROUP_B_COLORS[key]} border-neutral-800 text-white hover:bg-neutral-850`
+                    className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all min-h-0 overflow-hidden shadow-md active:scale-[0.98] ${
+                      clicked.has(`gb_${key}`) 
+                        ? "bg-slate-800/80 border-emerald-500/40 text-emerald-400 line-through opacity-50" 
+                        : "bg-slate-950/60 hover:bg-slate-950 border-slate-800 text-white"
                     }`}>
-                    <div className="flex items-center justify-between w-full border-b border-neutral-800 pb-0.5">
-                      <span className="font-black text-[10px] tracking-tight">{GROUP_B_LABELS[key]}</span>
-                      <span className="text-[10px] font-mono text-cyan-400 font-bold">S:{groupBStakes[key]}</span>
+                    <div className="flex items-center justify-between w-full border-b border-slate-800/80 pb-1.5 mb-1 shrink-0">
+                      <span className="font-black text-xs tracking-wider text-slate-200">{GROUP_B_LABELS[key]}</span>
+                      <span className="text-xs font-mono text-cyan-400 font-black bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800">S: {groupBStakes[key].toLocaleString()}</span>
                     </div>
-                    <div className="flex flex-col text-[9px] font-mono opacity-80 leading-tight pt-0.5">
-                      <span className="flex justify-between"><span>Target:</span><span>{groupBTargets[key]}</span></span>
-                      <span className="flex justify-between text-neutral-400"><span>Deficit:</span><span>{groupBDeficits[key]}</span></span>
+                    <div className="flex-1 w-full flex flex-col justify-center gap-0.5 font-mono text-[11px] text-slate-400">
+                      <div className="flex justify-between"><span>Target:</span><span className="font-bold text-slate-300">{groupBTargets[key].toLocaleString()}</span></div>
+                      <div className="flex justify-between border-t border-slate-900 pt-0.5"><span>Deficit:</span><span className="font-bold text-rose-400">{groupBDeficits[key].toLocaleString()}</span></div>
                     </div>
                   </button>
                 ))}
@@ -317,70 +342,48 @@ const Homepage = () => {
             </section>
           </div>
         ) : (
-          /* NO DATA SCREEN */
-          <div className="flex-1 bg-neutral-900/20 border border-dashed border-neutral-800 rounded-lg flex flex-col items-center justify-center p-4 text-center">
-            <span className="text-base mb-1">🎲</span>
-            <p className="text-[10px] text-neutral-400 font-mono uppercase tracking-wider">Engine Idle // Inputs Awaiting Execution</p>
+          /* STANDARD EMPTY/IDLE HUB STATE */
+          <div className="flex-1 bg-slate-900/10 border-2 border-dashed border-slate-900 rounded-xl flex flex-col items-center justify-center p-6 text-center shadow-inner">
+            <span className="text-3xl mb-2 animate-pulse">🎲</span>
+            <p className="text-xs text-slate-500 font-mono uppercase tracking-widest font-bold">Engine Idle // Input Fixture Parameters Below</p>
           </div>
         )}
       </div>
 
-      {/* METRICS INTERACTION & FOOTER MIX */}
-      <footer className="shrink-0 flex flex-col gap-1.5">
+      {/* ── FOOTER MATRIX CONTROLS ── */}
+      <footer className="shrink-0 bg-slate-900 border border-slate-800/80 rounded-xl p-2.5 flex flex-col gap-2.5 shadow-xl">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
+            <span className="text-[10px] font-black text-slate-500 uppercase font-mono">Home:</span>
+            <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="LIV"
+              className="w-full bg-transparent text-xs text-white font-mono placeholder-slate-700 outline-none uppercase font-black tracking-wide" />
+          </div>
+          <span className="font-black text-[11px] text-slate-600 italic shrink-0">VS</span>
+          <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
+            <span className="text-[10px] font-black text-slate-500 uppercase font-mono">Away:</span>
+            <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="MNU"
+              className="w-full bg-transparent text-xs text-white font-mono placeholder-slate-700 outline-none uppercase font-black tracking-wide" />
+          </div>
+        </div>
         
-        {/* TELEMETRY */}
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-1.5">
-          <div className="grid grid-cols-4 gap-2 font-mono text-[10px] text-center">
-            <div className="border-r border-neutral-800 px-1">
-              <div className="text-neutral-500 text-[8px] uppercase tracking-tighter">Core Base</div>
-              <strong className="text-neutral-200 font-bold">{baseStake}</strong>
-            </div>
-            <div className="border-r border-neutral-800 px-1">
-              <div className="text-emerald-500 text-[8px] uppercase tracking-tighter">Vault Bank</div>
-              <strong className="text-emerald-400 font-black">{bank}</strong>
-            </div>
-            <div className="border-r border-neutral-800 px-1">
-              <div className="text-blue-500 text-[8px] uppercase tracking-tighter">Pursuit Def.</div>
-              <strong className="text-blue-400 font-bold">{smallDeficit}</strong>
-            </div>
-            <div className="px-1">
-              <div className="text-purple-500 text-[8px] uppercase tracking-tighter">Mirror Shd.</div>
-              <strong className="text-purple-400 font-bold">{smallDeficitShadow}</strong>
-            </div>
-          </div>
-        </section>
-
-        {/* CONTROLS */}
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-1.5 flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex-1 flex items-center gap-1 bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5">
-              <span className="text-[8px] font-bold text-neutral-500 uppercase font-mono">H:</span>
-              <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="LIV"
-                className="w-full bg-transparent text-[10px] text-white font-mono placeholder-neutral-700 outline-none uppercase font-bold" />
-            </div>
-            <span className="font-black text-[9px] text-neutral-600 italic shrink-0">VS</span>
-            <div className="flex-1 flex items-center gap-1 bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5">
-              <span className="text-[8px] font-bold text-neutral-500 uppercase font-mono">A:</span>
-              <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="MNU"
-                className="w-full bg-transparent text-[10px] text-white font-mono placeholder-neutral-700 outline-none uppercase font-bold" />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-1.5">
-            <button onClick={handleSubmit} disabled={!!fixture}
-              className={`py-1.5 px-2 font-black text-[10px] rounded uppercase tracking-wider transition-all border ${
-                fixture ? "bg-neutral-800 border-transparent text-neutral-600 cursor-not-allowed" : "bg-red-600 hover:bg-red-500 border-red-700 text-white"
-              }`}>
-              Execute Matrix
-            </button>
-            <button onClick={handleNext} disabled={!fixture}
-              className={`py-1.5 px-2 font-black text-[10px] rounded uppercase tracking-wider transition-all border ${
-                !fixture ? "bg-neutral-800 border-transparent text-neutral-600 cursor-not-allowed" : "bg-neutral-100 hover:bg-white border-white text-black"
-              }`}>
-              Next Round
-            </button>
-          </div>
-        </section>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={handleSubmit} disabled={!!fixture}
+            className={`py-2 px-4 font-black text-xs rounded-lg uppercase tracking-wider transition-all border shadow-md ${
+              fixture 
+                ? "bg-slate-800 border-transparent text-slate-600 cursor-not-allowed" 
+                : "bg-red-600 hover:bg-red-500 border-red-700 text-white active:scale-[0.99]"
+            }`}>
+            Execute Matrix
+          </button>
+          <button onClick={handleNext} disabled={!fixture}
+            className={`py-2 px-4 font-black text-xs rounded-lg uppercase tracking-wider transition-all border shadow-md ${
+              !fixture 
+                ? "bg-slate-800 border-transparent text-slate-600 cursor-not-allowed" 
+                : "bg-slate-100 hover:bg-white border-white text-slate-950 active:scale-[0.99]"
+            }`}>
+            Next Round
+          </button>
+        </div>
       </footer>
 
     </div>
