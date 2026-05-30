@@ -378,7 +378,7 @@ const Homepage = () => {
     setZeroAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
     setOneAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
     saveBase();
-    console.log(orderedStakes);
+  
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
