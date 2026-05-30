@@ -299,6 +299,10 @@ const Homepage = () => {
   /* ================================================================
      GROUP B WIN
      ================================================================ */
+  
+/* ================================================================
+     GROUP B WIN (oneGoal, twoGoals, threeGoals, fourGoals)
+     ================================================================ */
   const handleGroupBWin = (key) => {
     if (!fixture || clicked.has(`gb_${key}`)) return;
     setClicked(prev => new Set([...prev, `gb_${key}`]));
@@ -307,14 +311,22 @@ const Homepage = () => {
     const newTargets  = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    newTargets[key]  = 0;
-    newDeficits[key] = 21;
+    // 1. Clear the winner's target and reset their current deficit to 0
+    newTargets[key] = 0;
+    newDeficits[key] = 0;
 
+    // 2. Sum up only the deficits of the remaining losing assets
+    const totalLosingDeficits = GROUP_B.reduce((sum, k) => sum + (newDeficits[k] || 0), 0);
+
+    // 3. Divide that losing pool by 4 for equal distribution
+    const equalShare = Math.floor(totalLosingDeficits / 4);
+
+    // 4. Assign the equal share to EVERY asset in the group
     GROUP_B.forEach(k => {
-      if (k === key) return;
-      newDeficits[k] = (newDeficits[k] || 0) - 7;
+      newDeficits[k] = equalShare;
     });
 
+    /* Check if any Group B deficit >= 1000 → push to baseStake + deficit */
     let newBase    = baseStake;
     let newDeficit = deficit;
     GROUP_B.forEach(k => {
@@ -331,7 +343,6 @@ const Homepage = () => {
     setBaseStake(newBase);
     setDeficit(newDeficit);
   };
-
   /* ================================================================
      JACKPOTS
      ================================================================ */
