@@ -6,13 +6,23 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const LOCAL_STORAGE_KEY = "virtual_epl_betking_data";
 
-/* ── Group A: chase smallDeficit (now 1X and 2X) ── */
-const GROUP_A = ["oneX", "twoX"];
-const GROUP_A_LABELS = { oneX: "1X", twoX: "2X" };
-const GROUP_A_ODD_KEY = { oneX: "oneX", twoX: "twoX" };
-const GROUP_A_COLORS = { oneX: "bg-purple-600", twoX: "bg-pink-600" };
+/* ── Group A: chase smallDeficit (1X, 2X, 0G, 6G) ── */
+const GROUP_A = ["oneX", "twoX", "zeroGoals", "sixGoals"];
+const GROUP_A_LABELS = { oneX: "1X", twoX: "2X", zeroGoals: "0G", sixGoals: "6G" };
+const GROUP_A_ODD_KEY = { 
+  oneX: "oneX", 
+  twoX: "twoX", 
+  zeroGoals: "zeroGoals", 
+  sixGoals: "sixGoals" 
+};
+const GROUP_A_COLORS = { 
+  oneX: "bg-purple-600", 
+  twoX: "bg-pink-600", 
+  zeroGoals: "bg-cyan-600", 
+  sixGoals: "bg-teal-600" 
+};
 
-/* ── Group B: private target + deficit (now x1, ht11, O45, ft11, fourGoals) ── */
+/* ── Group B: private target + deficit (x1, ht11, O45, ft11, fourGoals) ── */
 const GROUP_B = ["x1", "ht11", "O45", "ft11", "fourGoals"];
 const GROUP_B_LABELS = { x1: "X1", ht11: "HT11", O45: "O4.5", ft11: "FT11", fourGoals: "4G" };
 const GROUP_B_ODD_KEY = { x1: "x1", ht11: "ht11", O45: "O45", ft11: "ft11", fourGoals: "fourGoals" };
@@ -48,18 +58,20 @@ const Homepage = () => {
 
   /* ── SMALL ODDS STATES ── */
   const [smallDeficit, setSmallDeficit] = useState(0);
+  const [smallDeficitShadow, setSmallDeficitShadow] = useState(0);
+  const [groupAWinCount, setGroupAWinCount] = useState(0);
 
-  /* Group A stakes (1X, 2X) */
-  const [groupAStakes, setGroupAStakes] = useState({ oneX: 0, twoX: 0 });
+  /* Group A stakes */
+  const [groupAStakes, setGroupAStakes] = useState({ oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 });
 
-  /* Group B targets + deficits (x1, ht11, O45, ft11, fourGoals) */
+  /* Group B targets + deficits */
   const [groupBTargets, setGroupBTargets] = useState(emptyGroupB());
   const [groupBDeficits, setGroupBDeficits] = useState(emptyGroupB());
   const [groupBStakes, setGroupBStakes] = useState(emptyGroupB());
 
   /* ── CLICKED ── */
   const [clicked, setClicked] = useState(new Set());
-  const [groupBWinners, setGroupBWinners] = useState(new Set());
+  const [groupBWinHappened, setGroupBWinHappened] = useState(false);
 
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
@@ -79,8 +91,10 @@ const Homepage = () => {
         setZeroDeficit(d.zeroDeficit ?? 0);
         setOneDeficit(d.oneDeficit ?? 0);
         setSmallDeficit(d.smallDeficit ?? 0);
+        setSmallDeficitShadow(d.smallDeficitShadow ?? 0);
         setGroupBTargets(d.groupBTargets || emptyGroupB());
         setGroupBDeficits(d.groupBDeficits || emptyGroupB());
+        setGroupAWinCount(d.groupAWinCount ?? 0);
       }
     } catch (err) {
       console.error("❌ localStorage load error:", err.message);
@@ -98,8 +112,10 @@ const Homepage = () => {
         zeroDeficit,
         oneDeficit,
         smallDeficit,
+        smallDeficitShadow,
         groupBTargets,
         groupBDeficits,
+        groupAWinCount,
       };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (err) {
@@ -151,7 +167,7 @@ const Homepage = () => {
     setFixture(found);
     setIsSmallOddsGame(isSmall);
     setClicked(new Set());
-    setGroupBWinners(new Set());
+    setGroupBWinHappened(false);
 
     /* ── Winner stake (6-0) ── */
     const newBase = baseStake + deficit;
@@ -172,18 +188,19 @@ const Homepage = () => {
       // 6-0 goes to smallDeficit
       const newSD = smallDeficit + winnerAmt;
       setSmallDeficit(newSD);
+      setSmallDeficitShadow(newSD);
 
       // 5-0 and 5-1 go to their own deficits (no HDA)
       setZeroDeficit(prev => prev + fiveZeroStake);
       setOneDeficit(prev => prev + fiveOneStake);
 
-      // Set plain stakes for display (no HDA ladder)
+      // Set plain stakes for display
       setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
       setZeroAmounts({ winnerAmount: fiveZeroStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
       setOneAmounts({ winnerAmount: fiveOneStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
       /* Group A stakes: (smallDeficit) / (odd - 1) */
-      const newGA = { oneX: 0, twoX: 0 };
+      const newGA = { oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 };
       let gaTotal = 0;
       GROUP_A.forEach(key => {
         const odd = found[GROUP_A_ODD_KEY[key]] || 0;
@@ -212,7 +229,7 @@ const Homepage = () => {
       });
       setGroupBStakes(newGB);
 
-      setOrderedStakes([]); // No HDA stakes in small odds
+      setOrderedStakes([]);
 
     } else {
       /* ── NORMAL GAME: full HDA for all three ── */
@@ -229,9 +246,10 @@ const Homepage = () => {
       setOrderedStakes(allStakes);
 
       // Reset small odds states
-      setGroupAStakes({ oneX: 0, twoX: 0 });
+      setGroupAStakes({ oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 });
       setGroupBStakes(emptyGroupB());
       setSmallDeficit(0);
+      setSmallDeficitShadow(0);
     }
   };
 
@@ -264,12 +282,25 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     GROUP A WIN (1X or 2X)
+     GROUP A WIN (1X, 2X, 0G, 6G)
      ================================================================ */
   const handleGroupAWin = (key) => {
     if (!fixture || clicked.has(`ga_${key}`)) return;
     setClicked(prev => new Set([...prev, `ga_${key}`]));
-    setSmallDeficit(0);
+
+    const newWinCount = groupAWinCount + 1;
+    setGroupAWinCount(newWinCount);
+
+    if (newWinCount === 1) {
+      // First win: store current smallDeficit as shadow
+      setSmallDeficitShadow(smallDeficit);
+      setSmallDeficit(0);
+    } else if (newWinCount >= 2) {
+      // Second+ win: add shadow to baseStake
+      setBaseStake(prev => prev + smallDeficitShadow);
+      setSmallDeficitShadow(0);
+      setSmallDeficit(0);
+    }
   };
 
   /* ================================================================
@@ -278,42 +309,17 @@ const Homepage = () => {
   const handleGroupBWin = (key) => {
     if (!fixture || clicked.has(`gb_${key}`)) return;
     setClicked(prev => new Set([...prev, `gb_${key}`]));
-    setGroupBWinners(prev => new Set([...prev, key]));
+    setGroupBWinHappened(true);
 
     const newTargets = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    // 1. Clear the winner's target and reset their deficit to 0
+    // Clear winner's target and deficit
     newTargets[key] = 0;
     newDeficits[key] = 0;
 
-    // 2. Sum up only the deficits of the remaining losing assets
-    const totalLosingDeficits = GROUP_B.reduce((sum, k) => sum + (newDeficits[k] || 0), 0);
-
-    // 3. Divide that losing pool by 5 for equal distribution
-    const equalShare = Math.floor(totalLosingDeficits / 5);
-
-    // 4. Assign the equal share to EVERY asset in the group
-    GROUP_B.forEach(k => {
-      newDeficits[k] = equalShare;
-    });
-
-    /* Check if any Group B deficit >= 1000 → push to baseStake + deficit */
-    let newBase = baseStake;
-    let newDeficit = deficit;
-    GROUP_B.forEach(k => {
-      if (newDeficits[k] >= 1000) {
-        newBase += newDeficits[k];
-        newDeficit += newDeficits[k];
-        newDeficits[k] = 0;
-        newTargets[k] = 0;
-      }
-    });
-
     setGroupBTargets(newTargets);
     setGroupBDeficits(newDeficits);
-    setBaseStake(newBase);
-    setDeficit(newDeficit);
   };
 
   /* ================================================================
@@ -342,29 +348,54 @@ const Homepage = () => {
     setOneDeficit(0);
   };
 
-  /* ── Clear & Sync Next ── */
-  const clearForNext = () => {
-    if (fixture && isSmallOddsGame) {
+  /* ================================================================
+     NEXT FUNCTION
+     ================================================================ */
+  const handleNext = () => {
+    if (!fixture) return;
+
+    if (isSmallOddsGame) {
       // Add losing Group B stakes to their deficits
       setGroupBDeficits(prev => {
         const updated = { ...prev };
         GROUP_B.forEach(k => {
-          if (!groupBWinners.has(k) && groupBStakes[k] > 0) {
+          if (!clicked.has(`gb_${k}`) && groupBStakes[k] > 0) {
             updated[k] = (updated[k] || 0) + groupBStakes[k];
           }
         });
         return updated;
       });
+
+      // If any Group B win happened, redistribute all deficits equally
+      if (groupBWinHappened) {
+        setGroupBDeficits(prev => {
+          const totalDeficit = GROUP_B.reduce((sum, k) => sum + (prev[k] || 0), 0);
+          const equalShare = Math.floor(totalDeficit / 5);
+          const newDeficits = {};
+          GROUP_B.forEach(k => {
+            newDeficits[k] = equalShare;
+          });
+          return newDeficits;
+        });
+      }
+
+      // Reset Group A win count for next game
+      setGroupAWinCount(0);
     }
 
+    clearForNext();
+  };
+
+  /* ── Clear & Sync Next ── */
+  const clearForNext = () => {
     setInputA("");
     setInputB("");
     setFixture(null);
     setIsSmallOddsGame(false);
     setOrderedStakes([]);
     setClicked(new Set());
-    setGroupBWinners(new Set());
-    setGroupAStakes({ oneX: 0, twoX: 0 });
+    setGroupBWinHappened(false);
+    setGroupAStakes({ oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 });
     setGroupBStakes(emptyGroupB());
     setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
@@ -424,16 +455,16 @@ const Homepage = () => {
         {isSmallOddsGame && (
           <>
             <div className="text-[9px] text-gray-400 text-center tracking-widest">— GROUP A: chase smallDeficit —</div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-4 gap-2">
               {GROUP_A.map(key => (
                 <button key={key} onClick={() => handleGroupAWin(key)}
                   disabled={!fixture || clicked.has(`ga_${key}`)}
-                  className={`py-4 rounded-2xl font-bold text-sm transition active:scale-95 shadow ${clicked.has(`ga_${key}`) ? "bg-white text-green-600 ring-2 ring-green-400"
+                  className={`py-4 rounded-2xl font-bold text-xs transition active:scale-95 shadow ${clicked.has(`ga_${key}`) ? "bg-white text-green-600 ring-2 ring-green-400"
                       : !fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white"
                         : `${GROUP_A_COLORS[key]} text-white hover:opacity-90`}`}>
-                  <div className="font-black">{GROUP_A_LABELS[key]}</div>
-                  <div className="text-[11px] mt-0.5 opacity-80">{groupAStakes[key] || "–"}</div>
-                  <div className="text-[9px] opacity-60 mt-0.5">SD:{smallDeficit}</div>
+                  <div className="font-black text-[11px]">{GROUP_A_LABELS[key]}</div>
+                  <div className="text-[10px] mt-0.5 opacity-80">{groupAStakes[key] || "–"}</div>
+                  <div className="text-[8px] opacity-60 mt-0.5">SD:{smallDeficit}</div>
                 </button>
               ))}
             </div>
@@ -490,7 +521,7 @@ const Homepage = () => {
               className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 ${fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-red-700 text-white hover:bg-red-600"}`}>
               CALCULATE
             </button>
-            <button onClick={clearForNext} disabled={!fixture}
+            <button onClick={handleNext} disabled={!fixture}
               className={`flex-1 py-3.5 font-bold text-sm rounded-xl transition active:scale-95 ${!fixture ? "bg-gray-700 opacity-50 cursor-not-allowed text-white" : "bg-green-700 text-white hover:bg-green-600"}`}>
               NEXT
             </button>
@@ -505,6 +536,7 @@ const Homepage = () => {
           <div className="flex justify-between"><span className="text-gray-400">5-0 Def</span><strong className="text-yellow-400">{zeroDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">5-1 Def</span><strong className="text-yellow-300">{oneDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Small Def</span><strong className="text-blue-400">{smallDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">SD Shadow</span><strong className="text-blue-300">{smallDeficitShadow}</strong></div>
           {isSmallOddsGame && (
             <div className="col-span-2 border-t border-white/10 pt-2 grid grid-cols-2 gap-x-6 gap-y-1">
               {GROUP_B.map(key => (
