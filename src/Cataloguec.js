@@ -118,8 +118,8 @@ const Homepage = () => {
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
+    const home = sanitizeTeam(inputA) || "liv";
+    const away = sanitizeTeam(inputB) || "liv";
 
     let found = smallOdds.find(o => o.home === home && o.away === away);
     const isSmall = !!found;
