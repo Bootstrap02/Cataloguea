@@ -237,57 +237,44 @@ const Homepage = () => {
      RESOLVE HDA
      ================================================================ */
   
+  /* ================================================================
+     RESOLVE HDA
+     ================================================================ */
   const resolveResult = (step) => {
-  if (!fixture) return;
+    if (!fixture) return;
 
-  setClicked(prev => new Set([...prev, `hda_${step}`]));
+    setClicked(prev => new Set([...prev, `hda_${step}`]));
 
-  /* NORMAL GAMES keep existing 6-0 logic */
-  if (!isSmallOddsGame) {
-    const sequence = fixture.code
-      ? [...fixture.code]
-      : ["H","D","A"];
-
+    // Determine the final step of the current ladder sequence (e.g., 'A')
+    const sequence = fixture.code ? [...fixture.code] : ["H", "D", "A"];
     const lastStep = sequence[sequence.length - 1];
+    const isLoss = step !== lastStep;
 
-    if (step !== lastStep) {
-      const mainLoss = amounts.winnerAmount;
-
-      setDeficit(mainLoss);
-
-      setBaseDeficit(prev => prev + mainLoss);
+    /* ── 6-0 LOGIC ── */
+    if (!isSmallOddsGame) {
+      if (isLoss) {
+        const mainLoss = amounts.winnerAmount;
+        setDeficit(mainLoss);
+        setBaseDeficit(prev => prev + mainLoss);
+      }
     }
-  }
 
-  /* SMALL ODDS: 5-0 + 5-1 only */
+    /* ── 5-0 LOGIC (Independent of isSmallOddsGame) ── */
+    // If we haven't hit the winning outcome, push the stake played for 5-0 into its private deficit
+    if (isLoss && zeroAmounts.winnerAmount > 0) {
+      setZeroDeficit(prev => prev + zeroAmounts.winnerAmount);
+    }
 
-  const sequence = fixture.code
-    ? [...fixture.code]
-    : ["H","D","A"];
+    /* ── 5-1 LOGIC (Independent of isSmallOddsGame) ── */
+    // If we haven't hit the winning outcome, push the stake played for 5-1 into its private deficit
+    if (isLoss && oneAmounts.winnerAmount > 0) {
+      setOneDeficit(prev => prev + oneAmounts.winnerAmount);
+    }
 
-  const lastStep = sequence[sequence.length - 1];
-
-  const isLast = step === lastStep;
-
-  /* 5-0 */
-
-  if (!isLast && zeroAmounts.winnerAmount > 0) {
-    setZeroDeficit(prev =>
-      prev + zeroAmounts.winnerAmount
-    );
-  }
-
-  /* 5-1 */
-
-  if (!isLast && oneAmounts.winnerAmount > 0) {
-    setOneDeficit(prev =>
-      prev + oneAmounts.winnerAmount
-    );
-  }
-
-  clearForNext();
-};
-
+    // Auto-advance to clear for the next match
+    clearForNext();
+  };
+  
   /* ================================================================
      GROUP A WIN (zeroGoals, sixGoals, fiveGoals)
      ================================================================ */
