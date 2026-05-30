@@ -236,31 +236,50 @@ const Homepage = () => {
   /* ================================================================
      RESOLVE HDA
      ================================================================ */
+  
   const resolveResult = (step) => {
-    if (!fixture) return;
-    setClicked(prev => new Set([...prev, `hda_${step}`]));
+  if (!fixture) return;
 
-    const calcLoss = (type) => {
-      const s = orderedStakes.filter(x => x.type === type);
-      const idx = s.findIndex(x => x.step === step);
-      if (idx === -1) return 0;
-      // Stakes BEFORE the winning step are the unrecovered losses
-      // Stakes AFTER are covered by the winner's payout
-      return s.slice(0, idx).reduce((sum, x) => sum + x.stake, 0);
-    };
+  setClicked(prev => new Set([...prev, `hda_${step}`]));
 
-    if (!isSmallOddsGame) {
-      const mainLoss = calcLoss("6-0");
-      setDeficit(mainLoss);
-      setBaseDeficit(prev => prev + mainLoss);
-    }
-    const zLoss = calcLoss("5-0");
-    const oLoss = calcLoss("5-1");
-    setZeroDeficit(prev => prev + zLoss);
-    setOneDeficit(prev => prev + oLoss);
+  const calcLoss = (type) => {
+    const stakes = orderedStakes.filter(x => x.type === type);
 
-    clearForNext();
+    const idx = stakes.findIndex(x => x.step === step);
+
+    if (idx === -1) return 0;
+
+    // Anything AFTER the winner becomes loss
+    return stakes
+      .slice(idx + 1)
+      .reduce((sum, item) => sum + item.stake, 0);
   };
+
+  /* ---------- 6-0 ---------- */
+  if (!isSmallOddsGame) {
+    const mainLoss = calcLoss("6-0");
+
+    setDeficit(mainLoss);
+
+    setBaseDeficit(prev => prev + mainLoss);
+  }
+
+  /* ---------- 5-0 ---------- */
+  const zeroLoss = calcLoss("5-0");
+
+  if (zeroLoss > 0) {
+    setZeroDeficit(prev => prev + zeroLoss);
+  }
+
+  /* ---------- 5-1 ---------- */
+  const oneLoss = calcLoss("5-1");
+
+  if (oneLoss > 0) {
+    setOneDeficit(prev => prev + oneLoss);
+  }
+
+  clearForNext();
+};
 
   /* ================================================================
      GROUP A WIN (zeroGoals, sixGoals, fiveGoals)
