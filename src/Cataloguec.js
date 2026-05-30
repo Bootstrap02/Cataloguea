@@ -241,39 +241,50 @@ const Homepage = () => {
      RESOLVE HDA
      ================================================================ */
   const resolveResult = (step) => {
-    if (!fixture) return;
+  if (!fixture) return;
 
-    setClicked(prev => new Set([...prev, `hda_${step}`]));
+  setClicked(prev => new Set([...prev, `hda_${step}`]));
 
-    // Determine the final step of the current ladder sequence (e.g., 'A')
-    const sequence = fixture.code ? [...fixture.code] : ["H", "D", "A"];
-    const lastStep = sequence[sequence.length - 1];
-    const isLoss = step !== lastStep;
+  const calcLoss = (type) => {
+    const stakes = orderedStakes.filter(x => x.type === type);
 
-    /* ── 6-0 LOGIC ── */
-    if (!isSmallOddsGame) {
-      if (isLoss) {
-        const mainLoss = amounts.winnerAmount;
-        setDeficit(mainLoss);
-        setBaseDeficit(prev => prev + mainLoss);
-      }
-    }
+    const idx = stakes.findIndex(x => x.step === step);
 
-    /* ── 5-0 LOGIC (Independent of isSmallOddsGame) ── */
-    // If we haven't hit the winning outcome, push the stake played for 5-0 into its private deficit
-    if (isLoss && zeroAmounts.winnerAmount > 0) {
-      setZeroDeficit(prev => prev + zeroAmounts.winnerAmount);
-    }
+    if (idx === -1) return 0;
 
-    /* ── 5-1 LOGIC (Independent of isSmallOddsGame) ── */
-    // If we haven't hit the winning outcome, push the stake played for 5-1 into its private deficit
-    if (isLoss && oneAmounts.winnerAmount > 0) {
-      setOneDeficit(prev => prev + oneAmounts.winnerAmount);
-    }
-
-    // Auto-advance to clear for the next match
-    clearForNext();
+    // Anything AFTER the winner becomes loss
+    return stakes
+      .slice(idx + 1)
+      .reduce((sum, item) => sum + item.stake, 0);
   };
+
+  /* ---------- 6-0 ---------- */
+
+    if (!isSmallOddsGame) {
+    const mainLoss = calcLoss("6-0");
+
+    setDeficit(mainLoss);
+
+    setBaseDeficit(prev => prev + mainLoss);
+  }
+
+  /* ---------- 5-0 ---------- */
+  const zeroLoss = calcLoss("5-0");
+
+  if (zeroLoss > 0) {
+    setZeroDeficit(prev => prev + zeroLoss);
+  }
+
+  /* ---------- 5-1 ---------- */
+  const oneLoss = calcLoss("5-1");
+
+  if (oneLoss > 0) {
+    setOneDeficit(prev => prev + oneLoss);
+  }
+
+  clearForNext();
+};
+  
   
   /* ================================================================
      GROUP A WIN (zeroGoals, sixGoals, fiveGoals)
