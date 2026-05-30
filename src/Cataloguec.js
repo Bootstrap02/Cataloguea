@@ -96,8 +96,10 @@ const Homepage = () => {
      ================================================================ */
   const buildLadder = (startTotal, type, found) => {
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-    // Use found.code if present, otherwise default HDA order
-    const sequence = found.code ? [...found.code] : ["H", "D", "A"];
+    // Sort largest odd first so smallest odd (most likely) gets the biggest stake last
+    const sequence = found.code
+      ? [...found.code]
+      : ["H","D","A"].sort((a,b) => (oddsMap[b] || 0) - (oddsMap[a] || 0));
     let running = startTotal;
     const ladder = [];
     let H = 0, D = 0, A = 0;
