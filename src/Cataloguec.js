@@ -95,10 +95,12 @@ const Homepage = () => {
      ================================================================ */
   const buildLadder = (startTotal, type, found) => {
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
+    // Use found.code if present, otherwise default HDA order
+    const sequence = found.code ? [...found.code] : ["H", "D", "A"];
     let running = startTotal;
     const ladder = [];
     let H = 0, D = 0, A = 0;
-    for (const step of (found.code || "")) {
+    for (const step of sequence) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       const stake = Math.max(Math.round(running / (odd - 1)), 10);
@@ -116,8 +118,8 @@ const Homepage = () => {
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "che";
+    const away = sanitizeTeam(inputB) || "che";
 
     let found = smallOdds.find(o => o.home === home && o.away === away);
     const isSmall = !!found;
@@ -152,9 +154,10 @@ const Homepage = () => {
       setGroupAStakes(newGA);
 
       /* Distribute Group A total / 4 → each Group B target */
+      // gaTotal is sum of all 3 Group A stakes. Each Group B asset gets gaTotal/4
       const share = Math.floor(gaTotal / 4);
       const newTargets = { ...groupBTargets };
-      GROUP_B.forEach(k => { newTargets[k] += share; });
+      GROUP_B.forEach(k => { newTargets[k] = (newTargets[k] || 0) + share; });
       setGroupBTargets(newTargets);
 
       /* Group B stakes: (target + deficit) / (odd - 1) */
@@ -250,16 +253,20 @@ const Homepage = () => {
     const newTargets  = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    /* Winner: clear target and deficit, add 21 */
+    /* Winner: clear target and deficit first */
     newTargets[key]  = 0;
     newDeficits[key] = 0;
-    newDeficits[key] += 21;
 
-    /* Others: subtract 7 */
+    /* Each of the other 3 assets gives 7 to the winner */
+    let bonus = 0;
     GROUP_B.forEach(k => {
       if (k === key) return;
-      newDeficits[k] = Math.max(0, (newDeficits[k] || 0) - 7);
+      const give = Math.min(7, newDeficits[k] || 0);
+      newDeficits[k] = (newDeficits[k] || 0) - give;
+      bonus += give;
     });
+    /* Winner gets the total contributed (up to 21) */
+    newDeficits[key] = bonus;
 
     /* Check if any Group B deficit >= 1000 → push to baseStake + deficit */
     let newBase   = baseStake;
