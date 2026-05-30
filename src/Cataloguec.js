@@ -242,41 +242,47 @@ const Homepage = () => {
 
   setClicked(prev => new Set([...prev, `hda_${step}`]));
 
-  const calcLoss = (type) => {
-    const stakes = orderedStakes.filter(x => x.type === type);
+  /* NORMAL GAMES keep existing 6-0 logic */
+  if (!isSmallOddsGame) {
+    const sequence = fixture.code
+      ? [...fixture.code]
+      : ["H","D","A"];
 
-    const idx = stakes.findIndex(x => x.step === step);
+    const lastStep = sequence[sequence.length - 1];
 
-    if (idx === -1) return 0;
+    if (step !== lastStep) {
+      const mainLoss = amounts.winnerAmount;
 
-    // Anything AFTER the winner becomes loss
-    return stakes
-      .slice(idx + 1)
-      .reduce((sum, item) => sum + item.stake, 0);
-  };
+      setDeficit(mainLoss);
 
-  /* ---------- 6-0 ---------- */
-
-    if (!isSmallOddsGame) {
-    const mainLoss = calcLoss("6-0");
-
-    setDeficit(mainLoss);
-
-    setBaseDeficit(prev => prev + mainLoss);
+      setBaseDeficit(prev => prev + mainLoss);
+    }
   }
 
-  /* ---------- 5-0 ---------- */
-  const zeroLoss = calcLoss("5-0");
+  /* SMALL ODDS: 5-0 + 5-1 only */
 
-  if (zeroLoss > 0) {
-    setZeroDeficit(prev => prev + zeroLoss);
+  const sequence = fixture.code
+    ? [...fixture.code]
+    : ["H","D","A"];
+
+  const lastStep = sequence[sequence.length - 1];
+
+  const isLast = step === lastStep;
+
+  /* 5-0 */
+
+  if (!isLast && zeroAmounts.winnerAmount > 0) {
+    setZeroDeficit(prev =>
+      prev + zeroAmounts.winnerAmount
+    );
   }
 
-  /* ---------- 5-1 ---------- */
-  const oneLoss = calcLoss("5-1");
+  /* 5-1 */
 
-  if (oneLoss > 0) {
-    setOneDeficit(prev => prev + oneLoss);
+  if (!isLast && oneAmounts.winnerAmount > 0) {
+    setOneDeficit(prev =>
+      prev + oneAmounts.winnerAmount
+    );
   }
 
   clearForNext();
