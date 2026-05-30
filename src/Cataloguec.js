@@ -85,16 +85,24 @@ const Homepage = () => {
       const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (savedData) {
         const d = JSON.parse(savedData);
-        setBaseStake(d.base ?? 10000);
-        setBaseDeficit(d.baseDeficit ?? 0);
-        setDeficit(d.deficit ?? 0);
-        setZeroDeficit(d.zeroDeficit ?? 0);
-        setOneDeficit(d.oneDeficit ?? 0);
-        setSmallDeficit(d.smallDeficit ?? 0);
-        setSmallDeficitShadow(d.smallDeficitShadow ?? 0);
-        setGroupBTargets(d.groupBTargets || emptyGroupB());
-        setGroupBDeficits(d.groupBDeficits || emptyGroupB());
-        setGroupAWinCount(d.groupAWinCount ?? 0);
+        setBaseStake(Number(d.base) || 10000);
+        setBaseDeficit(Number(d.baseDeficit) || 0);
+        setDeficit(Number(d.deficit) || 0);
+        setZeroDeficit(Number(d.zeroDeficit) || 0);
+        setOneDeficit(Number(d.oneDeficit) || 0);
+        setSmallDeficit(Number(d.smallDeficit) || 0);
+        setSmallDeficitShadow(Number(d.smallDeficitShadow) || 0);
+        
+        // Ensure accurate property mapping fallback for group arrays
+        const safeBTargets = emptyGroupB();
+        if (d.groupBTargets) GROUP_B.forEach(k => { safeBTargets[k] = Number(d.groupBTargets[k]) || 0; });
+        setGroupBTargets(safeBTargets);
+
+        const safeBDeficits = emptyGroupB();
+        if (d.groupBDeficits) GROUP_B.forEach(k => { safeBDeficits[k] = Number(d.groupBDeficits[k]) || 0; });
+        setGroupBDeficits(safeBDeficits);
+
+        setGroupAWinCount(Number(d.groupAWinCount) || 0);
       }
     } catch (err) {
       console.error("❌ localStorage load error:", err.message);
@@ -106,16 +114,16 @@ const Homepage = () => {
   const saveLocalData = () => {
     try {
       const dataToSave = {
-        base: baseRef.current,
-        baseDeficit,
-        deficit,
-        zeroDeficit,
-        oneDeficit,
-        smallDeficit,
-        smallDeficitShadow,
+        base: Number(baseRef.current) || 10000,
+        baseDeficit: Number(baseDeficit) || 0,
+        deficit: Number(deficit) || 0,
+        zeroDeficit: Number(zeroDeficit) || 0,
+        oneDeficit: Number(oneDeficit) || 0,
+        smallDeficit: Number(smallDeficit) || 0,
+        smallDeficitShadow: Number(smallDeficitShadow) || 0,
         groupBTargets,
         groupBDeficits,
-        groupAWinCount,
+        groupAWinCount: Number(groupAWinCount) || 0,
       };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (err) {
@@ -135,7 +143,7 @@ const Homepage = () => {
     const sequence = found.code
       ? [...found.code]
       : ["H", "D", "A"].sort((a, b) => (oddsMap[b] || 0) - (oddsMap[a] || 0));
-    let running = startTotal;
+    let running = Number(startTotal) || 0;
     const ladder = [];
     let H = 0, D = 0, A = 0;
     for (const step of sequence) {
@@ -170,36 +178,32 @@ const Homepage = () => {
     setGroupBWinHappened(false);
 
     /* ── Winner stake (6-0) ── */
-    const newBase = baseStake + deficit;
+    const newBase = Number(baseStake || 0) + Number(deficit || 0);
     setBaseStake(newBase);
     setDeficit(0);
     const winnerAmt = Math.max(Math.round(newBase / found.winner), 10);
 
     /* ── 5-0 stake ── */
-    const base50 = baseDeficit + zeroDeficit;
-    const fiveZeroStake = Math.max(Math.round(base50 / found.fiveZero), 10);
+    const base50 = Number(baseDeficit || 0) + Number(zeroDeficit || 0);
+    const fiveZeroStake = found.fiveZero ? Math.max(Math.round(base50 / found.fiveZero), 10) : 0;
 
     /* ── 5-1 stake ── */
-    const base51 = baseDeficit + oneDeficit;
-    const fiveOneStake = Math.max(Math.round(base51 / found.fiveOne), 10);
+    const base51 = Number(baseDeficit || 0) + Number(oneDeficit || 0);
+    const fiveOneStake = found.fiveOne ? Math.max(Math.round(base51 / found.fiveOne), 10) : 0;
 
     if (isSmall) {
       /* ── SMALL ODDS GAME ── */
-      // 6-0 goes to smallDeficit
-      const newSD = smallDeficit + winnerAmt;
+      const newSD = Number(smallDeficit || 0) + winnerAmt;
       setSmallDeficit(newSD);
       setSmallDeficitShadow(newSD);
 
-      // 5-0 and 5-1 go to their own deficits (no HDA)
-      setZeroDeficit(prev => prev + fiveZeroStake);
-      setOneDeficit(prev => prev + fiveOneStake);
+      setZeroDeficit(prev => (Number(prev) || 0) + fiveZeroStake);
+      setOneDeficit(prev => (Number(prev) || 0) + fiveOneStake);
 
-      // Set plain stakes for display
       setAmounts({ winnerAmount: winnerAmt, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
       setZeroAmounts({ winnerAmount: fiveZeroStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
       setOneAmounts({ winnerAmount: fiveOneStake, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
-      /* Group A stakes: (smallDeficit) / (odd - 1) */
       const newGA = { oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 };
       let gaTotal = 0;
       GROUP_A.forEach(key => {
@@ -211,24 +215,21 @@ const Homepage = () => {
       });
       setGroupAStakes(newGA);
 
-      /* Distribute Group A total / 5 → each Group B target */
       const share = Math.floor(gaTotal / 5);
       const newTargets = { ...groupBTargets };
-      GROUP_B.forEach(k => { newTargets[k] = (newTargets[k] || 0) + share; });
+      GROUP_B.forEach(k => { newTargets[k] = (Number(newTargets[k]) || 0) + share; });
       setGroupBTargets(newTargets);
 
-      /* Group B stakes: (target + deficit) / (odd - 1) */
       const newGB = emptyGroupB();
       GROUP_B.forEach(key => {
         const odd = found[GROUP_B_ODD_KEY[key]] || 0;
         if (odd > 1.01) {
-          const tgt = newTargets[key] || 0;
-          const def = groupBDeficits[key] || 0;
+          const tgt = Number(newTargets[key]) || 0;
+          const def = Number(groupBDeficits[key]) || 0;
           newGB[key] = Math.max(Math.round((tgt + def) / (odd - 1)), 10);
         }
       });
       setGroupBStakes(newGB);
-
       setOrderedStakes([]);
 
     } else {
@@ -245,7 +246,6 @@ const Homepage = () => {
       const allStakes = [...r6.ladder, ...r50.ladder, ...r51.ladder];
       setOrderedStakes(allStakes);
 
-      // Reset small odds states
       setGroupAStakes({ oneX: 0, twoX: 0, zeroGoals: 0, sixGoals: 0 });
       setGroupBStakes(emptyGroupB());
       setSmallDeficit(0);
@@ -265,20 +265,18 @@ const Homepage = () => {
       const stakes = orderedStakes.filter(x => x.type === type);
       const idx = stakes.findIndex(x => x.step === step);
       if (idx === -1) return 0;
-      return stakes.slice(idx + 1).reduce((sum, item) => sum + item.stake, 0);
+      return stakes.slice(idx + 1).reduce((sum, item) => sum + Number(item.stake), 0);
     };
 
     const mainLoss = calcLoss("6-0");
     setDeficit(mainLoss);
-    setBaseDeficit(prev => prev + mainLoss);
+    setBaseDeficit(prev => (Number(prev) || 0) + mainLoss);
 
     const zeroLoss = calcLoss("5-0");
-    setZeroDeficit(prev => prev + zeroLoss);
+    setZeroDeficit(prev => (Number(prev) || 0) + zeroLoss);
 
     const oneLoss = calcLoss("5-1");
-    setOneDeficit(prev => prev + oneLoss);
-
-    clearForNext();
+    setOneDeficit(prev => (Number(prev) || 0) + oneLoss);
   };
 
   /* ================================================================
@@ -292,12 +290,10 @@ const Homepage = () => {
     setGroupAWinCount(newWinCount);
 
     if (newWinCount === 1) {
-      // First win: store current smallDeficit as shadow
       setSmallDeficitShadow(smallDeficit);
       setSmallDeficit(0);
     } else if (newWinCount >= 2) {
-      // Second+ win: add shadow to baseStake
-      setBaseStake(prev => prev + smallDeficitShadow);
+      setBaseStake(prev => (Number(prev) || 0) + Number(smallDeficitShadow || 0));
       setSmallDeficitShadow(0);
       setSmallDeficit(0);
     }
@@ -314,7 +310,6 @@ const Homepage = () => {
     const newTargets = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    // Clear winner's target and deficit
     newTargets[key] = 0;
     newDeficits[key] = 0;
 
@@ -334,16 +329,16 @@ const Homepage = () => {
 
   const handleZeroJackpot = () => {
     setClicked(prev => new Set([...prev, "zero"]));
-    setBaseStake(10000 + oneDeficit);
-    setBaseDeficit(oneDeficit);
+    setBaseStake(10000 + Number(oneDeficit || 0));
+    setBaseDeficit(Number(oneDeficit || 0));
     setOneDeficit(0);
     setZeroDeficit(0);
   };
 
   const handleOneJackpot = () => {
     setClicked(prev => new Set([...prev, "one"]));
-    setBaseStake(10000 + zeroDeficit);
-    setBaseDeficit(zeroDeficit);
+    setBaseStake(10000 + Number(zeroDeficit || 0));
+    setBaseDeficit(Number(zeroDeficit || 0));
     setZeroDeficit(0);
     setOneDeficit(0);
   };
@@ -355,31 +350,22 @@ const Homepage = () => {
     if (!fixture) return;
 
     if (isSmallOddsGame) {
-      // Add losing Group B stakes to their deficits
-      setGroupBDeficits(prev => {
-        const updated = { ...prev };
-        GROUP_B.forEach(k => {
-          if (!clicked.has(`gb_${k}`) && groupBStakes[k] > 0) {
-            updated[k] = (updated[k] || 0) + groupBStakes[k];
-          }
-        });
-        return updated;
+      let currentDeficits = { ...groupBDeficits };
+      GROUP_B.forEach(k => {
+        if (!clicked.has(`gb_${k}`) && groupBStakes[k] > 0) {
+          currentDeficits[k] = (Number(currentDeficits[k]) || 0) + Number(groupBStakes[k]);
+        }
       });
 
-      // If any Group B win happened, redistribute all deficits equally
       if (groupBWinHappened) {
-        setGroupBDeficits(prev => {
-          const totalDeficit = GROUP_B.reduce((sum, k) => sum + (prev[k] || 0), 0);
-          const equalShare = Math.floor(totalDeficit / 5);
-          const newDeficits = {};
-          GROUP_B.forEach(k => {
-            newDeficits[k] = equalShare;
-          });
-          return newDeficits;
+        const totalDeficit = GROUP_B.reduce((sum, k) => sum + (Number(currentDeficits[k]) || 0), 0);
+        const equalShare = Math.floor(totalDeficit / 5);
+        GROUP_B.forEach(k => {
+          currentDeficits[k] = equalShare;
         });
       }
-
-      // Reset Group A win count for next game
+      
+      setGroupBDeficits(currentDeficits);
       setGroupAWinCount(0);
     }
 
@@ -401,16 +387,16 @@ const Homepage = () => {
     setZeroAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
     setOneAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
-    setTimeout(() => { saveLocalData(); }, 0);
+    setTimeout(() => { saveLocalData(); }, 50);
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
   const displayAmounts = {
-    homeAmount: amounts.homeAmount + zeroAmounts.homeAmount + oneAmounts.homeAmount,
-    drawAmount: amounts.drawAmount + zeroAmounts.drawAmount + oneAmounts.drawAmount,
-    awayAmount: amounts.awayAmount + zeroAmounts.awayAmount + oneAmounts.awayAmount,
+    homeAmount: (Number(amounts.homeAmount) || 0) + (Number(zeroAmounts.homeAmount) || 0) + (Number(oneAmounts.homeAmount) || 0),
+    drawAmount: (Number(amounts.drawAmount) || 0) + (Number(zeroAmounts.drawAmount) || 0) + (Number(oneAmounts.drawAmount) || 0),
+    awayAmount: (Number(amounts.awayAmount) || 0) + (Number(zeroAmounts.awayAmount) || 0) + (Number(oneAmounts.awayAmount) || 0),
   };
 
   return (
