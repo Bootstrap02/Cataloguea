@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
 import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+const LOCAL_STORAGE_KEY = "virtual_epl_betking_data";
 
 /* ── Group A: chase smallDeficit ── */
 const GROUP_A = ["zeroGoals", "sixGoals", "fiveGoals"];
@@ -31,7 +31,7 @@ const Homepage = () => {
   /* ── NORMAL GAME STATES ── */
   const [baseStake,   setBaseStake]   = useState(10000);
   const [baseDeficit, setBaseDeficit] = useState(0);
-  const [deficit,     setDeficit]     = useState(0);
+  const [deficit,      setDeficit]      = useState(0);
   const [zeroDeficit, setZeroDeficit] = useState(0);
   const [oneDeficit,  setOneDeficit]  = useState(0);
 
@@ -60,42 +60,58 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     API
+     LOCAL STORAGE ACTIONS
      ================================================================ */
-  const fetchBase = async () => {
+  const loadLocalData = () => {
     setIsReloading(true);
     try {
-      const res = await axios.get(API_BASE);
-      const d = res.data || {};
-      setBaseStake(d.base ?? 10000);
-      setBaseDeficit(d.baseDeficit ?? 0);
-      setDeficit(d.deficit ?? 0);
-      setZeroDeficit(d.zeroDeficit ?? 0);
-      setOneDeficit(d.oneDeficit ?? 0);
-      setSmallDeficit(d.smallDeficit ?? 0);
-      setGroupBTargets(d.groupBTargets || emptyGroupB());
-      setGroupBDeficits(d.groupBDeficits || emptyGroupB());
-    } catch (err) { console.error("❌ fetch:", err.message); }
-    finally { setIsReloading(false); }
+      const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedData) {
+        const d = JSON.parse(savedData);
+        setBaseStake(d.base ?? 10000);
+        setBaseDeficit(d.baseDeficit ?? 0);
+        setDeficit(d.deficit ?? 0);
+        setZeroDeficit(d.zeroDeficit ?? 0);
+        setOneDeficit(d.oneDeficit ?? 0);
+        setSmallDeficit(d.smallDeficit ?? 0);
+        setGroupBTargets(d.groupBTargets || emptyGroupB());
+        setGroupBDeficits(d.groupBDeficits || emptyGroupB());
+      }
+    } catch (err) {
+      console.error("❌ localStorage load error:", err.message);
+    } finally {
+      setIsReloading(false);
+    }
   };
 
-  const saveBase = async () => {
+  const saveLocalData = () => {
     try {
-      await axios.put(API_BASE, {
-        base: baseRef.current, baseDeficit, deficit, zeroDeficit, oneDeficit,
-        smallDeficit, groupBTargets, groupBDeficits,
-      });
-    } catch (err) { console.error("❌ save:", err.message); }
+      const dataToSave = {
+        base: baseRef.current,
+        baseDeficit,
+        deficit,
+        zeroDeficit,
+        oneDeficit,
+        smallDeficit,
+        groupBTargets,
+        groupBDeficits,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (err) {
+      console.error("❌ localStorage save error:", err.message);
+    }
   };
 
-  useEffect(() => { fetchBase(); }, []);
+  // Run once on component mount
+  useEffect(() => {
+    loadLocalData();
+  }, []);
 
   /* ================================================================
      BUILD HDA LADDER
      ================================================================ */
   const buildLadder = (startTotal, type, found) => {
     const oddsMap = { H: found.win, D: found.draw, A: found.lose };
-    // Sort largest odd first so smallest odd (most likely) gets the biggest stake last
     const sequence = found.code
       ? [...found.code]
       : ["H","D","A"].sort((a,b) => (oddsMap[b] || 0) - (oddsMap[a] || 0));
@@ -156,7 +172,6 @@ const Homepage = () => {
       setGroupAStakes(newGA);
 
       /* Distribute Group A total / 4 → each Group B target */
-      // gaTotal is sum of all 3 Group A stakes. Each Group B asset gets gaTotal/4
       const share = Math.floor(gaTotal / 4);
       const newTargets = { ...groupBTargets };
       GROUP_B.forEach(k => { newTargets[k] = (newTargets[k] || 0) + share; });
@@ -236,58 +251,44 @@ const Homepage = () => {
   /* ================================================================
      RESOLVE HDA
      ================================================================ */
-  
-  /* ================================================================
-     RESOLVE HDA
-     ================================================================ */
   const resolveResult = (step) => {
-  if (!fixture) return;
+    if (!fixture) return;
 
-  setClicked(prev => new Set([...prev, `hda_${step}`]));
+    setClicked(prev => new Set([...prev, `hda_${step}`]));
 
-  const calcLoss = (type) => {
-    const stakes = orderedStakes.filter(x => x.type === type);
+    const calcLoss = (type) => {
+      const stakes = orderedStakes.filter(x => x.type === type);
+      const idx = stakes.findIndex(x => x.step === step);
+      if (idx === -1) return 0;
+      return stakes
+        .slice(idx + 1)
+        .reduce((sum, item) => sum + item.stake, 0);
+    };
 
-    const idx = stakes.findIndex(x => x.step === step);
+    /* ---------- 6-0 ---------- */
+    if (!isSmallOddsGame) {
+      const mainLoss = calcLoss("6-0");
+      setDeficit(mainLoss);
+      setBaseDeficit(prev => prev + mainLoss);
+    }
 
-    if (idx === -1) return 0;
+    /* ---------- 5-0 ---------- */
+    const zeroLoss = calcLoss("5-0");
+    if (zeroLoss > 0) {
+      setZeroDeficit(prev => prev + zeroLoss);
+    }
 
-    // Anything AFTER the winner becomes loss
-    return stakes
-      .slice(idx + 1)
-      .reduce((sum, item) => sum + item.stake, 0);
+    /* ---------- 5-1 ---------- */
+    const oneLoss = calcLoss("5-1");
+    if (oneLoss > 0) {
+      setOneDeficit(prev => prev + oneLoss);
+    }
+
+    clearForNext();
   };
 
-  /* ---------- 6-0 ---------- */
-
-    if (!isSmallOddsGame) {
-    const mainLoss = calcLoss("6-0");
-
-    setDeficit(mainLoss);
-
-    setBaseDeficit(prev => prev + mainLoss);
-  }
-
-  /* ---------- 5-0 ---------- */
-  const zeroLoss = calcLoss("5-0");
-
-  if (zeroLoss > 0) {
-    setZeroDeficit(prev => prev + zeroLoss);
-  }
-
-  /* ---------- 5-1 ---------- */
-  const oneLoss = calcLoss("5-1");
-
-  if (oneLoss > 0) {
-    setOneDeficit(prev => prev + oneLoss);
-  }
-
-  clearForNext();
-};
-  
-  
   /* ================================================================
-     GROUP A WIN (zeroGoals, sixGoals, fiveGoals)
+     GROUP A WIN
      ================================================================ */
   const handleGroupAWin = (key) => {
     if (!fixture || clicked.has(`ga_${key}`)) return;
@@ -296,7 +297,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-     GROUP B WIN (oneGoal, twoGoals, threeGoals, fourGoals)
+     GROUP B WIN
      ================================================================ */
   const handleGroupBWin = (key) => {
     if (!fixture || clicked.has(`gb_${key}`)) return;
@@ -306,17 +307,14 @@ const Homepage = () => {
     const newTargets  = { ...groupBTargets };
     const newDeficits = { ...groupBDeficits };
 
-    /* Winner: clear target and deficit, set to 21 */
     newTargets[key]  = 0;
     newDeficits[key] = 21;
 
-    /* Each of the other 3 assets loses 7 unconditionally */
     GROUP_B.forEach(k => {
       if (k === key) return;
       newDeficits[k] = (newDeficits[k] || 0) - 7;
     });
 
-    /* Check if any Group B deficit >= 1000 → push to baseStake + deficit */
     let newBase    = baseStake;
     let newDeficit = deficit;
     GROUP_B.forEach(k => {
@@ -352,9 +350,8 @@ const Homepage = () => {
     setZeroDeficit(0); setOneDeficit(0);
   };
 
-  /* ── Clear ── */
+  /* ── Clear & Sync Next ── */
   const clearForNext = () => {
-    /* Pile losing Group B stakes into their deficits */
     if (fixture && isSmallOddsGame) {
       setGroupBDeficits(prev => {
         const updated = { ...prev };
@@ -377,8 +374,9 @@ const Homepage = () => {
     setAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
     setZeroAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
     setOneAmounts({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
-    saveBase();
-  
+    
+    // Wrap state saving safely inside an immediate local storage push sequence
+    setTimeout(() => { saveLocalData(); }, 0);
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
@@ -390,9 +388,6 @@ const Homepage = () => {
     awayAmount:  amounts.awayAmount  + zeroAmounts.awayAmount  + oneAmounts.awayAmount,
   };
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
@@ -405,8 +400,8 @@ const Homepage = () => {
           )}
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={saveBase} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700">💾 Save</button>
-          <button onClick={fetchBase} disabled={isReloading}
+          <button onClick={saveLocalData} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700">💾 Save</button>
+          <button onClick={loadLocalData} disabled={isReloading}
             className="flex items-center gap-1.5 px-4 py-2 bg-red-600 font-bold text-white text-xs hover:bg-red-700 disabled:opacity-50">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
             {isReloading ? "…" : "Reload"}
@@ -431,7 +426,7 @@ const Homepage = () => {
           ))}
         </div>
 
-        {/* ── GROUP A (small odds only) ── */}
+        {/* ── GROUP A ── */}
         {isSmallOddsGame && (
           <>
             <div className="text-[9px] text-gray-400 text-center tracking-widest">— GROUP A: chase smallDef —</div>
