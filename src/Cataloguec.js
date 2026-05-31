@@ -220,62 +220,64 @@ const Homepage = () => {
   /* ================================================================
      NEXT
      ================================================================ */
-  
   const handleNext = () => {
   if (!fixture) return;
 
-  const newDefs  = { ...smallDefs };
-  let newSD      = smallDeficit;
-  let newShadow  = smallDeficitShadow;
-  let newBank    = bank;
+  const newDefs = { ...smallDefs };
+  let newSD = smallDeficit;
+  let newShadow = smallDeficitShadow;
+  let newBank = bank;
   let newResidue = residueDeficit;
 
-  /* -----------------------------
-     1X + 2X ALWAYS go to residue
-  ------------------------------*/
+  /* ── 1X Logic ── */
+  if (!smallWinners.has("oneX")) {
+    const stake = smallStakes["oneX"] || 0;
+    newResidue += stake;           // Push stake to residue
+    newDefs["oneX"] += stake;      // Update private deficit
+  }
 
-  newResidue += (smallStakes["oneX"] || 0);
-  newResidue += (smallStakes["twoX"] || 0);
+  /* ── 2X Logic ── */
+  if (!smallWinners.has("twoX")) {
+    const stake = smallStakes["twoX"] || 0;
+    newResidue += stake;           // Push stake to residue
+    newDefs["twoX"] += stake;      // Update private deficit
+  }
 
-  /* -----------------------------
-     TG0 + TG6 only go to their
-     own deficits IF THEY LOST
-  ------------------------------*/
-
+  /* ── TG0 Logic ── */
   if (!smallWinners.has("tg0")) {
     newDefs["tg0"] += (smallStakes["tg0"] || 0);
   }
 
+  /* ── TG6 Logic ── */
   if (!smallWinners.has("tg6")) {
     newDefs["tg6"] += (smallStakes["tg6"] || 0);
   }
 
-  /* -----------------------------
-     If 1X or 2X won and SD became 0,
-     collapse remaining defs into SD
-  ------------------------------*/
-
-  const hadSmallWin =
-    smallWinners.has("oneX") ||
-    smallWinners.has("twoX");
+  /* ── Collapse Logic ── */
+  // If 1X or 2X won and wiped the main Small Deficit, 
+  // you might want to pull the piled residue back in.
+  const hadSmallWin = smallWinners.has("oneX") || smallWinners.has("twoX");
 
   if (hadSmallWin && newSD === 0) {
-    const totalDef =
-      (newDefs["tg0"] || 0) +
-      (newDefs["tg6"] || 0);
+    // Optional: If you want residue to move to Small Deficit on a win
+    // newSD = newResidue; 
+    // newResidue = 0;
 
-    newSD = totalDef;
-
+    // Current logic: Collapse TG private defs into SD
+    const totalTgDef = (newDefs["tg0"] || 0) + (newDefs["tg6"] || 0);
+    newSD = totalTgDef;
     newDefs["tg0"] = 0;
     newDefs["tg6"] = 0;
   }
 
+  // Update States
   setSmallDefs(newDefs);
   setSmallDeficit(newSD);
   setSmallDeficitShadow(newShadow);
   setBank(newBank);
   setResidueDeficit(newResidue);
 
+  // Sync to LocalStorage
   handleSaveState({
     smallDeficit: newSD,
     smallDeficitShadow: newShadow,
@@ -286,7 +288,8 @@ const Homepage = () => {
 
   settleAndClear();
 };
-
+  
+  
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked(prev => new Set([...prev, "six"]));
