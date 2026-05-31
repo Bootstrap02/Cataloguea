@@ -144,13 +144,13 @@ const Homepage = () => {
     /* 1X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd1X = found[SMALL_ODD_KEY["oneX"]] || 0;
     if (odd1X > 1.01) {
-      newStakes["oneX"] = Math.max(Math.round((curSD / odd1X), 10);
+      newStakes["oneX"] = Math.max(Math.round(curSD / odd1X), 10);
     }
 
     /* 2X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd2X = found[SMALL_ODD_KEY["twoX"]] || 0;
     if (odd2X > 1.01) {
-      newStakes["twoX"] = Math.max(Math.round((curSD / odd2X), 10);
+      newStakes["twoX"] = Math.max(Math.round(curSD / odd2X), 10);
     }
 
     /* TG0: (residueDeficit + privateDef) / (odd - 1) */
