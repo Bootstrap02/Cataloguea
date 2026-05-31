@@ -144,13 +144,13 @@ const Homepage = () => {
     /* 1X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd1X = found[SMALL_ODD_KEY["oneX"]] || 0;
     if (odd1X > 1.01) {
-      newStakes["oneX"] = Math.max(Math.round((curSD + (smallDefs["oneX"] || 0)) / odd1X), 10);
+      newStakes["oneX"] = Math.max(Math.round((curSD / odd1X), 10);
     }
 
     /* 2X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd2X = found[SMALL_ODD_KEY["twoX"]] || 0;
     if (odd2X > 1.01) {
-      newStakes["twoX"] = Math.max(Math.round((curSD + (smallDefs["twoX"] || 0)) / odd2X), 10);
+      newStakes["twoX"] = Math.max(Math.round((curSD / odd2X), 10);
     }
 
     /* TG0: (residueDeficit + privateDef) / (odd - 1) */
@@ -220,47 +220,72 @@ const Homepage = () => {
   /* ================================================================
      NEXT
      ================================================================ */
+  
   const handleNext = () => {
-    if (!fixture) return;
+  if (!fixture) return;
 
-    const newDefs  = { ...smallDefs };
-    let newSD      = smallDeficit;
-    let newShadow  = smallDeficitShadow;
-    let newBank    = bank;
-    let newResidue = residueDeficit;
+  const newDefs  = { ...smallDefs };
+  let newSD      = smallDeficit;
+  let newShadow  = smallDeficitShadow;
+  let newBank    = bank;
+  let newResidue = residueDeficit;
 
-    const lostKeys = SMALL_KEYS.filter(k => !smallWinners.has(k));
+  /* -----------------------------
+     1X + 2X ALWAYS go to residue
+  ------------------------------*/
 
-    /* Pile losing stakes into private defs */
-    lostKeys.forEach(k => { newDefs[k] += (smallStakes[k] || 0); });
+  newResidue += (smallStakes["oneX"] || 0);
+  newResidue += (smallStakes["twoX"] || 0);
 
-    /* 1X and 2X stakes (won or lost) always pile into residueDeficit */
-    newResidue += (smallStakes["oneX"] || 0) + (smallStakes["twoX"] || 0);
+  /* -----------------------------
+     TG0 + TG6 only go to their
+     own deficits IF THEY LOST
+  ------------------------------*/
 
-    /* If a 1X/2X win happened, collapse all defs → smallDeficit */
-    const hadSmallWin = smallWinners.has("oneX") || smallWinners.has("twoX");
-    if (hadSmallWin && newSD === 0) {
-      const totalDef = SMALL_KEYS.reduce((s, k) => s + (newDefs[k] || 0), 0);
-      newSD = totalDef;
-      SMALL_KEYS.forEach(k => { newDefs[k] = 0; });
-    }
+  if (!smallWinners.has("tg0")) {
+    newDefs["tg0"] += (smallStakes["tg0"] || 0);
+  }
 
-    setSmallDefs(newDefs);
-    setSmallDeficit(newSD);
-    setSmallDeficitShadow(newShadow);
-    setBank(newBank);
-    setResidueDeficit(newResidue);
+  if (!smallWinners.has("tg6")) {
+    newDefs["tg6"] += (smallStakes["tg6"] || 0);
+  }
 
-    handleSaveState({
-      smallDeficit: newSD,
-      smallDeficitShadow: newShadow,
-      bank: newBank,
-      residueDeficit: newResidue,
-      smallDefs: newDefs,
-    });
+  /* -----------------------------
+     If 1X or 2X won and SD became 0,
+     collapse remaining defs into SD
+  ------------------------------*/
 
-    settleAndClear();
-  };
+  const hadSmallWin =
+    smallWinners.has("oneX") ||
+    smallWinners.has("twoX");
+
+  if (hadSmallWin && newSD === 0) {
+    const totalDef =
+      (newDefs["tg0"] || 0) +
+      (newDefs["tg6"] || 0);
+
+    newSD = totalDef;
+
+    newDefs["tg0"] = 0;
+    newDefs["tg6"] = 0;
+  }
+
+  setSmallDefs(newDefs);
+  setSmallDeficit(newSD);
+  setSmallDeficitShadow(newShadow);
+  setBank(newBank);
+  setResidueDeficit(newResidue);
+
+  handleSaveState({
+    smallDeficit: newSD,
+    smallDeficitShadow: newShadow,
+    bank: newBank,
+    residueDeficit: newResidue,
+    smallDefs: newDefs,
+  });
+
+  settleAndClear();
+};
 
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
