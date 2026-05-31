@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+ import React, { useState, useEffect } from "react";
 import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
@@ -32,7 +31,7 @@ const Homepage = () => {
   const [smallDeficitShadow, setSmallDeficitShadow] = useState(0);
   const [bank,               setBank]               = useState(100);
 
-  /* ── RESIDUE DEFICIT (1X and 2X stakes pile here) ── */
+  /* ── RESIDUE DEFICIT (Stakes pile here on losses) ── */
   const [residueDeficit, setResidueDeficit] = useState(0);
 
   /* ── PRIVATE DEFS + STAKES ── */
@@ -103,7 +102,6 @@ const Homepage = () => {
       if (bankNow > wStake) {
         bankNow -= wStake;
         setBank(bankNow);
-        /* smallDeficit unchanged */
       } else {
         const residue = wStake - bankNow;
         bankNow = 0;
@@ -141,25 +139,21 @@ const Homepage = () => {
     const newStakes = emptySmallStakes();
     const curRes = residueDeficit;
 
-    /* 1X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd1X = found[SMALL_ODD_KEY["oneX"]] || 0;
     if (odd1X > 1.01) {
       newStakes["oneX"] = Math.max(Math.round(curSD / odd1X), 10);
     }
 
-    /* 2X: (smallDeficit + privateDef) / odd   — no (odd-1) */
     const odd2X = found[SMALL_ODD_KEY["twoX"]] || 0;
     if (odd2X > 1.01) {
       newStakes["twoX"] = Math.max(Math.round(curSD / odd2X), 10);
     }
 
-    /* TG0: (residueDeficit + privateDef) / (odd - 1) */
     const oddTg0 = found[SMALL_ODD_KEY["tg0"]] || 0;
     if (oddTg0 > 1.01) {
       newStakes["tg0"] = Math.max(Math.round((curRes + (smallDefs["tg0"] || 0)) / (oddTg0 - 1)), 10);
     }
 
-    /* TG6: (residueDeficit + privateDef) / (odd - 1) */
     const oddTg6 = found[SMALL_ODD_KEY["tg6"]] || 0;
     if (oddTg6 > 1.01) {
       newStakes["tg6"] = Math.max(Math.round((curRes + (smallDefs["tg6"] || 0)) / (oddTg6 - 1)), 10);
@@ -189,106 +183,99 @@ const Homepage = () => {
     setClicked(prev => new Set([...prev, `small_${key}`]));
     setSmallWinners(prev => new Set([...prev, key]));
 
-    /* Clear this asset's private def */
+    /* Clear this asset's private def immediately */
     setSmallDefs(prev => ({ ...prev, [key]: 0 }));
 
     if (key === "oneX" || key === "twoX") {
-      /* 1X or 2X win: smallDeficit → 0, save shadow */
       if (smallDeficit > 0) {
         setSmallDeficitShadow(smallDeficit);
         setSmallDeficit(0);
       } else {
-        /* Second win: shadow → bank */
         setBank(prev => prev + smallDeficitShadow);
         setSmallDeficitShadow(0);
       }
     }
 
     if (key === "tg0" || key === "tg6") {
-      /* TG0 or TG6 win: push the OTHER one's deficit into smallDeficit */
       const other = key === "tg0" ? "tg6" : "tg0";
       const otherDef = smallDefs[other] || 0;
       if (otherDef > 0) {
         setSmallDeficit(prev => prev + otherDef);
         setSmallDefs(prev => ({ ...prev, [other]: 0 }));
       }
-      /* Clear residueDeficit */
       setResidueDeficit(0);
     }
   };
 
   /* ================================================================
-     NEXT
+     NEXT (Calculates deficits completely before resetting layout)
      ================================================================ */
   const handleNext = () => {
-  if (!fixture) return;
+    if (!fixture) return;
 
-  const newDefs = { ...smallDefs };
-  let newSD = smallDeficit;
-  let newShadow = smallDeficitShadow;
-  let newBank = bank;
-  let newResidue = residueDeficit;
+    // Create mutable clones of our state values
+    const newDefs = { ...smallDefs };
+    let newSD = smallDeficit;
+    let newShadow = smallDeficitShadow;
+    let newBank = bank;
+    let newResidue = residueDeficit;
 
-  /* ── 1X Logic ── */
-  if (!smallWinners.has("oneX")) {
-    const stake = smallStakes["oneX"] || 0;
-    newResidue += stake;           // Push stake to residue
-    newDefs["oneX"] += stake;      // Update private deficit
-  }
+    /* ── 1X Logic ── */
+    if (!smallWinners.has("oneX")) {
+      const stake = smallStakes["oneX"] || 0;
+      newResidue += stake;
+      newDefs["oneX"] = (newDefs["oneX"] || 0) + stake;
+    }
 
-  /* ── 2X Logic ── */
-  if (!smallWinners.has("twoX")) {
-    const stake = smallStakes["twoX"] || 0;
-    newResidue += stake;           // Push stake to residue
-    newDefs["twoX"] += stake;      // Update private deficit
-  }
+    /* ── 2X Logic ── */
+    if (!smallWinners.has("twoX")) {
+      const stake = smallStakes["twoX"] || 0;
+      newResidue += stake;
+      newDefs["twoX"] = (newDefs["twoX"] || 0) + stake;
+    }
 
-  /* ── TG0 Logic ── */
-  if (!smallWinners.has("tg0")) {
-    newDefs["tg0"] += (smallStakes["tg0"] || 0);
-  }
+    /* ── TG0 Logic ── */
+    if (!smallWinners.has("tg0")) {
+      const stake = smallStakes["tg0"] || 0;
+      newResidue += stake; // Send losing stake to residue total
+      newDefs["tg0"] = (newDefs["tg0"] || 0) + stake; // Push directly to private deficit display
+    }
 
-  /* ── TG6 Logic ── */
-  if (!smallWinners.has("tg6")) {
-    newDefs["tg6"] += (smallStakes["tg6"] || 0);
-  }
+    /* ── TG6 Logic ── */
+    if (!smallWinners.has("tg6")) {
+      const stake = smallStakes["tg6"] || 0;
+      newResidue += stake; // Send losing stake to residue total
+      newDefs["tg6"] = (newDefs["tg6"] || 0) + stake; // Push directly to private deficit display
+    }
 
-  /* ── Collapse Logic ── */
-  // If 1X or 2X won and wiped the main Small Deficit, 
-  // you might want to pull the piled residue back in.
-  const hadSmallWin = smallWinners.has("oneX") || smallWinners.has("twoX");
+    /* ── Collapse Logic ── */
+    const hadSmallWin = smallWinners.has("oneX") || smallWinners.has("twoX");
+    if (hadSmallWin && newSD === 0) {
+      const totalTgDef = (newDefs["tg0"] || 0) + (newDefs["tg6"] || 0);
+      newSD = totalTgDef;
+      newDefs["tg0"] = 0;
+      newDefs["tg6"] = 0;
+    }
 
-  if (hadSmallWin && newSD === 0) {
-    // Optional: If you want residue to move to Small Deficit on a win
-    // newSD = newResidue; 
-    // newResidue = 0;
+    // Explicitly update all hooks simultaneously
+    setSmallDefs(newDefs);
+    setSmallDeficit(newSD);
+    setSmallDeficitShadow(newShadow);
+    setBank(newBank);
+    setResidueDeficit(newResidue);
 
-    // Current logic: Collapse TG private defs into SD
-    const totalTgDef = (newDefs["tg0"] || 0) + (newDefs["tg6"] || 0);
-    newSD = totalTgDef;
-    newDefs["tg0"] = 0;
-    newDefs["tg6"] = 0;
-  }
+    // Save exact computed totals back to localStorage
+    handleSaveState({
+      smallDeficit: newSD,
+      smallDeficitShadow: newShadow,
+      bank: newBank,
+      residueDeficit: newResidue,
+      smallDefs: newDefs,
+    });
 
-  // Update States
-  setSmallDefs(newDefs);
-  setSmallDeficit(newSD);
-  setSmallDeficitShadow(newShadow);
-  setBank(newBank);
-  setResidueDeficit(newResidue);
-
-  // Sync to LocalStorage
-  handleSaveState({
-    smallDeficit: newSD,
-    smallDeficitShadow: newShadow,
-    bank: newBank,
-    residueDeficit: newResidue,
-    smallDefs: newDefs,
-  });
-
-  settleAndClear();
-};
-  
+    // Clean up current match layouts
+    settleAndClear();
+  };
   
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
@@ -301,7 +288,8 @@ const Homepage = () => {
 
   /* ── settle & clear ── */
   const settleAndClear = () => {
-    setInputA(""); setInputB("");
+    setInputA(""); 
+    setInputB("");
     setFixture(null);
     setIsSmallOddsGame(false);
     setOrderedStakes([]);
@@ -315,9 +303,6 @@ const Homepage = () => {
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
 
