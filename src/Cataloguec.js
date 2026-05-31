@@ -28,9 +28,9 @@ const Homepage = () => {
   const [amounts,      setAmounts]      = useState({ winnerAmount:0, homeAmount:0, drawAmount:0, awayAmount:0 });
 
   /* ── SMALL DEFICIT + SHADOW + BANK ── */
-  const [smallDeficit,       setSmallDeficit]       = useState(0);
+  const [smallDeficit,       setSmallDeficit]       = useState(100);
   const [smallDeficitShadow, setSmallDeficitShadow] = useState(0);
-  const [bank,               setBank]               = useState(0);
+  const [bank,               setBank]               = useState(100);
 
   /* ── RESIDUE DEFICIT (1X and 2X stakes pile here) ── */
   const [residueDeficit, setResidueDeficit] = useState(0);
@@ -50,9 +50,9 @@ const Homepage = () => {
       const d = JSON.parse(saved);
       setDeficit(d.deficit         || 0);
       setBaseStake(d.baseStake     || 10000);
-      setSmallDeficit(d.smallDeficit           || 0);
+      setSmallDeficit(d.smallDeficit           ?? 100);
       setSmallDeficitShadow(d.smallDeficitShadow || 0);
-      setBank(d.bank               || 0);
+      setBank(d.bank               ?? 100);
       setResidueDeficit(d.residueDeficit        || 0);
       setSmallDefs(d.smallDefs     || emptySmallDefs());
     }
@@ -100,7 +100,7 @@ const Homepage = () => {
     let curSD = smallDeficit;
     if (isSmall) {
       let bankNow = bank;
-      if (bankNow >= wStake) {
+      if (bankNow > wStake) {
         bankNow -= wStake;
         setBank(bankNow);
         /* smallDeficit unchanged */
