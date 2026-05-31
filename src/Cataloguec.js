@@ -34,9 +34,9 @@ const Homepage = () => {
   const [baseStake, setBaseStake] = useState(10000);
   const [deficit, setDeficit] = useState(0);
   const [winnerStake, setWinnerStake] = useState(0);
-  const [smallDeficit, setSmallDeficit] = useState(0);
+  const [smallDeficit, setSmallDeficit] = useState(100); // Default 100
   const [residueDeficit, setResidueDeficit] = useState(0);
-  const [bank, setBank] = useState(0);
+  const [bank, setBank] = useState(100); // Default 100
   const [orderedStakes, setOrderedStakes] = useState([]);
   const [amounts, setAmounts] = useState({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
 
@@ -60,9 +60,9 @@ const Homepage = () => {
       const d = JSON.parse(saved);
       setDeficit(d.deficit || 0);
       setBaseStake(d.baseStake || 10000);
-      setSmallDeficit(d.smallDeficit || 0);
+      setSmallDeficit(d.smallDeficit ?? 100);
       setResidueDeficit(d.residueDeficit || 0);
-      setBank(d.bank || 0);
+      setBank(d.bank ?? 100);
       setTeamADefs(d.teamADefs || emptyTeamADefs());
       setTeamBDefs(d.teamBDefs || emptyTeamBDefs());
     }
@@ -107,10 +107,24 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    // Only add winnerStake to smallDeficit for Small Odds games
+    // Bank logic: if bank >= winner, subtract from bank, else push residue to smallDeficit
     let curSD = smallDeficit;
-    if (isSmall) {
-      curSD = smallDeficit + wStake;
+    let currentBank = bank;
+    
+    if (currentBank >= wStake) {
+      currentBank -= wStake;
+      setBank(currentBank);
+      // Only add winnerStake to smallDeficit for Small Odds games
+      if (isSmall) {
+        curSD = smallDeficit + wStake;
+        setSmallDeficit(curSD);
+      }
+    } else {
+      const residue = wStake - currentBank;
+      currentBank = 0;
+      setBank(0);
+      // Add residue to smallDeficit
+      curSD = smallDeficit + residue;
       setSmallDeficit(curSD);
     }
 
@@ -149,7 +163,6 @@ const Homepage = () => {
       const odd = found[TEAM_A_ODD_KEY[key]] || 0;
       if (odd <= 1.01) return;
       const def = teamADefs[key] || 0;
-      // Changed: No -1, just curSD + def divided by odd
       newTeamAStakes[key] = Math.max(Math.round((curSD + def) / odd), 10);
     });
     setTeamAStakes(newTeamAStakes);
@@ -236,16 +249,11 @@ const Homepage = () => {
       newTeamADefs[k] += (teamAStakes[k] || 0);
     });
 
-    // Team A wins: nothing to add (already reset)
-    
     // Team B losses: add stakes to their deficits
     const teamBLostKeys = TEAM_B_KEYS.filter(k => !teamBWinners.has(k));
     teamBLostKeys.forEach(k => {
       newTeamBDefs[k] += (teamBStakes[k] || 0);
     });
-
-    // If any Team B win happened, we already moved the other's deficit to smallDeficit
-    // Residue deficit is already cleared in the win handler
 
     // Update all states
     setTeamADefs(newTeamADefs);
@@ -270,9 +278,9 @@ const Homepage = () => {
     setClicked(prev => new Set([...prev, "six"]));
     setBaseStake(10000);
     setDeficit(0);
-    setSmallDeficit(0);
+    setSmallDeficit(100);
     setResidueDeficit(0);
-    setBank(0);
+    setBank(100);
     setTeamADefs(emptyTeamADefs());
     setTeamBDefs(emptyTeamBDefs());
   };
