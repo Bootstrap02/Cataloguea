@@ -213,58 +213,48 @@ const Homepage = () => {
   const handleNext = () => {
     if (!fixture) return;
 
-    // Create mutable clones of our state values
+    // 1. Clone state for local calculation
     const newDefs = { ...smallDefs };
     let newSD = smallDeficit;
     let newShadow = smallDeficitShadow;
     let newBank = bank;
     let newResidue = residueDeficit;
 
-    /* ── 1X Logic ── */
-    if (!smallWinners.has("oneX")) {
-      const stake = smallStakes["oneX"] || 0;
-      newResidue += stake;
-      newDefs["oneX"] = (newDefs["oneX"] || 0) + stake;
-    }
+    // 2. Process ALL assets regardless of game type
+    SMALL_KEYS.forEach((key) => {
+      // Only process if the asset didn't win this round
+      if (!smallWinners.has(key)) {
+        const stake = smallStakes[key] || 0;
+        
+        // Add to the total pile (Residue Deficit)
+        newResidue += stake;
+        
+        // Add to the individual button counter (Private Deficit)
+        newDefs[key] = (newDefs[key] || 0) + stake;
+      }
+    });
 
-    /* ── 2X Logic ── */
-    if (!smallWinners.has("twoX")) {
-      const stake = smallStakes["twoX"] || 0;
-      newResidue += stake;
-      newDefs["twoX"] = (newDefs["twoX"] || 0) + stake;
-    }
-
-    /* ── TG0 Logic ── */
-    if (!smallWinners.has("tg0")) {
-      const stake = smallStakes["tg0"] || 0;
-      newResidue += stake; // Send losing stake to residue total
-      newDefs["tg0"] = (newDefs["tg0"] || 0) + stake; // Push directly to private deficit display
-    }
-
-    /* ── TG6 Logic ── */
-    if (!smallWinners.has("tg6")) {
-      const stake = smallStakes["tg6"] || 0;
-      newResidue += stake; // Send losing stake to residue total
-      newDefs["tg6"] = (newDefs["tg6"] || 0) + stake; // Push directly to private deficit display
-    }
-
-    /* ── Collapse Logic ── */
-    const hadSmallWin = smallWinners.has("oneX") || smallWinners.has("twoX");
-    if (hadSmallWin && newSD === 0) {
+    // 3. Logic for 1X/2X wins collapsing TG deficits into the main Small Deficit
+    const hadOneXTwoXWin = smallWinners.has("oneX") || smallWinners.has("twoX");
+    
+    // If a 1X or 2X won and wiped the main Small Deficit to 0
+    if (hadOneXTwoXWin && newSD === 0) {
       const totalTgDef = (newDefs["tg0"] || 0) + (newDefs["tg6"] || 0);
       newSD = totalTgDef;
+      
+      // Reset the TG buttons because their debt moved to the main SD
       newDefs["tg0"] = 0;
       newDefs["tg6"] = 0;
     }
 
-    // Explicitly update all hooks simultaneously
+    // 4. Update all States at once
     setSmallDefs(newDefs);
     setSmallDeficit(newSD);
     setSmallDeficitShadow(newShadow);
     setBank(newBank);
     setResidueDeficit(newResidue);
 
-    // Save exact computed totals back to localStorage
+    // 5. Sync to Storage
     handleSaveState({
       smallDeficit: newSD,
       smallDeficitShadow: newShadow,
@@ -273,9 +263,11 @@ const Homepage = () => {
       smallDefs: newDefs,
     });
 
-    // Clean up current match layouts
+    // 6. Clear UI for next round
     settleAndClear();
   };
+
+ 
   
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
