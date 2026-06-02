@@ -44,7 +44,7 @@ const Homepage = () => {
   const [deficit,      setDeficit]      = useState(0);
   const [winnerStake,  setWinnerStake]  = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
-
+  const [bank, setBank] = useState(0);
   /* ── WEEK & WIN COUNT ── */
   const [week,     setWeek]     = useState(1);
   const [winCount, setWinCount] = useState(0);
