@@ -173,6 +173,14 @@ const Homepage = () => {
 /* ================================================================
    HANDLE NEXT - FIXED VERSION
    ================================================================ */
+/* ================================================================
+   HANDLE NEXT - CORRECTED ACCORDING TO YOUR RULES
+   ================================================================ */
+
+  
+  /* ================================================================
+   HANDLE NEXT - FINAL CORRECT VERSION
+   ================================================================ */
 const handleNext = () => {
   if (!fixture) return;
 
@@ -186,9 +194,9 @@ const handleNext = () => {
   let nt5 = total5;
   let nt6 = total6;
 
-  let newSD = smallDeficit;           // Start with current value (includes winnerStake)
+  let newSD = smallDeficit;           // Only winner stakes should accumulate here
   let ngd = grandDeficit;
-  let bank = bankDeposit;
+  let bank = bankDeposit || 0;
 
   let newWinCount = winCount;
   let newPaused = paused;
@@ -202,7 +210,7 @@ const handleNext = () => {
   let t5Shadow = 0;
   let t6Shadow = 0;
 
-  /* track how many winners happened per level */
+  /* track winners per level */
   const levelWins = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0};
 
   ASSET_KEYS.forEach(key => {
@@ -215,7 +223,7 @@ const handleNext = () => {
       newWinCount++;
       levelWins[lv]++;
 
-      // Remove priv deficit from previous level totals
+      // Remove priv deficit from previous level total
       if (lv === 2) nt1 = Math.max(0, nt1 - pd);
       if (lv === 3) nt2 = Math.max(0, nt2 - pd);
       if (lv === 4) nt3 = Math.max(0, nt3 - pd);
@@ -223,7 +231,7 @@ const handleNext = () => {
       if (lv === 6) nt5 = Math.max(0, nt5 - pd);
       if (lv === 7) nt6 = Math.max(0, nt6 - pd);
 
-      // Clear current level deficit (shadow logic)
+      // Clear current level deficit using shadow logic
       if (lv === 1) {
         if (levelWins[1] === 1) {
           sdShadow = newSD;
@@ -288,29 +296,22 @@ const handleNext = () => {
         }
       }
 
-      newPriv[key] = 0;
-
+      newPriv[key] = 0;                    // Clear private deficit
       if (lv < MAX_LEVEL) {
         newLevels[key] = lv + 1;
       }
 
-    } 
-    else {
+    } else {
       // ==================== LOSS ====================
-      newPriv[key] += stake;
+      newPriv[key] += stake;               // Private deficit always increases
 
-      if (lv === 1) {
-        // Only add loss stake to smallDeficit if NO L1 won this round
-        if (levelWins[1] === 0) {
-          newSD += stake;
-        }
-      } 
-      else if (lv === 2) nt1 += stake;
-      else if (lv === 3) nt2 += stake;
-      else if (lv === 4) nt3 += stake;
-      else if (lv === 5) nt4 += stake;
-      else if (lv === 6) nt5 += stake;
-      else if (lv === 7) nt6 += stake;
+      // Add stake to correct level total (Never to smallDeficit)
+      if (lv === 1) nt1 += stake;
+      else if (lv === 2) nt2 += stake;
+      else if (lv === 3) nt3 += stake;
+      else if (lv === 4) nt4 += stake;
+      else if (lv === 5) nt5 += stake;
+      else if (lv === 6) nt6 += stake;
     }
   });
 
@@ -325,7 +326,7 @@ const handleNext = () => {
     newPaused = false;
   }
 
-  // Apply updates
+  // Apply state updates
   setSmallDeficit(newSD);
   setPrivDefs(newPriv);
   setAssetLevels(newLevels);
@@ -345,7 +346,6 @@ const handleNext = () => {
 
   clearForNext();
 };
-        
   
   const clearForNext = () => {
     setInputA(""); setInputB("");
