@@ -139,14 +139,34 @@ const Homepage = () => {
     setWinnerStake(wStake);
     
     const nextSDValue = smallDeficit + wStake;
+
+    // --- RECALCULATE TOTAL DEFICITS BASED ON ASSETS CURRENTLY IN THOSE LEVELS ---
+    let nt1 = 0, nt2 = 0, nt3 = 0, nt4 = 0, nt5 = 0, nt6 = 0;
+    ASSET_KEYS.forEach(k => {
+      const lv = assetLevels[k];
+      const val = privDefs[k] || 0;
+      if (lv === 1) nt1 += val;
+      else if (lv === 2) nt2 += val;
+      else if (lv === 3) nt3 += val;
+      else if (lv === 4) nt4 += val;
+      else if (lv === 5) nt5 += val;
+      else if (lv === 6) nt6 += val;
+    });
+
     setSmallDeficit(nextSDValue);
+    setTotal1(nt1);
+    setTotal2(nt2);
+    setTotal3(nt3);
+    setTotal4(nt4);
+    setTotal5(nt5);
+    setTotal6(nt6);
 
     const newStakes = emptyPerAsset();
     if (!paused) {
       ASSET_KEYS.forEach(key => {
         newStakes[key] = calcStake(
           key, found, assetLevels, privDefs,
-          nextSDValue, total1, total2, total3, total4, total5, total6, grandDeficit
+          nextSDValue, nt1, nt2, nt3, nt4, nt5, nt6, grandDeficit
         );
       });
     }
@@ -159,147 +179,77 @@ const Homepage = () => {
     setWinners(p => new Set([...p, key]));
   };
 
-  const handleJackpot = () => {
-    setClicked(p => new Set([...p, "six"]));
-    setBaseStake(10000);
-    setDeficit(0);
-    setSmallDeficit(0);
-  };
-
   const handleNext = () => {
     if (!fixture) return;
 
     const newPriv = { ...privDefs };
     const newLevels = { ...assetLevels };
-
-    let nt1 = total1;
-    let nt2 = total2;
-    let nt3 = total3;
-    let nt4 = total4;
-    let nt5 = total5;
-    let nt6 = total6;
-
     let newSD = smallDeficit;
-    let ngd = grandDeficit;
     let bank = bankDeposit || 0;
-
     let newWinCount = winCount;
-    let newPaused = paused;
 
-    let sdShadow = 0;
-    let t1Shadow = 0;
-    let t2Shadow = 0;
-    let t3Shadow = 0;
-    let t4Shadow = 0;
-    let t5Shadow = 0;
-    let t6Shadow = 0;
+    // We process winners first to handle the clearing of the targeted assets
+    winners.forEach(winKey => {
+      const winLv = newLevels[winKey];
+      
+      // Target Level logic: 
+      // Level 1 targets SmallDeficit (SD)
+      // Level 2 targets Level 1 assets
+      // Level 3 targets Level 2 assets, etc.
+      const targetLevel = winLv - 1;
 
-    const levelWins = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0};
-
-    ASSET_KEYS.forEach(key => {
-      const lv = newLevels[key];
-      const won = winners.has(key);
-      const stake = gameStakes[key] || 0;
-      const pd = newPriv[key] || 0;
-
-      if (won) {
-        newWinCount++;
-        levelWins[lv]++;
-
-        // FIRST STEP: Subtract current asset's historical private deficit from the group total before clearing
-        if (lv === 1) nt1 = Math.max(0, nt1 - pd);
-        else if (lv === 2) nt2 = Math.max(0, nt2 - pd);
-        else if (lv === 3) nt3 = Math.max(0, nt3 - pd);
-        else if (lv === 4) nt4 = Math.max(0, nt4 - pd);
-        else if (lv === 5) nt5 = Math.max(0, nt5 - pd);
-        else if (lv === 6) nt6 = Math.max(0, nt6 - pd);
-        else if (lv === 7) nt6 = Math.max(0, nt6 - pd);
-
-        // SECOND STEP: Run the shadow clearing logic for the group totals
-        if (lv === 1) {
-          if (levelWins[1] === 1) { sdShadow = newSD; newSD = 0; } 
-          else { bank += sdShadow; sdShadow = 0; }
-        }
-        if (lv === 2) {
-          if (levelWins[2] === 1) { t1Shadow = nt1; nt1 = 0; } 
-          else { bank += t1Shadow; t1Shadow = 0; }
-        }
-        if (lv === 3) {
-          if (levelWins[3] === 1) { t2Shadow = nt2; nt2 = 0; } 
-          else { bank += t2Shadow; t2Shadow = 0; }
-        }
-        if (lv === 4) {
-          if (levelWins[4] === 1) { t3Shadow = nt3; nt3 = 0; } 
-          else { bank += t3Shadow; t3Shadow = 0; }
-        }
-        if (lv === 5) {
-          if (levelWins[5] === 1) { t4Shadow = nt4; nt4 = 0; } 
-          else { bank += t4Shadow; t4Shadow = 0; }
-        }
-        if (lv === 6) {
-          if (levelWins[6] === 1) { t5Shadow = nt5; nt5 = 0; } 
-          else { bank += t5Shadow; t5Shadow = 0; }
-        }
-        if (lv === 7) {
-          if (levelWins[7] === 1) { t6Shadow = nt6; nt6 = 0; } 
-          else { bank += t6Shadow; t6Shadow = 0; }
-        }
-
-        // FINAL STEP: Clear the private deficit and move the asset up
-        newPriv[key] = 0;
-        if (lv < MAX_LEVEL) {
-          newLevels[key] = lv + 1;
-        }
-
-      } else {
-        // LOSS LOGIC
-        newPriv[key] += stake;
-        if (lv === 1) nt1 += stake;
-        else if (lv === 2) nt2 += stake;
-        else if (lv === 3) nt3 += stake;
-        else if (lv === 4) nt4 += stake;
-        else if (lv === 5) nt5 += stake;
-        else if (lv === 6) nt6 += stake;
-        else if (lv === 7) nt6 += stake;
+      if (winLv === 1) {
+        bank += newSD;
+        newSD = 0;
+      } else if (targetLevel >= 1 && targetLevel <= 6) {
+        // Clear all assets currently assigned to the level this winner was targeting
+        ASSET_KEYS.forEach(k => {
+          if (newLevels[k] === targetLevel) {
+            newPriv[k] = 0; 
+          }
+        });
       }
     });
 
-    if (newWinCount >= WIN_LIMIT) {
-      newPaused = true;
-    }
+    // Final loop to update levels and add stakes for losers
+    ASSET_KEYS.forEach(key => {
+      const won = winners.has(key);
+      const lv = newLevels[key];
+      const stake = gameStakes[key] || 0;
 
-    let newWeek = week + 1;
-    if (newWeek > 38) {
-      newWeek = 1;
-      newWinCount = 0;
-      newPaused = false;
-    }
+      if (won) {
+        newWinCount++;
+        newPriv[key] = 0; 
+        if (lv < MAX_LEVEL) newLevels[key] = lv + 1;
+      } else {
+        newPriv[key] += stake;
+      }
+    });
 
+    // Update state
     setSmallDeficit(newSD);
     setPrivDefs(newPriv);
     setAssetLevels(newLevels);
-    setTotal1(nt1);
-    setTotal2(nt2);
-    setTotal3(nt3);
-    setTotal4(nt4);
-    setTotal5(nt5);
-    setTotal6(nt6);
     setBankDeposit(bank);
-    setGrandDeficit(ngd);
     setWinCount(newWinCount);
-    setPaused(newPaused);
-    setWeek(newWeek);
 
+    let nextWk = week + 1;
+    if (nextWk > 38) {
+      setWeek(1);
+      setWinCount(0);
+      setPaused(false);
+    } else {
+      setWeek(nextWk);
+      if (newWinCount >= WIN_LIMIT) setPaused(true);
+    }
+
+    setFixture(null);
     setInputA(""); setInputB("");
-    setFixture(null); setClicked(new Set()); setWinners(new Set());
-    setWinnerStake(0); setGameStakes(emptyPerAsset());
+    setGameStakes(emptyPerAsset());
     
-    // Slight delay to ensure React state batching completes before DB call
-    setTimeout(() => {
-      saveBase();
-    }, 50);
+    setTimeout(() => saveBase(), 50);
   };
-  
+
   const byLevel = {};
   ASSET_KEYS.forEach(key => {
     const lv = assetLevels[key];
@@ -320,6 +270,7 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
+      {/* Header section... same as before */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h1 className="text-sm font-extrabold text-red-400">Virtual EPL</h1>
