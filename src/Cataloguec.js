@@ -64,15 +64,9 @@ const Homepage = () => {
   const [total5, setTotal5] = useState(0);
   const [total6, setTotal6] = useState(0);
   const [grandDeficit, setGrandDeficit] = useState(0);
-  const [bank, setBank] = useState(0);
+  
 
-const [shadowSD, setShadowSD] = useState(0);
-const [shadow1, setShadow1] = useState(0);
-const [shadow2, setShadow2] = useState(0);
-const [shadow3, setShadow3] = useState(0);
-const [shadow4, setShadow4] = useState(0);
-const [shadow5, setShadow5] = useState(0);
-const [shadow6, setShadow6] = useState(0);
+  
   /* ── CURRENT GAME STAKES ── */
   const [gameStakes, setGameStakes] = useState(emptyPerAsset());
 
