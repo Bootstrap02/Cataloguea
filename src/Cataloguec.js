@@ -170,6 +170,9 @@ const Homepage = () => {
   /* ================================================================
    HANDLE NEXT
    ================================================================ */
+/* ================================================================
+   HANDLE NEXT - FIXED VERSION
+   ================================================================ */
 const handleNext = () => {
   if (!fixture) return;
 
@@ -183,7 +186,7 @@ const handleNext = () => {
   let nt5 = total5;
   let nt6 = total6;
 
-  let newSD = smallDeficit;           // Start with current (already includes winnerStake)
+  let newSD = smallDeficit;           // Start with current value (includes winnerStake)
   let ngd = grandDeficit;
   let bank = bankDeposit;
 
@@ -212,7 +215,7 @@ const handleNext = () => {
       newWinCount++;
       levelWins[lv]++;
 
-      // Remove priv deficit from previous level
+      // Remove priv deficit from previous level totals
       if (lv === 2) nt1 = Math.max(0, nt1 - pd);
       if (lv === 3) nt2 = Math.max(0, nt2 - pd);
       if (lv === 4) nt3 = Math.max(0, nt3 - pd);
@@ -220,7 +223,7 @@ const handleNext = () => {
       if (lv === 6) nt5 = Math.max(0, nt5 - pd);
       if (lv === 7) nt6 = Math.max(0, nt6 - pd);
 
-      // === CLEAR CURRENT LEVEL DEFICIT (only on first win per level) ===
+      // Clear current level deficit (shadow logic)
       if (lv === 1) {
         if (levelWins[1] === 1) {
           sdShadow = newSD;
@@ -230,17 +233,60 @@ const handleNext = () => {
           sdShadow = 0;
         }
       }
-      // ... (keep all your other lv === 2 to 7 shadow logic exactly as is)
-
       if (lv === 2) {
-        if (levelWins[2] === 1) { t1Shadow = nt1; nt1 = 0; } 
-        else { bank += t1Shadow; t1Shadow = 0; }
+        if (levelWins[2] === 1) {
+          t1Shadow = nt1;
+          nt1 = 0;
+        } else {
+          bank += t1Shadow;
+          t1Shadow = 0;
+        }
       }
       if (lv === 3) {
-        if (levelWins[3] === 1) { t2Shadow = nt2; nt2 = 0; } 
-        else { bank += t2Shadow; t2Shadow = 0; }
+        if (levelWins[3] === 1) {
+          t2Shadow = nt2;
+          nt2 = 0;
+        } else {
+          bank += t2Shadow;
+          t2Shadow = 0;
+        }
       }
-      // ... repeat for lv 4,5,6,7 (same as before)
+      if (lv === 4) {
+        if (levelWins[4] === 1) {
+          t3Shadow = nt3;
+          nt3 = 0;
+        } else {
+          bank += t3Shadow;
+          t3Shadow = 0;
+        }
+      }
+      if (lv === 5) {
+        if (levelWins[5] === 1) {
+          t4Shadow = nt4;
+          nt4 = 0;
+        } else {
+          bank += t4Shadow;
+          t4Shadow = 0;
+        }
+      }
+      if (lv === 6) {
+        if (levelWins[6] === 1) {
+          t5Shadow = nt5;
+          nt5 = 0;
+        } else {
+          bank += t5Shadow;
+          t5Shadow = 0;
+        }
+      }
+      if (lv === 7) {
+        if (levelWins[7] === 1) {
+          t6Shadow = nt6;
+          nt6 = 0;
+        } else {
+          bank += t6Shadow;
+          t6Shadow = 0;
+        }
+      }
 
       newPriv[key] = 0;
 
@@ -250,15 +296,14 @@ const handleNext = () => {
 
     } 
     else {
-      // ==================== LOSSES ====================
+      // ==================== LOSS ====================
       newPriv[key] += stake;
 
       if (lv === 1) {
-        // IMPORTANT CHANGE: Only add to smallDeficit if there was NO L1 winner this round
+        // Only add loss stake to smallDeficit if NO L1 won this round
         if (levelWins[1] === 0) {
           newSD += stake;
         }
-        // If there WAS a winner, we already cleared it → don't add losses back
       } 
       else if (lv === 2) nt1 += stake;
       else if (lv === 3) nt2 += stake;
@@ -280,13 +325,17 @@ const handleNext = () => {
     newPaused = false;
   }
 
-  // Final updates
+  // Apply updates
   setSmallDeficit(newSD);
   setPrivDefs(newPriv);
   setAssetLevels(newLevels);
 
-  setTotal1(nt1); setTotal2(nt2); setTotal3(nt3);
-  setTotal4(nt4); setTotal5(nt5); setTotal6(nt6);
+  setTotal1(nt1);
+  setTotal2(nt2);
+  setTotal3(nt3);
+  setTotal4(nt4);
+  setTotal5(nt5);
+  setTotal6(nt6);
   setBankDeposit(bank);
   setGrandDeficit(ngd);
 
@@ -296,9 +345,8 @@ const handleNext = () => {
 
   clearForNext();
 };
+        
   
-  
-
   const clearForNext = () => {
     setInputA(""); setInputB("");
     setFixture(null); setClicked(new Set()); setWinners(new Set());
