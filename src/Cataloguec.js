@@ -9,11 +9,11 @@ const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 const ASSET_KEYS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
 const ASSET_LABELS = {
-  oneX:"1X", twoX:"2X", x2:"X2", tg0:"0G", tg6:"6G",
+  oneX:"1X", twoX:"2X", x2:"X2", tg0:"Tg0", tg6:"Tg6 ",
   ht12:"HT12", ht21:"HT21", ht30:"HT30", ft40:"FT40", ft41:"FT41"
 };
 const ASSET_ODD_KEY = {
-  oneX:"oneX", twoX:"twoX", x2:"x2", tg0:"zeroGoals", tg6:"sixGoals",
+  oneX:"oneX", twoX:"twoX", x2:"x2", tg0:"tg0", tg6:"tg6",
   ht12:"ht12", ht21:"ht21", ht30:"ht30", ft40:"ft40", ft41:"ft41"
 };
 const LEVEL_COLORS = [
