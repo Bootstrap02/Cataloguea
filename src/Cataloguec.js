@@ -75,54 +75,61 @@ const Homepage = () => {
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  const totals = [0, total1, total2, total3, total4, total5, total6];
-  const setTotals = [null, setTotal1, setTotal2, setTotal3, setTotal4, setTotal5, setTotal6];
 
   /* ================================================================
      API
      ================================================================ */
+  const LS_KEY = "virt-epl-7level";
+
+  const applyData = (d) => {
+    setBaseStake(d.base ?? 10000);
+    setDeficit(d.deficit ?? 0);
+    setSmallDeficit(d.smallDeficit ?? 0);
+    setWeek(d.week ?? 1);
+    setWinCount(d.winCount ?? 0);
+    setPaused(d.paused ?? false);
+    setAssetLevels(d.assetLevels || defaultLevels());
+    setPrivDefs(d.privDefs || emptyPerAsset());
+    setTotal1(d.total1 ?? 0);
+    setTotal2(d.total2 ?? 0);
+    setTotal3(d.total3 ?? 0);
+    setTotal4(d.total4 ?? 0);
+    setTotal5(d.total5 ?? 0);
+    setTotal6(d.total6 ?? 0);
+    setGrandDeficit(d.grandDeficit ?? 0);
+  };
+
   const fetchBase = async () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
-      const d = res.data || {};
-      setBaseStake(d.base ?? 10000);
-      setDeficit(d.deficit ?? 0);
-      setSmallDeficit(d.smallDeficit ?? 0);
-      setWeek(d.week ?? 1);
-      setWinCount(d.winCount ?? 0);
-      setPaused(d.paused ?? false);
-      setAssetLevels(d.assetLevels || defaultLevels());
-      setPrivDefs(d.privDefs || emptyPerAsset());
-      setTotal1(d.total1 ?? 0);
-      setTotal2(d.total2 ?? 0);
-      setTotal3(d.total3 ?? 0);
-      setTotal4(d.total4 ?? 0);
-      setTotal5(d.total5 ?? 0);
-      setTotal6(d.total6 ?? 0);
-      setGrandDeficit(d.grandDeficit ?? 0);
-    } catch (err) { console.error("❌ fetch:", err.message); }
-    finally { setIsReloading(false); }
+      if (res.data) applyData(res.data);
+    } catch (err) {
+      console.error("❌ fetch:", err.message);
+      /* Fallback to localStorage */
+      try {
+        const saved = localStorage.getItem(LS_KEY);
+        if (saved) applyData(JSON.parse(saved));
+      } catch (_) {}
+    } finally { setIsReloading(false); }
   };
 
   const saveBase = async () => {
-    try {
-      await axios.put(API_BASE, {
-        base: baseRef.current, deficit, smallDeficit,
-        week, winCount, paused,
-        assetLevels, privDefs,
-        total1, total2, total3, total4, total5, total6,
-        grandDeficit,
-      });
-    } catch (err) { console.error("❌ save:", err.message); }
+    const payload = {
+      base: baseRef.current, deficit, smallDeficit,
+      week, winCount, paused,
+      assetLevels, privDefs,
+      total1, total2, total3, total4, total5, total6,
+      grandDeficit,
+    };
+    /* Always save to localStorage */
+    try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch (_) {}
+    /* Also save to backend */
+    try { await axios.put(API_BASE, payload); }
+    catch (err) { console.error("❌ save:", err.message); }
   };
 
   useEffect(() => { fetchBase(); }, []);
-
-  /* ── Recompute a level's total from current privDefs ── */
-  const computeTotal = (level) =>
-    ASSET_KEYS.filter(k => assetLevels[k] === level)
-              .reduce((s, k) => s + (privDefs[k] || 0), 0);
 
   /* ── Stake calc for an asset given its level ── */
   const calcStake = (key, found, levels, priv, sd, t1,t2,t3,t4,t5,t6,gd) => {
