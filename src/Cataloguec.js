@@ -96,7 +96,6 @@ const Homepage = () => {
   }, [applyData]);
 
   const saveBase = useCallback(async (overrides = {}) => {
-    // We get current values from a mix of state and passed overrides
     const payload = {
       base: baseRef.current,
       deficit, smallDeficit, week, winCount, paused,
@@ -190,34 +189,60 @@ const Homepage = () => {
     let newSD = smallDeficit;
     let bank = bankDeposit || 0;
     let newWinCount = winCount;
+    
+    // Level totals captured as they are currently to facilitate shadow clearing
+    let nt1 = total1; let nt2 = total2; let nt3 = total3;
+    let nt4 = total4; let nt5 = total5; let nt6 = total6;
 
-    // 1. Process targeting clears
-    winners.forEach(winKey => {
-      const winLv = newLevels[winKey];
-      const targetLevel = winLv - 1;
+    // Shadow variables to track if a level's deficit has already been cleared this round
+    let sdShadow = null;
+    let tShadows = { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
 
-      if (winLv === 1) {
-        bank += newSD;
-        newSD = 0;
-      } else if (targetLevel >= 1 && targetLevel <= 6) {
-        ASSET_KEYS.forEach(k => {
-          if (newLevels[k] === targetLevel) newPriv[k] = 0;
-        });
-      }
-    });
-
-    // 2. Process winners/losers movement
+    // Group winners by the level they belong to
+    const levelWins = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0};
+    
     ASSET_KEYS.forEach(key => {
-      const won = winners.has(key);
-      const lv = newLevels[key];
-      const stake = gameStakes[key] || 0;
-
-      if (won) {
+      if (winners.has(key)) {
+        const lv = newLevels[key];
+        levelWins[lv]++;
         newWinCount++;
-        newPriv[key] = 0; 
+
+        // Target clearing logic
+        if (lv === 1) {
+          if (sdShadow === null) { 
+            sdShadow = newSD; newSD = 0; 
+          } else { 
+            bank += sdShadow; // Subsequent win on Level 1 pushes the recovery to bank
+          }
+        } else if (lv > 1) {
+          const target = lv - 1;
+          // Clear all assets in the targeted level
+          ASSET_KEYS.forEach(k => {
+            if (newLevels[k] === target) newPriv[k] = 0;
+          });
+
+          // Handle the level total recovery
+          let currentTargetVal = 0;
+          if (target === 1) { currentTargetVal = nt1; nt1 = 0; }
+          else if (target === 2) { currentTargetVal = nt2; nt2 = 0; }
+          else if (target === 3) { currentTargetVal = nt3; nt3 = 0; }
+          else if (target === 4) { currentTargetVal = nt4; nt4 = 0; }
+          else if (target === 5) { currentTargetVal = nt5; nt5 = 0; }
+          else if (target === 6) { currentTargetVal = nt6; nt6 = 0; }
+
+          if (tShadows[target] === null) {
+            tShadows[target] = currentTargetVal;
+          } else {
+            bank += tShadows[target]; // Subsequent win targeting the same level
+          }
+        }
+
+        // Always clear winner's own private deficit and move up
+        newPriv[key] = 0;
         if (lv < MAX_LEVEL) newLevels[key] = lv + 1;
       } else {
-        newPriv[key] += stake;
+        // Loser accumulates stake
+        newPriv[key] += (gameStakes[key] || 0);
       }
     });
 
@@ -243,7 +268,6 @@ const Homepage = () => {
     setInputA(""); setInputB("");
     setGameStakes(emptyPerAsset());
     
-    // Save state snapshot
     saveBase({
       smallDeficit: newSD,
       privDefs: newPriv,
