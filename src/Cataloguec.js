@@ -277,7 +277,7 @@ const Homepage = () => {
       ---------------------------- */
 
       if (lv === 1) {
-       setTotal1((prev) => prev - pd) 
+        
         if (levelWins[1] === 1) {
           sdShadow = newSD;
           newSD = 0;
