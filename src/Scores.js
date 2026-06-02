@@ -29,10 +29,7 @@ export const odds = [
   // winner: 416 - Liverpool away vs Bournemouth/Fulham/Crystal Palace
   { id: "bouliv", home: "bou", away: "liv", winner: 416, code: "HDA", fiveZero: 109, fiveOne: 93, oneX: 18.4, twoX: 18.4, tg0: 16.7, tg6: 20.1, x2: 19.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 },
   { id: "fulliv", home: "ful", away: "liv", winner: 416, code: "HDA", fiveZero: 109, fiveOne: 93, oneX: 18.4, twoX: 18.4, tg0: 16.7, tg6: 20.1, x2: 19.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 },
-  { id: "cryliv", home: "cry", away: "liv", winner: 416, code: "HDA", fiveZero: 109, fiveOne: 93, oneX: 18.4, twoX: 18.4, tg0: 16.7, tg6: 20.1, x2: 19.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 }
-];
-
-export const smallOdds = [
+  { id: "cryliv", home: "cry", away: "liv", winner: 416, code: "HDA", fiveZero: 109, fiveOne: 93, oneX: 18.4, twoX: 18.4, tg0: 16.7, tg6: 20.1, x2: 19.1, ht12: 27.2, ht21: 13.5, ht30: 26.8, ft40: 36.6, ft41: 30.1 }, 
   // winner: 105 - Liverpool home vs Crystal Palace/Bournemouth/Fulham
   { id: "livcry", home: "liv", away: "cry", winner: 105, fiveZero: 40.4, fiveOne: 45.5, oneX: 20.4, twoX: 20.4, tg0: 14.7, tg6: 15.5, x2: 23, ht12: 33.1, ht21: 12.6, ht30: 14.9, ft40: 18, ft41: 20.6 },
   { id: "livbou", home: "liv", away: "bou", winner: 105, fiveZero: 40.4, fiveOne: 45.5, oneX: 20.4, twoX: 20.4, tg0: 14.7, tg6: 15.5, x2: 23, ht12: 33.1, ht21: 12.6, ht30: 14.9, ft40: 18, ft41: 20.6 },
