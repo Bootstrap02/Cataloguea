@@ -129,7 +129,7 @@ const Homepage = () => {
     catch (err) { console.error("❌ save:", err.message); }
   };
 
-  useEffect(() => { fetchBase(); }, []);
+  useEffect(() => { fetchBase(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Stake calc for an asset given its level ── */
   const calcStake = (key, found, levels, priv, sd, t1,t2,t3,t4,t5,t6,gd) => {
