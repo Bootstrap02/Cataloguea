@@ -22,7 +22,7 @@ const LEVEL_COLORS = [
 ];
 
 const MAX_LEVEL = 7;
-const WIN_LIMIT = 18;
+const WIN_LIMIT = 30; // Updated win limit to 30
 
 const emptyPerAsset = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
 const defaultLevels = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 1]));
@@ -71,7 +71,7 @@ const Homepage = () => {
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  const LS_KEY = "virt-epl-carryover-v3";
+  const LS_KEY = "virt-epl-carryover-v4";
 
   const applyData = useCallback((d) => {
     setBaseStake(d.base ?? 10000);
@@ -255,16 +255,44 @@ const Homepage = () => {
     // --- STRATEGIC SEASON END RESET ---
     if (nextWk > 38) {
       nextWk = 1; finalWinCount = 0; finalPaused = false;
+
+      // 1. Arrange current season's totals into an object array to process highest down to lowest
+      const totalsArray = [
+        { id: 1, val: nt1 }, { id: 2, val: nt2 }, { id: 3, val: nt3 },
+        { id: 4, val: nt4 }, { id: 5, val: nt5 }, { id: 6, val: nt6 }
+      ];
+      totalsArray.sort((x, y) => y.val - x.val);
+
+      // 2. Alleviate deficits sequentially using available bank reserves
+      totalsArray.forEach(item => {
+        if (item.val <= 0) return;
+        if (bank >= item.val) {
+          bank -= item.val;
+          item.val = 0;
+        } else {
+          item.val -= bank;
+          bank = 0;
+        }
+      });
+
+      // 3. Extract the clean mitigated totals back into individual trackers
+      const reconciled = {};
+      totalsArray.forEach(item => { reconciled[item.id] = item.val; });
       
-      // 1. Roll over active deficits safely into seasonal supports (accumulative)
+      const cleanT1 = reconciled[1] ?? 0; const cleanT2 = reconciled[2] ?? 0;
+      const cleanT3 = reconciled[3] ?? 0; const cleanT4 = reconciled[4] ?? 0;
+      const cleanT5 = reconciled[5] ?? 0; const cleanT6 = reconciled[6] ?? 0;
+
+      // 4. Roll over mitigated balances into their cumulative Support counters
       finalSupSD += finalSD;
-      ns1 += nt1; ns2 += nt2; ns3 += nt3; ns4 += nt4; ns5 += nt5; ns6 += nt6;
+      ns1 += cleanT1; ns2 += cleanT2; ns3 += cleanT3; 
+      ns4 += cleanT4; ns5 += cleanT5; ns6 += cleanT6;
       
-      // 2. Explicitly wipe active season tracking containers to 0
+      // 5. Clean structural wipe of active dynamic seasonal states
       finalSD = 0;
       nt1 = 0; nt2 = 0; nt3 = 0; nt4 = 0; nt5 = 0; nt6 = 0;
       
-      // 3. Clear private debts and force everyone back to UI Level 1 arrangement
+      // 6. Force reset private debts and move all asset UI rows back to Level 1
       ASSET_KEYS.forEach(k => { 
         finalPriv[k] = 0; 
         finalLevels[k] = 1; 
@@ -288,7 +316,6 @@ const Homepage = () => {
     });
   };
 
-  // Re-map assets according to current visual levels
   const byLevel = {};
   ASSET_KEYS.forEach(key => {
     const lv = assetLevels[key];
@@ -335,7 +362,6 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* Dynamic Asset Grid mapped out by current level status */}
         {[1,2,3,4,5,6,7].map(lv => {
           const keys = byLevel[lv];
           if (!keys || keys.length === 0) return null;
@@ -364,7 +390,6 @@ const Homepage = () => {
           <button onClick={handleSubmit} disabled={!!fixture} className="w-full py-3.5 font-black text-sm rounded-xl bg-red-700 text-white shadow-xl active:bg-red-800 disabled:bg-gray-800 disabled:text-gray-500">CALCULATE</button>
         </div>
 
-        {/* Dedicated Season Support Status Monitor Panel */}
         <div className="bg-black/60 rounded-2xl p-3 text-[10px] flex flex-col gap-2.5 border border-white/5">
           <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
             <div className="flex flex-col"><span className="text-gray-400 text-[9px]">Bank Vault</span><strong className="text-pink-400 text-sm font-black">{bankDeposit}</strong></div>
