@@ -209,232 +209,401 @@ const [shadow6, setShadow6] = useState(0);
   /* ================================================================
      HANDLE NEXT
      ================================================================ */
-  const handleNext = () => {
-  if (!fixture) return;
+  
+      const handleNext = () => {
 
-  const newPriv = { ...privDefs };
-  const newLevels = { ...assetLevels };
+if (!fixture) return;
 
-  let nt1 = total1;
-  let nt2 = total2;
-  let nt3 = total3;
-  let nt4 = total4;
-  let nt5 = total5;
-  let nt6 = total6;
+const newPriv = { ...privDefs };
+const newLevels = { ...assetLevels };
 
-  let newSD = smallDeficit;
-  let ngd = grandDeficit;
+let newSD = smallDeficit;
 
-  let newWinCount = winCount;
-  let newPaused = paused;
+let nt1 = total1;
+let nt2 = total2;
+let nt3 = total3;
+let nt4 = total4;
+let nt5 = total5;
+let nt6 = total6;
 
-  /* shadows for double wins */
-  let sdShadow = 0;
-  let t1Shadow = 0;
-  let t2Shadow = 0;
-  let t3Shadow = 0;
-  let t4Shadow = 0;
-  let t5Shadow = 0;
-  let t6Shadow = 0;
+let ngd = grandDeficit;
 
-  /* track how many winners happened per level */
-  const levelWins = {
-    1:0,
-    2:0,
-    3:0,
-    4:0,
-    5:0,
-    6:0,
-    7:0
-  };
+let newBank = bank;
 
-  /* ===============================
-     SETTLE EVERY ASSET
-  =============================== */
+let sSD = shadowSD;
+let s1 = shadow1;
+let s2 = shadow2;
+let s3 = shadow3;
+let s4 = shadow4;
+let s5 = shadow5;
+let s6 = shadow6;
 
-  ASSET_KEYS.forEach(key => {
+let newWinCount = winCount;
+let newPaused = paused;
 
-    const lv = newLevels[key];
-    const won = winners.has(key);
-    const stake = gameStakes[key] || 0;
-    const pd = newPriv[key] || 0;
-
-    if (won) {
-
-      newWinCount++;
-      levelWins[lv]++;
-
-      /* ----------------------------
-         remove priv deficit from
-         previous target totals
-      ---------------------------- */
-
-      if (lv === 2) nt1 = Math.max(0, nt1 - pd);
-      if (lv === 3) nt2 = Math.max(0, nt2 - pd);
-      if (lv === 4) nt3 = Math.max(0, nt3 - pd);
-      if (lv === 5) nt4 = Math.max(0, nt4 - pd);
-      if (lv === 6) nt5 = Math.max(0, nt5 - pd);
-      if (lv === 7) nt6 = Math.max(0, nt6 - pd);
-
-      /* ----------------------------
-         clear current level deficit
-         using shadow logic
-      ---------------------------- */
-
-      if (lv === 1) {
-
-        if (levelWins[1] === 1) {
-          sdShadow = newSD;
-          newSD = 0;
-        } else {
-          bank += sdShadow;
-          sdShadow = 0;
-        }
-
-      }
-
-      if (lv === 2) {
-
-        if (levelWins[2] === 1) {
-          t1Shadow = nt1;
-          nt1 = 0;
-        } else {
-          bank += t1Shadow;
-          t1Shadow = 0;
-        }
-
-      }
-
-      if (lv === 3) {
-
-        if (levelWins[3] === 1) {
-          t2Shadow = nt2;
-          nt2 = 0;
-        } else {
-          bank += t2Shadow;
-          t2Shadow = 0;
-        }
-
-      }
-
-      if (lv === 4) {
-
-        if (levelWins[4] === 1) {
-          t3Shadow = nt3;
-          nt3 = 0;
-        } else {
-          bank += t3Shadow;
-          t3Shadow = 0;
-        }
-
-      }
-
-      if (lv === 5) {
-
-        if (levelWins[5] === 1) {
-          t4Shadow = nt4;
-          nt4 = 0;
-        } else {
-          bank += t4Shadow;
-          t4Shadow = 0;
-        }
-
-      }
-
-      if (lv === 6) {
-
-        if (levelWins[6] === 1) {
-          t5Shadow = nt5;
-          nt5 = 0;
-        } else {
-          bank += t5Shadow;
-          t5Shadow = 0;
-        }
-
-      }
-
-      if (lv === 7) {
-
-        if (levelWins[7] === 1) {
-          t6Shadow = nt6;
-          nt6 = 0;
-        } else {
-          bank += t6Shadow;
-          t6Shadow = 0;
-        }
-
-      }
-
-      /* clear priv deficit */
-
-      newPriv[key] = 0;
-
-      /* move asset UP one level */
-
-      if (lv < MAX_LEVEL) {
-
-        newLevels[key] = lv + 1;
-
-      }
-
-    }
-
-    else {
-
-      /* -----------------------
-         LOSSES
-      ----------------------- */
-
-      newPriv[key] += stake;
-
-      if (lv === 1) newSD += stake;
-      else if (lv === 2) nt1 += stake;
-      else if (lv === 3) nt2 += stake;
-      else if (lv === 4) nt3 += stake;
-      else if (lv === 5) nt4 += stake;
-      else if (lv === 6) nt5 += stake;
-      else if (lv === 7) nt6 += stake;
-
-    }
-
-  });
-
-  if (newWinCount >= WIN_LIMIT) {
-
-    newPaused = true;
-
-  }
-
-  let newWeek = week + 1;
-
-  if (newWeek > 38) {
-
-    newWeek = 1;
-    newWinCount = 0;
-    newPaused = false;
-
-  }
-
-  setSmallDeficit(newSD);
-
-  setPrivDefs(newPriv);
-  setAssetLevels(newLevels);
-
-  setTotal1(nt1);
-  setTotal2(nt2);
-  setTotal3(nt3);
-  setTotal4(nt4);
-  setTotal5(nt5);
-  setTotal6(nt6);
-
-  setGrandDeficit(ngd);
-
-  setWinCount(newWinCount);
-  setPaused(newPaused);
-  setWeek(newWeek);
-
-  clearForNext();
+const winsPerLevel = {
+1:0,
+2:0,
+3:0,
+4:0,
+5:0,
+6:0,
+7:0
 };
+
+ASSET_KEYS.forEach(key=>{
+
+const lv = newLevels[key];
+const won = winners.has(key);
+
+const stake = gameStakes[key] || 0;
+const pd = newPriv[key] || 0;
+
+if(won){
+
+newWinCount++;
+
+winsPerLevel[lv]++;
+
+///////////////////////////////////////////////////
+//// REMOVE PRIVATE DEFICIT FROM TARGET FIRST
+///////////////////////////////////////////////////
+
+if(lv===1){
+
+/* Level1 priv deficits contribute to T1 */
+
+nt1 = Math.max(
+0,
+nt1 - pd
+);
+
+}
+
+else if(lv===2){
+
+nt2 = Math.max(
+0,
+nt2 - pd
+);
+
+}
+
+else if(lv===3){
+
+nt3 = Math.max(
+0,
+nt3 - pd
+);
+
+}
+
+else if(lv===4){
+
+nt4 = Math.max(
+0,
+nt4 - pd
+);
+
+}
+
+else if(lv===5){
+
+nt5 = Math.max(
+0,
+nt5 - pd
+);
+
+}
+
+else if(lv===6){
+
+nt6 = Math.max(
+0,
+nt6 - pd
+);
+
+}
+
+else if(lv===7){
+
+ngd = Math.max(
+0,
+ngd - pd
+);
+
+}
+
+///////////////////////////////////////////////////
+//// CLEAR LEVEL DEFICIT USING SHADOWS
+///////////////////////////////////////////////////
+
+if(lv===1){
+
+if(winsPerLevel[1]===1){
+
+sSD = newSD;
+
+newSD = 0;
+
+}
+
+else{
+
+newBank += sSD;
+
+sSD = 0;
+
+}
+
+}
+
+else if(lv===2){
+
+if(winsPerLevel[2]===1){
+
+s1 = nt1;
+
+nt1 = 0;
+
+}
+
+else{
+
+newBank += s1;
+
+s1 = 0;
+
+}
+
+}
+
+else if(lv===3){
+
+if(winsPerLevel[3]===1){
+
+s2 = nt2;
+
+nt2 = 0;
+
+}
+
+else{
+
+newBank += s2;
+
+s2 = 0;
+
+}
+
+}
+
+else if(lv===4){
+
+if(winsPerLevel[4]===1){
+
+s3 = nt3;
+
+nt3 = 0;
+
+}
+
+else{
+
+newBank += s3;
+
+s3 = 0;
+
+}
+
+}
+
+else if(lv===5){
+
+if(winsPerLevel[5]===1){
+
+s4 = nt4;
+
+nt4 = 0;
+
+}
+
+else{
+
+newBank += s4;
+
+s4 = 0;
+
+}
+
+}
+
+else if(lv===6){
+
+if(winsPerLevel[6]===1){
+
+s5 = nt5;
+
+nt5 = 0;
+
+}
+
+else{
+
+newBank += s5;
+
+s5 = 0;
+
+}
+
+}
+
+else if(lv===7){
+
+if(winsPerLevel[7]===1){
+
+s6 = nt6;
+
+nt6 = 0;
+
+}
+
+else{
+
+newBank += s6;
+
+s6 = 0;
+
+}
+
+}
+
+///////////////////////////////////////////////////
+//// CLEAR PRIVATE DEF
+///////////////////////////////////////////////////
+
+newPriv[key]=0;
+
+///////////////////////////////////////////////////
+//// MOVE UP LEVEL
+///////////////////////////////////////////////////
+
+if(lv<MAX_LEVEL){
+
+newLevels[key]=lv+1;
+
+}
+
+}
+
+else{
+
+///////////////////////////////////////////////////
+//// LOSS
+///////////////////////////////////////////////////
+
+newPriv[key]+=stake;
+
+if(lv===1){
+
+newSD+=stake;
+
+}
+
+else if(lv===2){
+
+nt1+=stake;
+
+}
+
+else if(lv===3){
+
+nt2+=stake;
+
+}
+
+else if(lv===4){
+
+nt3+=stake;
+
+}
+
+else if(lv===5){
+
+nt4+=stake;
+
+}
+
+else if(lv===6){
+
+nt5+=stake;
+
+}
+
+else if(lv===7){
+
+nt6+=stake;
+
+}
+
+}
+
+});
+
+if(newWinCount>=WIN_LIMIT){
+
+newPaused=true;
+
+}
+
+let newWeek=week+1;
+
+if(newWeek>38){
+
+newWeek=1;
+
+newWinCount=0;
+
+newPaused=false;
+
+}
+
+setSmallDeficit(newSD);
+
+setTotal1(nt1);
+setTotal2(nt2);
+setTotal3(nt3);
+setTotal4(nt4);
+setTotal5(nt5);
+setTotal6(nt6);
+
+setGrandDeficit(ngd);
+
+setPrivDefs(newPriv);
+
+setAssetLevels(newLevels);
+
+setBank(newBank);
+
+setShadowSD(sSD);
+
+setShadow1(s1);
+setShadow2(s2);
+setShadow3(s3);
+setShadow4(s4);
+setShadow5(s5);
+setShadow6(s6);
+
+setWinCount(newWinCount);
+
+setPaused(newPaused);
+
+setWeek(newWeek);
+
+clearForNext();
+
+};
+    
   
 
         
@@ -571,6 +740,7 @@ const [shadow6, setShadow6] = useState(0);
           <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">SmallDef</span><strong className="text-blue-400">{smallDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Grand Def</span><strong className="text-pink-400">{grandDeficit}</strong></div>
+         <div className="flex justify-between"><span className="text-gray-400">Bank</span><strong className="text-pink-400">{bank}</strong></div>
           <div className="col-span-2 border-t border-white/10 pt-1 grid grid-cols-3 gap-1">
             {[total1,total2,total3,total4,total5,total6].map((t,i) => (
               <div key={i} className="flex justify-between">
