@@ -22,10 +22,10 @@ const LEVEL_COLORS = [
 ];
 
 const MAX_LEVEL = 7;
-const WIN_LIMIT  = 18;
+const WIN_LIMIT = 18;
 
 const emptyPerAsset = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
-const defaultLevels  = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 1]));
+const defaultLevels = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 1]));
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
@@ -95,13 +95,14 @@ const Homepage = () => {
     } finally { setIsReloading(false); }
   }, [applyData]);
 
-  const saveBase = useCallback(async () => {
+  const saveBase = useCallback(async (overrides = {}) => {
+    // We get current values from a mix of state and passed overrides
     const payload = {
-      base: baseRef.current, deficit, smallDeficit,
-      week, winCount, paused,
-      assetLevels, privDefs,
-      total1, total2, total3, total4, total5, total6,
-      grandDeficit, bankDeposit
+      base: baseRef.current,
+      deficit, smallDeficit, week, winCount, paused,
+      assetLevels, privDefs, total1, total2, total3,
+      total4, total5, total6, grandDeficit, bankDeposit,
+      ...overrides
     };
     try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch (_) {}
     try { await axios.put(API_BASE, payload); }
@@ -137,10 +138,9 @@ const Homepage = () => {
 
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
-    
     const nextSDValue = smallDeficit + wStake;
 
-    // --- RECALCULATE TOTAL DEFICITS BASED ON ASSETS CURRENTLY IN THOSE LEVELS ---
+    // Recalculate totals based on current asset placement
     let nt1 = 0, nt2 = 0, nt3 = 0, nt4 = 0, nt5 = 0, nt6 = 0;
     ASSET_KEYS.forEach(k => {
       const lv = assetLevels[k];
@@ -154,12 +154,8 @@ const Homepage = () => {
     });
 
     setSmallDeficit(nextSDValue);
-    setTotal1(nt1);
-    setTotal2(nt2);
-    setTotal3(nt3);
-    setTotal4(nt4);
-    setTotal5(nt5);
-    setTotal6(nt6);
+    setTotal1(nt1); setTotal2(nt2); setTotal3(nt3);
+    setTotal4(nt4); setTotal5(nt5); setTotal6(nt6);
 
     const newStakes = emptyPerAsset();
     if (!paused) {
@@ -179,6 +175,13 @@ const Homepage = () => {
     setWinners(p => new Set([...p, key]));
   };
 
+  const handleJackpot = () => {
+    setClicked(p => new Set([...p, "six"]));
+    setBaseStake(10000);
+    setDeficit(0);
+    setSmallDeficit(0);
+  };
+
   const handleNext = () => {
     if (!fixture) return;
 
@@ -188,30 +191,22 @@ const Homepage = () => {
     let bank = bankDeposit || 0;
     let newWinCount = winCount;
 
-    // We process winners first to handle the clearing of the targeted assets
+    // 1. Process targeting clears
     winners.forEach(winKey => {
       const winLv = newLevels[winKey];
-      
-      // Target Level logic: 
-      // Level 1 targets SmallDeficit (SD)
-      // Level 2 targets Level 1 assets
-      // Level 3 targets Level 2 assets, etc.
       const targetLevel = winLv - 1;
 
       if (winLv === 1) {
         bank += newSD;
         newSD = 0;
       } else if (targetLevel >= 1 && targetLevel <= 6) {
-        // Clear all assets currently assigned to the level this winner was targeting
         ASSET_KEYS.forEach(k => {
-          if (newLevels[k] === targetLevel) {
-            newPriv[k] = 0; 
-          }
+          if (newLevels[k] === targetLevel) newPriv[k] = 0;
         });
       }
     });
 
-    // Final loop to update levels and add stakes for losers
+    // 2. Process winners/losers movement
     ASSET_KEYS.forEach(key => {
       const won = winners.has(key);
       const lv = newLevels[key];
@@ -226,28 +221,38 @@ const Homepage = () => {
       }
     });
 
-    // Update state
+    let nextWk = week + 1;
+    let finalWinCount = newWinCount;
+    let finalPaused = paused;
+
+    if (nextWk > 38) {
+      nextWk = 1; finalWinCount = 0; finalPaused = false;
+    } else if (newWinCount >= WIN_LIMIT) {
+      finalPaused = true;
+    }
+
     setSmallDeficit(newSD);
     setPrivDefs(newPriv);
     setAssetLevels(newLevels);
     setBankDeposit(bank);
-    setWinCount(newWinCount);
-
-    let nextWk = week + 1;
-    if (nextWk > 38) {
-      setWeek(1);
-      setWinCount(0);
-      setPaused(false);
-    } else {
-      setWeek(nextWk);
-      if (newWinCount >= WIN_LIMIT) setPaused(true);
-    }
+    setWinCount(finalWinCount);
+    setWeek(nextWk);
+    setPaused(finalPaused);
 
     setFixture(null);
     setInputA(""); setInputB("");
     setGameStakes(emptyPerAsset());
     
-    setTimeout(() => saveBase(), 50);
+    // Save state snapshot
+    saveBase({
+      smallDeficit: newSD,
+      privDefs: newPriv,
+      assetLevels: newLevels,
+      bankDeposit: bank,
+      winCount: finalWinCount,
+      week: nextWk,
+      paused: finalPaused
+    });
   };
 
   const byLevel = {};
@@ -270,7 +275,6 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
-      {/* Header section... same as before */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h1 className="text-sm font-extrabold text-red-400">Virtual EPL</h1>
@@ -282,7 +286,7 @@ const Homepage = () => {
           </div>
         </div>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={saveBase} className="px-3 py-1.5 bg-green-600 font-bold text-white text-xs">💾</button>
+          <button onClick={() => saveBase()} className="px-3 py-1.5 bg-green-600 font-bold text-white text-xs">💾</button>
           <button onClick={fetchBase} disabled={isReloading} className="px-3 py-1.5 bg-red-600 font-bold text-white text-xs">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={10} />
           </button>
