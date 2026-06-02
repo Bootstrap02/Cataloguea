@@ -35,7 +35,6 @@ const Homepage = () => {
 
   const [baseStake, setBaseStake] = useState(10000);
   const [deficit, setDeficit] = useState(0);
-  const [winnerStake, setWinnerStake] = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
 
   const [week, setWeek] = useState(1);
@@ -52,7 +51,7 @@ const Homepage = () => {
   const [total5, setTotal5] = useState(0);
   const [total6, setTotal6] = useState(0);
   const [grandDeficit, setGrandDeficit] = useState(0);
-  const [bank, setBank] = useState(0);
+  const [bank] = useState(0); // Removed setBank
 
   const [gameStakes, setGameStakes] = useState(emptyPerAsset());
   const [winners, setWinners] = useState(new Set());
@@ -127,8 +126,8 @@ const Homepage = () => {
     const newBase = baseStake + deficit;
     setBaseStake(newBase);
     setDeficit(0);
+
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
 
@@ -173,7 +172,7 @@ const Homepage = () => {
       if (won) {
         nWinCount++;
         
-        // 1. SUBTRACT the winning asset's private deficit from the total it was contributing to
+        // Subtract private deficit from corresponding total
         if (lv === 1) nSD = Math.max(0, nSD - pd);
         else if (lv === 2) nT1 = Math.max(0, nT1 - pd);
         else if (lv === 3) nT2 = Math.max(0, nT2 - pd);
@@ -182,10 +181,9 @@ const Homepage = () => {
         else if (lv === 6) nT5 = Math.max(0, nT5 - pd);
         else if (lv === 7) nT6 = Math.max(0, nT6 - pd);
 
-        // 2. CLEAR asset fields
         nextPriv[key] = 0;
 
-        // 3. CLEAR the target deficit for the level (SD/T1/etc)
+        // Reset the level shared target
         if (lv === 1) nSD = 0;
         else if (lv === 2) nT1 = 0;
         else if (lv === 3) nT2 = 0;
@@ -194,11 +192,9 @@ const Homepage = () => {
         else if (lv === 6) nT5 = 0;
         else if (lv === 7) { nT6 = 0; nGD = 0; }
 
-        // 4. PROMOTE
         if (lv < MAX_LEVEL) nextLevels[key] = lv + 1;
 
       } else {
-        // LOSS LOGIC
         nextPriv[key] += stake;
         if (lv === 1) nSD += stake;
         else if (lv === 2) nT1 += stake;
@@ -230,7 +226,7 @@ const Homepage = () => {
 
   const clearForNext = () => {
     setFixture(null); setClicked(new Set()); setWinners(new Set());
-    setWinnerStake(0); setGameStakes(emptyPerAsset()); setInputA(""); setInputB("");
+    setGameStakes(emptyPerAsset()); setInputA(""); setInputB("");
     saveBase();
   };
 
@@ -240,17 +236,6 @@ const Homepage = () => {
     if (!byLevel[lv]) byLevel[lv] = [];
     byLevel[lv].push(key);
   });
-
-  const levelTargetLabel = (lv) => {
-    if (lv === 1) return `SD:${smallDeficit}`;
-    if (lv === 2) return `T1:${total1}`;
-    if (lv === 3) return `T2:${total2}`;
-    if (lv === 4) return `T3:${total3}`;
-    if (lv === 5) return `T4:${total4}`;
-    if (lv === 6) return `T5:${total5}`;
-    if (lv === 7) return `T6:${total6}+G:${grandDeficit}`;
-    return "";
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
@@ -283,7 +268,7 @@ const Homepage = () => {
           if (!keys || keys.length === 0) return null;
           return (
             <div key={lv}>
-              <div className="text-[8px] text-gray-400 text-center mb-1">— L{lv} · {levelTargetLabel(lv)} —</div>
+              <div className="text-[8px] text-gray-400 text-center mb-1">— L{lv} —</div>
               <div className="grid grid-cols-5 gap-1.5">
                 {keys.map(key => (
                   <button key={key} onClick={() => markWin(key)} disabled={!fixture || paused || clicked.has(key)}
@@ -314,6 +299,7 @@ const Homepage = () => {
               <div key={i} className="flex justify-between"><span>T{i+1}</span><strong>{t}</strong></div>
             ))}
           </div>
+          <div className="flex justify-between col-span-2"><span className="text-gray-400">Grand Def</span><strong>{grandDeficit}</strong></div>
         </div>
       </div>
     </div>
