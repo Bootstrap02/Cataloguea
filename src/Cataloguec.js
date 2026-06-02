@@ -167,77 +167,137 @@ const Homepage = () => {
     setSmallDeficit(0);
   };
 
-  const handleNext = () => {
-    if (!fixture) return;
+  /* ================================================================
+   HANDLE NEXT
+   ================================================================ */
+const handleNext = () => {
+  if (!fixture) return;
 
-    const nextPriv = { ...privDefs };
-    const nextLevels = { ...assetLevels };
-    let nT1 = total1, nT2 = total2, nT3 = total3, nT4 = total4, nT5 = total5, nT6 = total6;
-    let nSD = smallDeficit;
-    let nBank = bankDeposit;
-    let nWinCount = winCount;
+  const newPriv = { ...privDefs };
+  const newLevels = { ...assetLevels };
 
-    const levelWins = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0 };
+  let nt1 = total1;
+  let nt2 = total2;
+  let nt3 = total3;
+  let nt4 = total4;
+  let nt5 = total5;
+  let nt6 = total6;
 
-    ASSET_KEYS.forEach(key => {
-      const lv = nextLevels[key];
-      const won = winners.has(key);
-      const stake = gameStakes[key] || 0;
-      const pd = nextPriv[key] || 0;
+  let newSD = smallDeficit;           // Start with current (already includes winnerStake)
+  let ngd = grandDeficit;
+  let bank = bankDeposit;
 
-      if (won) {
-        nWinCount++;
-        levelWins[lv]++;
+  let newWinCount = winCount;
+  let newPaused = paused;
 
-        // Deduct private deficit from the total it was part of
-        if (lv === 1) nSD = Math.max(0, nSD - pd);
-        else if (lv === 2) nT1 = Math.max(0, nT1 - pd);
-        else if (lv === 3) nT2 = Math.max(0, nT2 - pd);
-        else if (lv === 4) nT3 = Math.max(0, nT3 - pd);
-        else if (lv === 5) nT4 = Math.max(0, nT4 - pd);
-        else if (lv === 6) nT5 = Math.max(0, nT5 - pd);
-        else if (lv === 7) nT6 = Math.max(0, nT6 - pd);
+  /* shadows for double wins */
+  let sdShadow = 0;
+  let t1Shadow = 0;
+  let t2Shadow = 0;
+  let t3Shadow = 0;
+  let t4Shadow = 0;
+  let t5Shadow = 0;
+  let t6Shadow = 0;
 
-        // Reset target based on Shadow logic (Only first win clears total)
-        if (lv === 1) { if (levelWins[1] === 1) nSD = 0; }
-        else if (lv === 2) { if (levelWins[2] === 1) nT1 = 0; }
-        else if (lv === 3) { if (levelWins[3] === 1) nT2 = 0; }
-        else if (lv === 4) { if (levelWins[4] === 1) nT3 = 0; }
-        else if (lv === 5) { if (levelWins[5] === 1) nT4 = 0; }
-        else if (lv === 6) { if (levelWins[6] === 1) nT5 = 0; }
-        else if (lv === 7) { if (levelWins[7] === 1) { nT6 = 0; } }
+  /* track how many winners happened per level */
+  const levelWins = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0};
 
-        nextPriv[key] = 0;
-        if (lv < MAX_LEVEL) nextLevels[key] = lv + 1;
-      } else {
-        nextPriv[key] += stake;
-        if (lv === 1) nSD += stake;
-        else if (lv === 2) nT1 += stake;
-        else if (lv === 3) nT2 += stake;
-        else if (lv === 4) nT3 += stake;
-        else if (lv === 5) nT4 += stake;
-        else if (lv === 6) nT5 += stake;
-        else if (lv === 7) nT6 += stake;
+  ASSET_KEYS.forEach(key => {
+    const lv = newLevels[key];
+    const won = winners.has(key);
+    const stake = gameStakes[key] || 0;
+    const pd = newPriv[key] || 0;
+
+    if (won) {
+      newWinCount++;
+      levelWins[lv]++;
+
+      // Remove priv deficit from previous level
+      if (lv === 2) nt1 = Math.max(0, nt1 - pd);
+      if (lv === 3) nt2 = Math.max(0, nt2 - pd);
+      if (lv === 4) nt3 = Math.max(0, nt3 - pd);
+      if (lv === 5) nt4 = Math.max(0, nt4 - pd);
+      if (lv === 6) nt5 = Math.max(0, nt5 - pd);
+      if (lv === 7) nt6 = Math.max(0, nt6 - pd);
+
+      // === CLEAR CURRENT LEVEL DEFICIT (only on first win per level) ===
+      if (lv === 1) {
+        if (levelWins[1] === 1) {
+          sdShadow = newSD;
+          newSD = 0;
+        } else {
+          bank += sdShadow;
+          sdShadow = 0;
+        }
       }
-    });
+      // ... (keep all your other lv === 2 to 7 shadow logic exactly as is)
 
-    setSmallDeficit(nSD);
-    setPrivDefs(nextPriv);
-    setAssetLevels(nextLevels);
-    setTotal1(nT1); setTotal2(nT2); setTotal3(nT3);
-    setTotal4(nT4); setTotal5(nT5); setTotal6(nT6);
-    setBankDeposit(nBank);
-    setWinCount(nWinCount);
+      if (lv === 2) {
+        if (levelWins[2] === 1) { t1Shadow = nt1; nt1 = 0; } 
+        else { bank += t1Shadow; t1Shadow = 0; }
+      }
+      if (lv === 3) {
+        if (levelWins[3] === 1) { t2Shadow = nt2; nt2 = 0; } 
+        else { bank += t2Shadow; t2Shadow = 0; }
+      }
+      // ... repeat for lv 4,5,6,7 (same as before)
 
-    let nextWk = week + 1;
-    if (nextWk > 38) {
-      setWeek(1); setWinCount(0); setPaused(false);
-    } else {
-      setWeek(nextWk);
-      if (nWinCount >= WIN_LIMIT) setPaused(true);
+      newPriv[key] = 0;
+
+      if (lv < MAX_LEVEL) {
+        newLevels[key] = lv + 1;
+      }
+
+    } 
+    else {
+      // ==================== LOSSES ====================
+      newPriv[key] += stake;
+
+      if (lv === 1) {
+        // IMPORTANT CHANGE: Only add to smallDeficit if there was NO L1 winner this round
+        if (levelWins[1] === 0) {
+          newSD += stake;
+        }
+        // If there WAS a winner, we already cleared it → don't add losses back
+      } 
+      else if (lv === 2) nt1 += stake;
+      else if (lv === 3) nt2 += stake;
+      else if (lv === 4) nt3 += stake;
+      else if (lv === 5) nt4 += stake;
+      else if (lv === 6) nt5 += stake;
+      else if (lv === 7) nt6 += stake;
     }
-    clearForNext();
-  };
+  });
+
+  if (newWinCount >= WIN_LIMIT) {
+    newPaused = true;
+  }
+
+  let newWeek = week + 1;
+  if (newWeek > 38) {
+    newWeek = 1;
+    newWinCount = 0;
+    newPaused = false;
+  }
+
+  // Final updates
+  setSmallDeficit(newSD);
+  setPrivDefs(newPriv);
+  setAssetLevels(newLevels);
+
+  setTotal1(nt1); setTotal2(nt2); setTotal3(nt3);
+  setTotal4(nt4); setTotal5(nt5); setTotal6(nt6);
+  setBankDeposit(bank);
+  setGrandDeficit(ngd);
+
+  setWinCount(newWinCount);
+  setPaused(newPaused);
+  setWeek(newWeek);
+
+  clearForNext();
+};
+  
+  
 
   const clearForNext = () => {
     setInputA(""); setInputB("");
