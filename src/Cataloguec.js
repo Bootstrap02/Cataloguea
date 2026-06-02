@@ -44,7 +44,7 @@ const Homepage = () => {
   const [deficit,      setDeficit]      = useState(0);
   const [winnerStake,  setWinnerStake]  = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
-  const [bank, setBank] = useState(0);
+  const [bankDeposit, setBankDeposit] = useState(0);
   /* ── WEEK & WIN COUNT ── */
   const [week,     setWeek]     = useState(1);
   const [winCount, setWinCount] = useState(0);
@@ -218,6 +218,7 @@ const Homepage = () => {
 
   let newSD = smallDeficit;
   let ngd = grandDeficit;
+    let bank = bankDeposit
 
   let newWinCount = winCount;
   let newPaused = paused;
@@ -420,6 +421,7 @@ const Homepage = () => {
   setTotal4(nt4);
   setTotal5(nt5);
   setTotal6(nt6);
+  setBankDeposit(bank);
 
   setGrandDeficit(ngd);
 
@@ -565,7 +567,9 @@ const Homepage = () => {
           <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">SmallDef</span><strong className="text-blue-400">{smallDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Grand Def</span><strong className="text-pink-400">{grandDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-gray-400">Bank</span><strong className="text-pink-400">{bankDeposit}</strong></div>
           <div className="col-span-2 border-t border-white/10 pt-1 grid grid-cols-3 gap-1">
+          
             {[total1,total2,total3,total4,total5,total6].map((t,i) => (
               <div key={i} className="flex justify-between">
                 <span className="text-gray-500">T{i+1}</span>
