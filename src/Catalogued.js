@@ -6,7 +6,7 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-const LS_KEY = "virt-epl-flat-helper-v3";
+const LS_KEY = "virt-epl-flat-helper-v5";
 
 const ASSET_KEYS = ["oneX", "twoX", "x2", "tg0", "tg6", "ht12", "ht21", "ht30", "ft40", "ft41"];
 const ASSET_LABELS = {
@@ -89,6 +89,7 @@ const Homepage = () => {
     activeLosers.forEach(k => { targetMap[k] = []; });
     helpers.forEach(h => { reverseMap[h] = null; });
 
+    // Round-robin distribution supporting unlimited helper assignment overflow
     if (activeLosers.length > 0 && helpers.length > 0) {
       let hIdx = 0;
       while (hIdx < helpers.length) {
@@ -110,7 +111,7 @@ const Homepage = () => {
         stakes[target] = Math.max(Math.round((sd + targetHistorySum) / (tOdd - 1)), 10);
       }
 
-      let runSum = sd + targetHistorySum + stakes[target];
+      let runSum = sd + targetHistorySum + (stakes[target] || 0);
       targetMap[target].forEach(helper => {
         const hOdd = found[ASSET_ODD_KEY[helper]] || 0;
         if (hOdd > 1.01) {
@@ -131,7 +132,6 @@ const Homepage = () => {
     if (!found) { alert("Match not found"); return; }
 
     setFixture(found);
-    setClicked(new Set());
     setWinners(new Set());
 
     const wStake = Math.max(Math.round(baseStake / found.winner), 10);
@@ -150,28 +150,14 @@ const Homepage = () => {
     let nextWon = [...wonAssets];
     let nextCarried = [...carriedAssets];
     let nextSD = smallDeficit;
-    let seasonalWinOccurred = false;
+    let winOccurred = false;
 
-    // Fixed: Removed unused 'reverseMap' from this specific destructuring
     const { targetMap, stakes } = distributeAndCalculate(fixture, smallDeficit, stacks, wonAssets, carriedAssets);
-
     const roundPlacements = Object.fromEntries(ASSET_KEYS.map(k => [k, []]));
 
     ASSET_KEYS.forEach(key => {
-      if (wonAssets.includes(key)) return; 
-      
-      const stake = stakes[key] || 0;
-      if (carriedAssets.includes(key)) {
-        if (winners.has(key)) {
-          if (!nextWon.includes(key)) nextWon.push(key);
-          nextCarried = nextCarried.filter(c => c !== key);
-          nextStacks[key] = [];
-          seasonalWinOccurred = true;
-        }
-        return;
-      }
-
-      roundPlacements[key].push({ key, stake });
+      if (wonAssets.includes(key) || carriedAssets.includes(key)) return;
+      roundPlacements[key].push({ key, stake: stakes[key] || 0 });
       (targetMap[key] || []).forEach(hKey => {
         roundPlacements[key].push({ key: hKey, stake: stakes[hKey] || 0 });
       });
@@ -179,43 +165,41 @@ const Homepage = () => {
 
     Object.keys(targetMap).forEach(target => {
       const chainPlacements = roundPlacements[target] || [];
-      let targetWinIdx = -1;
-
+      let winIdx = -1;
       for (let i = 0; i < chainPlacements.length; i++) {
-        if (winners.has(chainPlacements[i].key)) {
-          targetWinIdx = i;
-          break;
-        }
+        if (winners.has(chainPlacements[i].key)) { winIdx = i; break; }
       }
 
-      if (targetWinIdx !== -1) {
-        seasonalWinOccurred = true;
-        const winningItem = chainPlacements[targetWinIdx];
+      if (winIdx !== -1) {
+        winOccurred = true;
+        const winnerKey = chainPlacements[winIdx].key;
+        
+        // Before Total Logic Execution
         let beforeTotal = 0;
-        for (let i = 0; i < targetWinIdx; i++) {
+        for (let i = 0; i < winIdx; i++) {
           beforeTotal += chainPlacements[i].stake;
         }
-
-        if (beforeTotal > 0) nextSD += beforeTotal;
-        if (!nextWon.includes(winningItem.key)) nextWon.push(winningItem.key);
-        nextStacks[winningItem.key] = [];
-
-        if (winningItem.key !== target) {
-          if (!nextCarried.includes(target) && !nextWon.includes(target)) {
-            nextCarried.push(target);
-          }
+        if (beforeTotal > 0) {
+          nextSD += beforeTotal;
         }
 
+        // Wipe history stacks for both target array and winning entity
         nextStacks[target] = [];
-        nextCarried = nextCarried.filter(c => c !== winningItem.key);
+        if (!nextWon.includes(winnerKey)) nextWon.push(winnerKey);
+        nextStacks[winnerKey] = [];
+
+        // Set target asset to dormant if a helper brought home the win
+        if (winnerKey !== target) {
+          if (!nextCarried.includes(target) && !nextWon.includes(target)) nextCarried.push(target);
+        }
+        nextCarried = nextCarried.filter(c => c !== winnerKey);
       } else {
-        chainPlacements.forEach(item => {
-          nextStacks[target].push(item.stake);
-        });
+        // Lose condition: distribute local execution stakes directly into target asset stack array
+        chainPlacements.forEach(item => nextStacks[target].push(item.stake));
       }
     });
 
-    if (seasonalWinOccurred) nextSD = 0;
+    if (winOccurred || clicked.has("six")) nextSD = 0;
 
     let nextWk = week + 1;
     let finalBase = baseStake;
@@ -224,22 +208,17 @@ const Homepage = () => {
       nextWk = 1;
       let leftover = Object.values(nextStacks).reduce((acc, arr) => acc + arr.reduce((a, b) => a + b, 0), 0);
       finalBase = 10000 + Math.max(0, leftover - bank);
-      nextStacks = makeEmptyStacks();
-      nextWon = [];
-      nextCarried = [];
+      nextStacks = makeEmptyStacks(); 
+      nextWon = []; 
+      nextCarried = []; 
       nextSD = 0;
     }
 
-    setStacks(nextStacks);
-    setWonAssets(nextWon);
-    setCarriedAssets(nextCarried);
-    setSmallDeficit(nextSD);
-    setWeek(nextWk);
-    setBaseStake(finalBase);
-    
+    setStacks(nextStacks); setWonAssets(nextWon); setCarriedAssets(nextCarried);
+    setSmallDeficit(nextSD); setWeek(nextWk); setBaseStake(finalBase);
     setFixture(null); setInputA(""); setInputB(""); 
     setGameStakes(Object.fromEntries(ASSET_KEYS.map(k => [k, 0]))); 
-    setClicked(new Set()); setWinners(new Set());
+    setWinners(new Set()); setClicked(new Set());
     
     saveBase({ base: finalBase, smallDeficit: nextSD, week: nextWk, stacks: nextStacks, wonAssets: nextWon, carriedAssets: nextCarried });
   };
@@ -251,34 +230,27 @@ const Homepage = () => {
       <div className="p-4 border-b border-white/10 flex justify-between items-center">
         <div>
           <h1 className="text-xl font-black text-red-500 italic">BETKING</h1>
-          <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Week {week} / 38</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Week {week} / 38</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => saveBase()} className="bg-green-600 p-2 rounded text-xs font-bold active:scale-95 transition">SAVE</button>
-          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 p-2 rounded text-xs active:scale-95 transition disabled:opacity-40">
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
-          </button>
+          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 p-2 rounded text-xs transition disabled:opacity-40"><FiRefreshCw className={isReloading ? "animate-spin" : ""} /></button>
         </div>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => setClicked(new Set([...clicked, "six"]))} 
-            className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 transition ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
-            <span className="text-xs opacity-80 font-black">6-0 JACKPOT</span>
+          <button onClick={() => setClicked(new Set([...clicked, "six"]))} className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 transition ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
+            <span className="text-[10px] font-black uppercase opacity-80">6-0 Jackpot</span>
             <span className="text-lg">{winnerStake}</span>
           </button>
-          <button onClick={handleNext} disabled={!fixture} 
-            className="bg-emerald-600 p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-30 active:scale-95 transition">
-            NEXT GAME
-          </button>
+          <button onClick={handleNext} disabled={!fixture} className="bg-emerald-600 p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-30 active:scale-95 transition">NEXT GAME</button>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           {ASSET_KEYS.map((key) => {
             const isWon = wonAssets.includes(key);
             const isCarried = carriedAssets.includes(key);
-            const isWinning = winners.has(key);
             const stake = gameStakes[key] || 0;
             const targetLeadKey = currentHelpersRouting[key];
             const currentStackSum = (stacks[key] || []).reduce((a, b) => a + b, 0);
@@ -287,54 +259,52 @@ const Homepage = () => {
               <button
                 key={key}
                 onClick={() => {
+                  if (isCarried) {
+                    setCarriedAssets(prev => prev.filter(k => k !== key));
+                    setWonAssets(prev => [...prev, key]);
+                    return;
+                  }
                   setWinners(prev => {
                     const next = new Set(prev);
                     next.has(key) ? next.delete(key) : next.add(key);
                     return next;
                   });
                 }}
-                disabled={!fixture}
+                disabled={isWon || (!fixture && !isCarried)}
                 className={`relative p-3 rounded-xl border-b-4 transition-all text-left active:translate-y-1 ${
-                  isWon ? "bg-indigo-950 border-indigo-900 opacity-90 shadow-[0_0_8px_rgba(99,102,241,0.2)]" :
-                  isWinning ? "bg-green-500 border-green-700" :
-                  isCarried ? "bg-amber-500 border-amber-700" : "bg-slate-700 border-slate-900"
+                  isWon ? "bg-indigo-950 border-indigo-900 opacity-90 shadow-inner" :
+                  winners.has(key) ? "bg-green-500 border-green-700" :
+                  isCarried ? "bg-slate-800 border-amber-600 shadow-lg" : "bg-slate-700 border-slate-900"
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col">
                     <span className="font-black text-sm">{ASSET_LABELS[key]}</span>
-                    {targetLeadKey && (
-                      <span className="text-[9px] font-extrabold text-cyan-300 mt-0.5 uppercase tracking-tighter">➔ FOR {ASSET_LABELS[targetLeadKey]}</span>
-                    )}
+                    {targetLeadKey && <span className="text-[9px] font-extrabold text-cyan-400 mt-0.5">➔ {ASSET_LABELS[targetLeadKey]}</span>}
                   </div>
                   {isWon && <span className="text-[8px] bg-indigo-500 px-1 rounded font-bold">HELPER</span>}
-                  {isCarried && <span className="text-[8px] bg-white text-black px-1 rounded font-bold animate-pulse">CARRIED</span>}
+                  {isCarried && <span className="text-[8px] bg-amber-600 px-1 rounded font-bold">DORMANT</span>}
                 </div>
-                <div className="mt-2 text-xl font-black text-center">
-                  {stake > 0 ? stake : (isCarried ? "0" : "-")}
-                </div>
-                <div className="text-[9px] opacity-65 font-bold mt-1 text-right italic">
-                  D: {currentStackSum} ({stacks[key]?.length || 0})
-                </div>
+                <div className="mt-2 text-xl font-black text-center">{stake > 0 ? stake : (isCarried ? "0" : (isWon ? "✓" : "-"))}</div>
+                {!isWon && <div className="text-[9px] opacity-65 font-bold mt-1 text-right italic">D: {currentStackSum}</div>}
               </button>
             );
           })}
         </div>
 
         <div className="grid grid-cols-2 gap-2 pt-4">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
-          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
+          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="HOME" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
+          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="AWAY" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
           <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition">Calculate Odds</button>
         </div>
 
-        <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10">
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-400">Current Small Deficit:</span>
-            <span className="font-bold text-red-400">{smallDeficit}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-400">Base Stake:</span>
-            <span className="font-bold text-green-400">{baseStake}</span>
+        {/* Extended Metric Configuration Board */}
+        <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10 text-xs">
+          <div className="flex justify-between"><span className="text-slate-400 font-bold">SMALL DEFICIT:</span><span className="font-bold text-red-500">{smallDeficit}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400 font-bold">BASE STAKE:</span><span className="font-bold text-green-500">{baseStake}</span></div>
+          <div className="flex justify-between items-center pt-1 border-t border-white/5">
+            <span className="text-slate-400 font-bold">BANK RESERVE:</span>
+            <input type="number" value={bank} onChange={e => setBank(Number(e.target.value) || 0)} className="w-24 bg-slate-900 border border-white/10 text-right p-1 rounded font-black text-amber-400" />
           </div>
         </div>
       </div>
