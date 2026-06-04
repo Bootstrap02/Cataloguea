@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -8,7 +7,6 @@ const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-helper-v1";
 
-/* ── Martingale order ── */
 const ASSET_KEYS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
 const ASSET_LABELS = {
   oneX:"1X", twoX:"2X", x2:"X2", tg0:"TG0", tg6:"TG6",
@@ -25,8 +23,6 @@ const ASSET_COLORS = {
 };
 
 const emptyObj  = () => Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
-const emptyArr  = () => Object.fromEntries(ASSET_KEYS.map(k => [k, []]));
-// helpers: { assetKey: [helperKey, ...] }  — ordered list of helpers assigned to each loser
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
@@ -34,39 +30,25 @@ const Homepage = () => {
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,      setFixture]     = useState(null);
 
-  /* ── WINNER ── */
   const [baseStake,    setBaseStake]    = useState(10000);
   const [deficit,      setDeficit]      = useState(0);
   const [winnerStake,  setWinnerStake]  = useState(0);
   const [smallDeficit, setSmallDeficit] = useState(0);
-
-  /* ── WEEK ── */
   const [week, setWeek] = useState(1);
 
-  /* ── ASSET STATE ── */
-  // privateDef: accumulated loss per asset
   const [privateDef, setPrivateDef] = useState(emptyObj());
-  // won: set of asset keys that have won this season
   const [wonAssets,  setWonAssets]  = useState([]);
-  // helpers: map from loser-key → [helperKey, ...] in order
+  const [carriedAssets, setCarriedAssets] = useState([]);
   const [helpers,    setHelpers]    = useState({});
-
-  /* ── CURRENT GAME STAKES ── */
   const [gameStakes, setGameStakes] = useState(emptyObj());
 
-  /* ── WINNERS THIS GAME ── */
   const [winners, setWinners] = useState(new Set());
   const [clicked, setClicked] = useState(new Set());
-
-  /* ── BANK ── */
   const [bank, setBank] = useState(0);
 
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  /* ================================================================
-     PERSIST
-     ================================================================ */
   const applyData = useCallback((d) => {
     setBaseStake(d.base        ?? 10000);
     setDeficit(d.deficit       ?? 0);
@@ -76,12 +58,13 @@ const Homepage = () => {
     setWonAssets(d.wonAssets   || []);
     setHelpers(d.helpers       || {});
     setBank(d.bank             ?? 0);
+    setCarriedAssets(d.carriedAssets || []);
   }, []);
 
   const buildPayload = useCallback(() => ({
     base: baseRef.current, deficit, smallDeficit, week,
-    privateDef, wonAssets, helpers, bank,
-  }), [deficit, smallDeficit, week, privateDef, wonAssets, helpers, bank]);
+    privateDef, wonAssets, carriedAssets, helpers, bank,
+  }), [deficit, smallDeficit, week, privateDef, wonAssets, carriedAssets, helpers, bank]);
 
   const fetchBase = useCallback(async () => {
     setIsReloading(true);
@@ -101,25 +84,14 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  /* ================================================================
-     HELPERS: given current won/loser state, assign helpers
-     ================================================================
-     Algorithm:
-       losers = ASSET_KEYS not in wonAssets (in order)
-       available helpers = wonAssets (in win order)
-       First pass:  each loser gets 1 helper (round-robin)
-       Second pass: each loser gets 2nd helper
-       etc.
-  ================================================================ */
-  const assignHelpers = (wonArr) => {
-    const losers    = ASSET_KEYS.filter(k => !wonArr.includes(k));
-    const helpPool  = [...wonArr]; // helpers available in win order
+  const assignHelpers = (wonArr, carriedArr = []) => {
+    const losers    = ASSET_KEYS.filter(k => !wonArr.includes(k) && !carriedArr.includes(k));
+    const helpPool  = [...wonArr]; 
     const map = {};
     losers.forEach(k => { map[k] = []; });
     if (losers.length === 0 || helpPool.length === 0) return map;
 
     let hi = 0;
-    // Keep assigning helpers round-robin across losers until pool exhausted
     while (hi < helpPool.length) {
       for (let li = 0; li < losers.length && hi < helpPool.length; li++) {
         map[losers[li]].push(helpPool[hi]);
@@ -129,18 +101,9 @@ const Homepage = () => {
     return map;
   };
 
-  /* ================================================================
-     CALC STAKES
-     ── For a loser: (smallDef + privateDef) / (odd-1)
-     ── For a helper[0] of loser L:
-           (smallDef + loserStake + loserPrivDef) / (odd-1)
-     ── For a helper[1]:
-           (smallDef + loserStake + helper0Stake + loserPrivDef) / (odd-1)
-     etc.  (martingale chain: each helper recovers everything before it)
-  ================================================================ */
-  const buildGameStakes = (found, sd, privMap, wonArr, helpMap) => {
+  const buildGameStakes = (found, sd, privMap, wonArr, helpMap, extraExclude) => {
     const stakes = emptyObj();
-    const losers = ASSET_KEYS.filter(k => !wonArr.includes(k));
+    const losers = ASSET_KEYS.filter(k => !wonArr.includes(k) && !(extraExclude||[]).includes(k));
 
     losers.forEach(loser => {
       const odd  = found[ASSET_ODD_KEY[loser]] || 0;
@@ -149,10 +112,9 @@ const Homepage = () => {
         stakes[loser] = Math.max(Math.round((sd + pd) / (odd - 1)), 10);
       }
 
-      /* Helpers form a martingale chain on top of loser's stake */
-      let running = (sd + pd) + stakes[loser]; // loser recovered this
-      const myHelpers = helpMap[loser] || [];
-      myHelpers.forEach(hk => {
+      let running = (sd + pd) + stakes[loser]; 
+      const myHelpersList = helpMap[loser] || [];
+      myHelpersList.forEach(hk => {
         const hodd = found[ASSET_ODD_KEY[hk]] || 0;
         if (hodd > 1.01) {
           stakes[hk] = Math.max(Math.round(running / (hodd - 1)), 10);
@@ -164,9 +126,6 @@ const Homepage = () => {
     return stakes;
   };
 
-  /* ================================================================
-     HANDLE SUBMIT
-     ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
     const home = sanitizeTeam(inputA) || "liv";
@@ -186,21 +145,19 @@ const Homepage = () => {
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
 
-    const helpMap = assignHelpers(wonAssets);
+    const helpMap = assignHelpers(wonAssets, carriedAssets);
     setHelpers(helpMap);
 
-    const stakes = buildGameStakes(found, curSD, privateDef, wonAssets, helpMap);
+    const stakes = buildGameStakes(found, curSD, privateDef, wonAssets, helpMap, carriedAssets);
     setGameStakes(stakes);
   };
 
-  /* ── Mark win ── */
   const markWin = (key) => {
     if (!fixture || clicked.has(key)) return;
     setClicked(p => new Set([...p, key]));
     setWinners(p => new Set([...p, key]));
   };
 
-  /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked(p => new Set([...p, "six"]));
     setBaseStake(10000);
@@ -208,9 +165,6 @@ const Homepage = () => {
     setSmallDeficit(0);
   };
 
-  /* ================================================================
-     HANDLE NEXT
-     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -218,79 +172,72 @@ const Homepage = () => {
     let newWon    = [...wonAssets];
     let newSD     = smallDeficit;
     let newBank   = bank;
+    let newCarried = [...carriedAssets];
 
-    /* ── Settle each asset ── */
     ASSET_KEYS.forEach(key => {
-      if (wonAssets.includes(key)) return; // already won previously, skip
+      const won   = winners.has(key);
+      const stake = gameStakes[key] || 0;
 
-      if (winners.has(key)) {
-        /* This asset won → clear its privateDef, add to wonAssets */
+      if (wonAssets.includes(key)) return; 
+
+      if (carriedAssets.includes(key)) {
+        if (won) {
+          newPriv[key] = 0;
+          if (!newWon.includes(key)) newWon.push(key);
+          newCarried = newCarried.filter(k => k !== key);
+        }
+        return;
+      }
+
+      let leadLoser = null;
+      let isHelperKey = false;
+
+      if (!Object.values(helpers).flat().includes(key)) {
+        leadLoser = key;
+      } else {
+        Object.entries(helpers).forEach(([loser, hArr]) => {
+          if (hArr.includes(key)) { leadLoser = loser; isHelperKey = true; }
+        });
+      }
+
+      const chain = leadLoser ? [leadLoser, ...(helpers[leadLoser] || [])] : [key];
+      const myIdx = chain.indexOf(key);
+
+      if (won) {
         newPriv[key] = 0;
         if (!newWon.includes(key)) newWon.push(key);
 
-        /* Martingale win logic:
-           Find this asset's position in its group (loser or helper).
-           Stakes before it in the chain are lost → pile into smallDeficit.
-           Stakes after it are recovered → add to bank or smallDeficit credit. */
-        const loserKey  = key; // if it's the lead loser
-        const myHelpers = helpers[key] || [];
-        const isHelper  = !ASSET_KEYS.filter(k => !wonAssets.includes(k)).includes(key)
-                          || false;
+        const beforeTotal = chain.slice(0, myIdx).reduce((s, k) => s + (gameStakes[k] || 0), 0);
+        const afterTotal  = chain.slice(myIdx + 1).reduce((s, k) => s + (gameStakes[k] || 0), 0);
 
-        /* Determine chain for this group */
-        // Find which loser this key belongs to (as lead or helper)
-        let leadLoser = null;
-        if (!wonAssets.includes(key) && !(Object.values(helpers).flat().includes(key))) {
-          leadLoser = key; // it's a lead loser
-        } else {
-          // it's a helper — find its lead loser
-          Object.entries(helpers).forEach(([loser, hArr]) => {
-            if (hArr.includes(key)) leadLoser = loser;
-          });
+        if (beforeTotal > 0) {
+          newPriv[leadLoser] = (newPriv[leadLoser] || 0) + beforeTotal;
         }
+        if (afterTotal > 0) newSD += afterTotal;
 
-        if (leadLoser !== null) {
-          const chain = [leadLoser, ...(helpers[leadLoser] || [])];
-          const myIdx = chain.indexOf(key);
-          const beforeTotal = chain.slice(0, myIdx).reduce((s, k) => s + (gameStakes[k] || 0), 0);
-          const afterTotal  = chain.slice(myIdx + 1).reduce((s, k) => s + (gameStakes[k] || 0), 0);
-
-          /* Before total (already lost) → pile into privateDef of the loser for next game */
-          if (beforeTotal > 0 && leadLoser !== key) {
-            newPriv[leadLoser] = (newPriv[leadLoser] || 0) + beforeTotal;
-          }
-          /* After total (still need to recover) → push into smallDeficit */
-          if (afterTotal > 0) newSD += afterTotal;
-          /* If smallDef was cleared by this win → shadow → bank */
-          else if (newSD === 0) { newBank += 0; /* future: shadow logic here */ }
+        if (isHelperKey && leadLoser && !newWon.includes(leadLoser)) {
+          if (!newCarried.includes(leadLoser)) newCarried.push(leadLoser);
         }
-
+        if (!isHelperKey) {
+          newCarried = newCarried.filter(k => k !== key);
+        }
       } else {
-        /* Lost → pile stake into privateDef */
-        newPriv[key] = (newPriv[key] || 0) + (gameStakes[key] || 0);
+        newPriv[key] = (newPriv[key] || 0) + stake;
       }
     });
 
-    /* Helpers that won also clear their privateDef */
-    ASSET_KEYS.forEach(key => {
-      if (wonAssets.includes(key) && winners.has(key)) {
-        newPriv[key] = 0;
-      }
-    });
-
-    /* ── Week progression ── */
     let newWeek = week + 1;
     if (newWeek > 38) {
       newWeek  = 1;
-      /* Reset: all assets back to solo, keep privateDefs */
-      newWon   = [];
-      /* Any remaining privateDef carries into next season */
+      newWon      = [];
+      newCarried  = [];
     }
 
-    const newHelpers = assignHelpers(newWon);
+    const newHelpers = assignHelpers(newWon, newCarried);
 
     setPrivateDef(newPriv);
     setWonAssets(newWon);
+    setCarriedAssets(newCarried);
     setHelpers(newHelpers);
     setSmallDeficit(newSD);
     setBank(newBank);
@@ -302,21 +249,15 @@ const Homepage = () => {
 
     saveBase({
       base: baseRef.current, deficit, smallDeficit: newSD, week: newWeek,
-      privateDef: newPriv, wonAssets: newWon, helpers: newHelpers, bank: newBank,
+      privateDef: newPriv, wonAssets: newWon, carriedAssets: newCarried,
+      helpers: newHelpers, bank: newBank,
     });
   };
 
-  /* ================================================================
-     RENDER HELPERS
-     ================================================================ */
-  const losers  = ASSET_KEYS.filter(k => !wonAssets.includes(k));
-  const helpMap = helpers;
-
-  /* Build display groups:
-     Each "group" = { lead: loserKey, helpers: [helperKeys] } */
+  const losers  = ASSET_KEYS.filter(k => !wonAssets.includes(k) && !carriedAssets.includes(k));
   const groups = losers.map(loser => ({
     lead: loser,
-    helpersOf: helpMap[loser] || [],
+    helpersOf: helpers[loser] || [],
   }));
 
   const teamA = sanitizeTeam(inputA) || "HME";
@@ -329,13 +270,8 @@ const Homepage = () => {
       : `${ASSET_COLORS[key]} text-white`
     }`;
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
-
-      {/* TOP BAR */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h1 className="text-sm font-extrabold text-red-400">Virtual EPL</h1>
@@ -358,8 +294,6 @@ const Homepage = () => {
       </div>
 
       <div className="flex-1 flex flex-col px-3 pb-3 gap-2.5 overflow-y-auto">
-
-        {/* 6-0 + NEXT */}
         <div className="grid grid-cols-2 gap-2">
           <button onClick={handleJackpot}
             className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 ${clicked.has("six") ? "bg-white text-yellow-500 ring-2 ring-yellow-400" : "bg-yellow-400 text-black"}`}>
@@ -373,22 +307,18 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* GROUPS: each loser with its helpers */}
         {groups.map(({ lead, helpersOf }) => (
           <div key={lead} className="bg-black/20 rounded-2xl p-2 border border-white/5">
-            {/* Lead loser */}
             <div className="text-[8px] text-gray-400 text-center tracking-widest mb-1">
               SD:{smallDeficit} + D:{privateDef[lead]}
             </div>
             <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${1 + helpersOf.length}, 1fr)` }}>
-              {/* Lead button */}
               <button onClick={() => markWin(lead)} disabled={!fixture || clicked.has(lead)}
                 className={btnCls(lead, winners.has(lead))}>
                 <div className="font-black">{ASSET_LABELS[lead]}</div>
                 <div className="mt-0.5">{gameStakes[lead] || "–"}</div>
                 <div className="text-[7px] opacity-60">D:{privateDef[lead]}</div>
               </button>
-              {/* Helper buttons */}
               {helpersOf.map((hk, i) => (
                 <button key={hk} onClick={() => markWin(hk)} disabled={!fixture || clicked.has(hk)}
                   className={btnCls(hk, winners.has(hk))}>
@@ -401,7 +331,24 @@ const Homepage = () => {
           </div>
         ))}
 
-        {/* Won assets display */}
+        {carriedAssets.length > 0 && (
+          <div className="bg-black/10 rounded-2xl p-2 border border-yellow-500/20">
+            <div className="text-[8px] text-yellow-400 text-center tracking-widest mb-1">— CARRIED (tap to self-win) —</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {carriedAssets.filter(k => !wonAssets.includes(k)).map(k => (
+                <button key={k} onClick={() => markWin(k)} disabled={!fixture || clicked.has(k)}
+                  className={`py-3 rounded-xl font-bold text-[9px] border border-yellow-400/40 transition active:scale-95 w-full ${
+                    winners.has(k) ? "bg-green-500 text-white" : `${ASSET_COLORS[k]} opacity-60 text-white`
+                  }`}>
+                  <div className="font-black">{ASSET_LABELS[k]}</div>
+                  <div className="mt-0.5 text-yellow-300 text-[7px]">carried</div>
+                  <div className="text-[7px] opacity-60">D:{privateDef[k]}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {wonAssets.length > 0 && (
           <div className="bg-black/10 rounded-2xl p-2 border border-green-500/20">
             <div className="text-[8px] text-green-400 text-center tracking-widest mb-1">— WON THIS SEASON —</div>
@@ -415,7 +362,6 @@ const Homepage = () => {
           </div>
         )}
 
-        {/* INPUTS */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home"
@@ -430,7 +376,6 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* STATS */}
         <div className="bg-white/5 rounded-2xl p-3 text-[10px] grid grid-cols-2 gap-x-4 gap-y-1.5">
           <div className="flex justify-between"><span className="text-gray-400">Base</span><strong className="text-green-400">{baseStake}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Deficit</span><strong className="text-red-400">{deficit}</strong></div>
@@ -454,7 +399,6 @@ const Homepage = () => {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
