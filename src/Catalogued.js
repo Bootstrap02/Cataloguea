@@ -6,7 +6,7 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-const LS_KEY = "virt-epl-flat-helper-v1";
+const LS_KEY = "virt-epl-chain-v1";
 
 const ASSET_KEYS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
 const ASSET_LABELS = {
@@ -78,44 +78,24 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  const getHelperMapAndStakes = (found, sd, pDefs, won, carried) => {
-    const stakes = emptyObj();
+  // Maps helpers to active losers in order
+  const getChainMapping = useCallback((won, carried) => {
     const map = {};
     const activeLosers = ASSET_KEYS.filter(k => !won.includes(k) && !carried.includes(k));
     const helperPool = [...won];
-
     activeLosers.forEach(k => { map[k] = []; });
     
     if (activeLosers.length > 0 && helperPool.length > 0) {
-      let poolIdx = 0;
-      while (poolIdx < helperPool.length) {
-        for (let i = 0; i < activeLosers.length && poolIdx < helperPool.length; i++) {
-          map[activeLosers[i]].push(helperPool[poolIdx]);
-          poolIdx++;
+      let pIdx = 0;
+      while (pIdx < helperPool.length) {
+        for (let i = 0; i < activeLosers.length && pIdx < helperPool.length; i++) {
+          map[activeLosers[i]].push(helperPool[pIdx]);
+          pIdx++;
         }
       }
     }
-
-    activeLosers.forEach(loser => {
-      const odd = found[ASSET_ODD_KEY[loser]] || 0;
-      const pd = pDefs[loser] || 0;
-      if (odd > 1.01) {
-        stakes[loser] = Math.max(Math.round((sd + pd) / (odd - 1)), 10);
-      }
-
-      // Helper follows the lead loser: Target = (SmallDef + LeadDef + LeadStake)
-      let runningChainRecoverable = sd + pd + (stakes[loser] || 0);
-      map[loser].forEach(helperKey => {
-        const hOdd = found[ASSET_ODD_KEY[helperKey]] || 0;
-        if (hOdd > 1.01) {
-          stakes[helperKey] = Math.max(Math.round(runningChainRecoverable / (hOdd - 1)), 10);
-          runningChainRecoverable += stakes[helperKey];
-        }
-      });
-    });
-
-    return { map, stakes };
-  };
+    return map;
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -133,32 +113,53 @@ const Homepage = () => {
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
 
-    const { stakes } = getHelperMapAndStakes(found, curSD, privateDef, wonAssets, carriedAssets);
+    const map = getChainMapping(wonAssets, carriedAssets);
+    const stakes = emptyObj();
+    
+    Object.keys(map).forEach(lead => {
+      const lOdd = found[ASSET_ODD_KEY[lead]] || 0;
+      const pd = privateDef[lead] || 0;
+      if (lOdd > 1.01) {
+        stakes[lead] = Math.max(Math.round((curSD + pd) / (lOdd - 1)), 10);
+      }
+      
+      let chainTarget = curSD + pd + (stakes[lead] || 0);
+      map[lead].forEach(helper => {
+        const hOdd = found[ASSET_ODD_KEY[helper]] || 0;
+        if (hOdd > 1.01) {
+          stakes[helper] = Math.max(Math.round(chainTarget / (hOdd - 1)), 10);
+          chainTarget += stakes[helper];
+        }
+      });
+    });
+
     setGameStakes(stakes);
   };
 
   const handleNext = () => {
     if (!fixture) return;
-
     let newPriv = { ...privateDef };
     let newWon = [...wonAssets];
     let newSD = smallDeficit;
     let newCarried = [...carriedAssets];
-    let missionAccomplished = false;
+    let winOccurred = false;
 
-    const { map } = getHelperMapAndStakes(fixture, smallDeficit, privateDef, wonAssets, carriedAssets);
+    const map = getChainMapping(wonAssets, carriedAssets);
 
     ASSET_KEYS.forEach(key => {
-      if (wonAssets.includes(key)) return;
       const won = winners.has(key) || (clicked.has("six") && key === "six");
       const stake = gameStakes[key] || 0;
+      if (won) winOccurred = true;
 
-      // Reset Small Deficit if any win occurs (including Jackpot)
-      if (won) missionAccomplished = true;
+      if (wonAssets.includes(key)) {
+        if (won) newPriv[key] = 0;
+        else newPriv[key] += stake;
+        return;
+      }
 
       if (carriedAssets.includes(key)) {
         if (won) {
-          if (!newWon.includes(key)) newWon.push(key);
+          newWon.push(key);
           newCarried = newCarried.filter(c => c !== key);
           newPriv[key] = 0;
         }
@@ -176,135 +177,119 @@ const Homepage = () => {
 
       if (won) {
         newPriv[key] = 0;
-        if (!newWon.includes(key)) newWon.push(key);
-        
-        // Before/After Total Logic
+        newWon.push(key);
         const beforeTotal = chain.slice(0, myIdx).reduce((acc, k) => acc + (gameStakes[k] || 0), 0);
-        
-        // If I win, I cover the debt of everyone before me in my chain
         if (beforeTotal > 0) newPriv[leadLoser] += beforeTotal;
-
-        // If I am a helper and I win, my lead loser's mission is done (carried)
         if (isHelper && !newWon.includes(leadLoser)) {
           if (!newCarried.includes(leadLoser)) newCarried.push(leadLoser);
         }
         if (!isHelper) newCarried = newCarried.filter(c => c !== key);
       } else {
-        // Only add stake to private deficit if we didn't win
         newPriv[key] += stake;
       }
     });
 
-    // If any asset won, clear the Small Deficit
-    if (missionAccomplished) {
-      newSD = 0;
-    }
-
+    if (winOccurred) newSD = 0;
     let nextWk = week + 1;
     let finalBase = baseStake;
+
     if (nextWk > 38) {
       nextWk = 1;
       let leftover = Object.values(newPriv).reduce((a, b) => a + b, 0);
       finalBase = 10000 + Math.max(0, leftover - bank);
-      newPriv = emptyObj();
-      newWon = [];
-      newCarried = [];
-      newSD = 0;
+      newPriv = emptyObj(); newWon = []; newCarried = []; newSD = 0;
     }
 
-    setPrivateDef(newPriv);
-    setWonAssets(newWon);
-    setCarriedAssets(newCarried);
-    setSmallDeficit(newSD);
-    setWeek(nextWk);
-    setBaseStake(finalBase);
+    setPrivateDef(newPriv); setWonAssets(newWon); setCarriedAssets(newCarried);
+    setSmallDeficit(newSD); setWeek(nextWk); setBaseStake(finalBase);
     setFixture(null); setInputA(""); setInputB(""); setGameStakes(emptyObj()); setClicked(new Set());
     saveBase({ base: finalBase, smallDeficit: newSD, week: nextWk, privateDef: newPriv, wonAssets: newWon, carriedAssets: newCarried });
   };
+
+  const chainMap = getChainMapping(wonAssets, carriedAssets);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans">
       <div className="p-4 border-b border-white/10 flex justify-between items-center">
         <div>
           <h1 className="text-xl font-black text-red-500 italic">BETKING</h1>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Week {week} / 38</p>
+          <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Week {week} / 38</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => saveBase()} className="bg-green-600 p-2 rounded text-xs font-bold active:scale-95 transition">SAVE</button>
-          <button 
-            onClick={fetchBase} 
-            disabled={isReloading} 
-            className="bg-slate-800 p-2 rounded text-xs active:scale-95 transition disabled:opacity-40"
-          >
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
-          </button>
+          <button onClick={() => saveBase()} className="bg-green-600 px-3 py-1 rounded text-[10px] font-bold">SAVE</button>
+          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 px-3 py-1 rounded text-[10px]"><FiRefreshCw className={isReloading ? "animate-spin" : ""}/></button>
         </div>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <button onClick={() => setClicked(new Set([...clicked, "six"]))} 
-            className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 transition ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
-            <span className="text-xs opacity-80 font-black">6-0 JACKPOT</span>
+            className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
+            <span className="text-[10px] opacity-80">6-0 JACKPOT</span>
             <span className="text-lg">{winnerStake}</span>
           </button>
-          <button onClick={handleNext} disabled={!fixture} 
-            className="bg-emerald-600 p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-30 active:scale-95 transition">
-            NEXT GAME
-          </button>
+          <button onClick={handleNext} disabled={!fixture} className="bg-emerald-600 p-4 rounded-xl font-black text-lg disabled:opacity-30">NEXT</button>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          {ASSET_KEYS.map((key) => {
-            const isWon = wonAssets.includes(key);
+          {ASSET_KEYS.filter(k => !wonAssets.includes(k)).map((key) => {
             const isCarried = carriedAssets.includes(key);
-            const isWinning = winners.has(key);
-            const stake = gameStakes[key] || 0;
+            const helpers = chainMap[key] || [];
             
             return (
-              <button
-                key={key}
-                onClick={() => {
-                  setWinners(prev => {
-                    const next = new Set(prev);
-                    next.has(key) ? next.delete(key) : next.add(key);
-                    return next;
-                  });
-                }}
-                disabled={isWon || !fixture}
-                className={`relative p-3 rounded-xl border-b-4 transition-all active:translate-y-1 ${
-                  isWon ? "bg-slate-800 border-slate-900 opacity-40 cursor-default" :
-                  isWinning ? "bg-green-500 border-green-700" :
-                  isCarried ? "bg-amber-500 border-amber-700 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-slate-700 border-slate-900"
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <span className="font-black text-sm">{ASSET_LABELS[key]}</span>
-                  {isWon && <span className="text-[8px] bg-green-500 px-1 rounded">WON</span>}
-                  {isCarried && <span className="text-[8px] bg-white text-black px-1 rounded animate-pulse">HELPED</span>}
+              <div key={key} className={`relative p-3 rounded-xl border-b-4 bg-slate-800 border-slate-900 ${isCarried ? 'opacity-60 border-amber-500' : ''}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-black text-xs">{ASSET_LABELS[key]}</span>
+                  {isCarried && <span className="text-[7px] bg-amber-500 text-black px-1 rounded font-bold">CARRIED</span>}
                 </div>
-                <div className="mt-2 text-xl font-bold">{stake > 0 ? stake : (isCarried ? "0" : "-")}</div>
-                <div className="text-[9px] opacity-60 font-bold mt-1">D: {privateDef[key]}</div>
-              </button>
+                
+                {/* Lead Asset Toggle */}
+                <button 
+                  onClick={() => setWinners(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; })}
+                  disabled={!fixture}
+                  className={`w-full py-2 rounded text-center font-bold text-lg mb-1 transition ${winners.has(key) ? "bg-green-500 text-white" : "bg-slate-700 text-slate-300"}`}
+                >
+                  {gameStakes[key] || (isCarried ? "0" : "-")}
+                </button>
+
+                {/* Embedded Helper Martingale UI */}
+                {helpers.map(hKey => (
+                  <button 
+                    key={hKey}
+                    onClick={() => setWinners(p => { const n = new Set(p); n.has(hKey) ? n.delete(hKey) : n.add(hKey); return n; })}
+                    disabled={!fixture}
+                    className={`w-full py-1 rounded text-[10px] font-bold mb-1 flex justify-between px-2 items-center border border-white/10 ${winners.has(hKey) ? "bg-green-600 text-white" : "bg-indigo-900/40 text-indigo-200"}`}
+                  >
+                    <span>{ASSET_LABELS[hKey]}</span>
+                    <span>{gameStakes[hKey] || "0"}</span>
+                  </button>
+                ))}
+                
+                <div className="text-[8px] text-slate-500 font-bold mt-1 text-right italic text-red-400">D: {privateDef[key]}</div>
+              </div>
             );
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-4">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
-          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
-          <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition">Calculate Odds</button>
+        {/* Floating Won Status (for those currently helping) */}
+        {wonAssets.length > 0 && (
+          <div className="flex flex-wrap gap-1 bg-black/20 p-2 rounded-lg">
+            <span className="text-[8px] w-full text-slate-500 mb-1 font-bold">HELPERS ACTIVE:</span>
+            {wonAssets.map(k => (
+              <span key={k} className="text-[9px] bg-slate-700 px-2 py-0.5 rounded-full text-slate-400 font-bold border border-white/5">{ASSET_LABELS[k]} ✓</span>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="HOME" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
+          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="AWAY" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
+          <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black shadow-xl">CALCULATE</button>
         </div>
 
-        <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10">
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-400">Current Small Deficit:</span>
-            <span className="font-bold text-red-400">{smallDeficit}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-400">Base Stake:</span>
-            <span className="font-bold text-green-400">{baseStake}</span>
-          </div>
+        <div className="bg-white/5 p-4 rounded-xl space-y-1 text-xs border border-white/10">
+          <div className="flex justify-between"><span className="text-slate-400">SMALL DEFICIT:</span><span className="font-bold text-red-500">{smallDeficit}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">BANK:</span><span className="font-bold text-emerald-500">{bank}</span></div>
         </div>
       </div>
     </div>
