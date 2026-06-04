@@ -6,7 +6,7 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-const LS_KEY = "virt-epl-flat-helper-v6";
+const LS_KEY = "virt-epl-flat-helper-v7";
 
 const ASSET_KEYS = ["oneX", "twoX", "x2", "tg0", "tg6", "ht12", "ht21", "ht30", "ft40", "ft41"];
 const ASSET_LABELS = {
@@ -71,41 +71,39 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
+  // Distribution Engine: Redistributes the helper pool to active losers
   const distributeAndCalculate = useCallback((found, sd, currentStacks, won, carried) => {
     const stakes = Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
     const targetMap = {}; 
     const reverseMap = {}; 
 
     const activeArrays = ASSET_KEYS.filter(k => !won.includes(k) && !carried.includes(k));
-    const helperPool = [...won];
+    const helpers = [...won];
 
     activeArrays.forEach(k => { targetMap[k] = []; });
 
-    if (activeArrays.length > 0 && helperPool.length > 0) {
-      let helperIdx = 0;
-      while (helperIdx < helperPool.length) {
-        for (let i = 0; i < activeArrays.length && helperIdx < helperPool.length; i++) {
-          const target = activeArrays[i];
-          const helper = helperPool[helperIdx];
-          targetMap[target].push(helper);
-          reverseMap[helper] = target;
-          helperIdx++;
+    if (activeArrays.length > 0 && helpers.length > 0) {
+      let hIdx = 0;
+      while (hIdx < helpers.length) {
+        for (let i = 0; i < activeArrays.length && hIdx < helpers.length; i++) {
+          targetMap[activeArrays[i]].push(helpers[hIdx]);
+          reverseMap[helpers[hIdx]] = activeArrays[i];
+          hIdx++;
         }
       }
     }
 
     activeArrays.forEach(target => {
       const tOdd = found[target] || 0;
-      const targetHistorySum = (currentStacks[target] || []).reduce((a, b) => a + b, 0);
-      if (tOdd > 1.01) {
-        stakes[target] = Math.max(Math.round((sd + targetHistorySum) / (tOdd - 1)), 10);
-      }
-      let runningChainSum = sd + targetHistorySum + (stakes[target] || 0);
+      const tHistorySum = (currentStacks[target] || []).reduce((a, b) => a + b, 0);
+      if (tOdd > 1.01) stakes[target] = Math.max(Math.round((sd + tHistorySum) / (tOdd - 1)), 10);
+      
+      let runningSum = sd + tHistorySum + (stakes[target] || 0);
       targetMap[target].forEach(hKey => {
         const hOdd = found[hKey] || 0;
         if (hOdd > 1.01) {
-          stakes[hKey] = Math.max(Math.round(runningChainSum / (hOdd - 1)), 10);
-          runningChainSum += stakes[hKey];
+          stakes[hKey] = Math.max(Math.round(runningSum / (hOdd - 1)), 10);
+          runningSum += stakes[hKey];
         }
       });
     });
@@ -148,16 +146,26 @@ const Homepage = () => {
       if (winIdx !== -1) {
         anyWin = true;
         const winnerKey = chain[winIdx].key;
+
+        // Before Total logic
         let beforeTotal = 0;
         for (let i = 0; i < winIdx; i++) beforeTotal += chain[i].stake;
         nextSD += beforeTotal;
 
+        // Reset arrays
         nextStacks[target] = [];
         nextStacks[winnerKey] = [];
+
+        // If helper won, target becomes dormant
+        if (winnerKey !== target) {
+          if (!nextCarried.includes(target) && !nextWon.includes(target)) nextCarried.push(target);
+        }
+        
+        // Ensure winner is in the helper pool
         if (!nextWon.includes(winnerKey)) nextWon.push(winnerKey);
-        if (winnerKey !== target && !nextCarried.includes(target) && !nextWon.includes(target)) nextCarried.push(target);
         nextCarried = nextCarried.filter(c => c !== winnerKey);
       } else {
+        // No win: target absorbs all chain losses
         chain.forEach(item => nextStacks[target].push(item.stake));
       }
     });
@@ -184,55 +192,65 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 font-sans">
       <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
-        <h1 className="text-xl font-black text-red-600 italic">BETKING v6</h1>
+        <h1 className="text-xl font-black text-red-600 italic">BETKING v7</h1>
         <div className="flex gap-2">
           <button onClick={() => saveBase()} className="bg-green-600 px-3 py-1 rounded text-xs font-bold">SAVE</button>
-          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 px-3 py-1 rounded text-xs disabled:opacity-50">
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
+          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 px-3 py-1 rounded text-xs">
+             <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <button onClick={() => setClicked(new Set(["six"]))} className={`p-4 rounded-xl border-2 transition ${clicked.has("six") ? "bg-white text-black" : "bg-red-600"}`}>
-          <span className="text-[10px] uppercase font-black block">6-0 Jackpot</span>
-          <span className="text-xl font-black">{winnerStake}</span>
+          <span className="text-[10px] uppercase font-black block text-center">6-0 Jackpot</span>
+          <div className="text-xl font-black text-center">{winnerStake}</div>
         </button>
-        <button onClick={handleNext} disabled={!fixture} className="bg-emerald-600 p-4 rounded-xl font-black text-lg disabled:opacity-20">NEXT GAME</button>
+        <button onClick={handleNext} disabled={!fixture} className="bg-emerald-600 p-4 rounded-xl font-black text-lg disabled:opacity-20 active:scale-95 transition">NEXT GAME</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-4">
         {ASSET_KEYS.map((key) => {
           const isWon = wonAssets.includes(key);
           const isCarried = carriedAssets.includes(key);
+          const stake = gameStakes[key] || 0;
           const target = currentRouting[key];
+
           return (
             <button key={key} onClick={() => {
-                if (isCarried) { setCarriedAssets(prev => prev.filter(k => k !== key)); setWonAssets(prev => [...prev, key]); return; }
-                setWinners(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+                if (isCarried) {
+                  // Re-activate dormant asset into helper pool
+                  setCarriedAssets(prev => prev.filter(k => k !== key));
+                  setWonAssets(prev => [...prev, key]);
+                } else {
+                  // Toggle win for active or helper asset
+                  setWinners(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+                }
               }}
-              className={`p-3 rounded-xl border-b-4 text-left ${isWon ? "bg-indigo-900/40 border-indigo-950 opacity-40" : winners.has(key) ? "bg-green-500 border-green-700" : isCarried ? "bg-slate-800 border-amber-600" : "bg-slate-700 border-slate-900"}`}>
+              className={`p-3 rounded-xl border-b-4 text-left transition-all active:translate-y-1 ${
+                isWon ? "bg-indigo-600 border-indigo-900 shadow-lg" : 
+                winners.has(key) ? "bg-green-500 border-green-700" : 
+                isCarried ? "bg-slate-800 border-amber-600 opacity-60" : "bg-slate-700 border-slate-900"
+              }`}>
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="font-black text-xs uppercase">{ASSET_LABELS[key]}</div>
-                  {target && <div className="text-[9px] text-cyan-400 font-black">➔ {ASSET_LABELS[target]}</div>}
+                  <div className="font-black text-xs">{ASSET_LABELS[key]}</div>
+                  {target && <div className="text-[9px] text-cyan-300 font-bold">➔ {ASSET_LABELS[target]}</div>}
                 </div>
-                {isWon && <div className="text-[8px] bg-indigo-500 px-1 rounded font-bold">HELPER</div>}
-                {isCarried && <div className="text-[8px] bg-amber-600 px-1 rounded font-bold">DORMANT</div>}
+                {isWon && <div className="text-[8px] bg-indigo-400 px-1 rounded font-bold uppercase">Helper</div>}
+                {isCarried && <div className="text-[8px] bg-amber-600 px-1 rounded font-bold uppercase">Dormant</div>}
               </div>
-              <div className="text-xl font-black text-center my-1">{gameStakes[key] || (isCarried ? "0" : "-")}</div>
+              <div className="text-xl font-black text-center my-2">{stake > 0 ? stake : (isCarried ? "0" : "-")}</div>
               {!isWon && <div className="text-[9px] opacity-50 text-right">D: {(stacks[key] || []).reduce((a, b) => a + b, 0)}</div>}
             </button>
           );
         })}
       </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="grid grid-cols-2 gap-2">
-          <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="HOME" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
-          <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="AWAY" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold" />
-        </div>
-        <button onClick={handleSubmit} className="w-full bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest">Calculate Odds</button>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="HOME" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold uppercase" />
+        <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="AWAY" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center font-bold uppercase" />
+        <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition">Calculate Odds</button>
       </div>
 
       <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-xs space-y-2">
