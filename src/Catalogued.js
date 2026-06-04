@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "ajax";
+import axios from "axios"; // Fixed: Was incorrectly set to 'ajax'
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
