@@ -187,7 +187,9 @@ const Homepage = () => {
         <h1 className="text-xl font-black text-red-600 italic">BETKING v6</h1>
         <div className="flex gap-2">
           <button onClick={() => saveBase()} className="bg-green-600 px-3 py-1 rounded text-xs font-bold">SAVE</button>
-          <button onClick={fetchBase} className="bg-slate-800 px-3 py-1 rounded text-xs"><FiRefreshCw /></button>
+          <button onClick={fetchBase} disabled={isReloading} className="bg-slate-800 px-3 py-1 rounded text-xs disabled:opacity-50">
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
+          </button>
         </div>
       </div>
 
