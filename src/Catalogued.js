@@ -78,6 +78,7 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
+  // Distributes helpers every single game round dynamically
   const distributeAndCalculate = useCallback((found, sd, currentStacks, won, carried) => {
     const stakes = Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
     const targetMap = {}; 
@@ -89,7 +90,7 @@ const Homepage = () => {
     activeLosers.forEach(k => { targetMap[k] = []; });
     helpers.forEach(h => { reverseMap[h] = null; });
 
-    // Round-robin distribution supporting unlimited helper assignment overflow
+    // Round-robin distribution loop run per game frame
     if (activeLosers.length > 0 && helpers.length > 0) {
       let hIdx = 0;
       while (hIdx < helpers.length) {
@@ -152,6 +153,7 @@ const Homepage = () => {
     let nextSD = smallDeficit;
     let winOccurred = false;
 
+    // Get current game's dynamic round routing mapping
     const { targetMap, stakes } = distributeAndCalculate(fixture, smallDeficit, stacks, wonAssets, carriedAssets);
     const roundPlacements = Object.fromEntries(ASSET_KEYS.map(k => [k, []]));
 
@@ -174,7 +176,7 @@ const Homepage = () => {
         winOccurred = true;
         const winnerKey = chainPlacements[winIdx].key;
         
-        // Before Total Logic Execution
+        // Before Total Calculation: Add stakes up to the winning item's index to smallDeficit
         let beforeTotal = 0;
         for (let i = 0; i < winIdx; i++) {
           beforeTotal += chainPlacements[i].stake;
@@ -183,18 +185,24 @@ const Homepage = () => {
           nextSD += beforeTotal;
         }
 
-        // Wipe history stacks for both target array and winning entity
+        // Wipe history stacks
         nextStacks[target] = [];
-        if (!nextWon.includes(winnerKey)) nextWon.push(winnerKey);
         nextStacks[winnerKey] = [];
 
-        // Set target asset to dormant if a helper brought home the win
-        if (winnerKey !== target) {
+        if (winnerKey === target) {
+          // Main asset won its own array: goes into helpers pool
+          if (!nextWon.includes(target)) nextWon.push(target);
+        } else {
+          // Helper won: Target main asset becomes dormant. 
           if (!nextCarried.includes(target) && !nextWon.includes(target)) nextCarried.push(target);
+          
+          // CRITICAL FIX: The helper is filtered/kept in nextWon pool so it stays free to seek a new array next game!
+          if (!nextWon.includes(winnerKey)) nextWon.push(winnerKey);
         }
+
         nextCarried = nextCarried.filter(c => c !== winnerKey);
       } else {
-        // Lose condition: distribute local execution stakes directly into target asset stack array
+        // Loss: Append current stakes directly into the target asset's deficit history array
         chainPlacements.forEach(item => nextStacks[target].push(item.stake));
       }
     });
@@ -208,10 +216,7 @@ const Homepage = () => {
       nextWk = 1;
       let leftover = Object.values(nextStacks).reduce((acc, arr) => acc + arr.reduce((a, b) => a + b, 0), 0);
       finalBase = 10000 + Math.max(0, leftover - bank);
-      nextStacks = makeEmptyStacks(); 
-      nextWon = []; 
-      nextCarried = []; 
-      nextSD = 0;
+      nextStacks = makeEmptyStacks(); nextWon = []; nextCarried = []; nextSD = 0;
     }
 
     setStacks(nextStacks); setWonAssets(nextWon); setCarriedAssets(nextCarried);
@@ -298,7 +303,6 @@ const Homepage = () => {
           <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition">Calculate Odds</button>
         </div>
 
-        {/* Extended Metric Configuration Board */}
         <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10 text-xs">
           <div className="flex justify-between"><span className="text-slate-400 font-bold">SMALL DEFICIT:</span><span className="font-bold text-red-500">{smallDeficit}</span></div>
           <div className="flex justify-between"><span className="text-slate-400 font-bold">BASE STAKE:</span><span className="font-bold text-green-500">{baseStake}</span></div>
