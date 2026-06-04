@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+import axios from "ajax";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
@@ -78,7 +78,6 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  // Logic to build the helper mapping and game stakes
   const getHelperMapAndStakes = (found, sd, pDefs, won, carried) => {
     const stakes = emptyObj();
     const map = {};
@@ -87,7 +86,6 @@ const Homepage = () => {
 
     activeLosers.forEach(k => { map[k] = []; });
     
-    // Assign helpers round-robin
     if (activeLosers.length > 0 && helperPool.length > 0) {
       let poolIdx = 0;
       while (poolIdx < helperPool.length) {
@@ -98,7 +96,6 @@ const Homepage = () => {
       }
     }
 
-    // Calculate Stakes
     activeLosers.forEach(loser => {
       const odd = found[ASSET_ODD_KEY[loser]] || 0;
       const pd = pDefs[loser] || 0;
@@ -147,7 +144,6 @@ const Homepage = () => {
     let newSD = smallDeficit;
     let newCarried = [...carriedAssets];
 
-    // Build helper map one last time to know who was helping whom
     const { map } = getHelperMapAndStakes(fixture, smallDeficit, privateDef, wonAssets, carriedAssets);
 
     ASSET_KEYS.forEach(key => {
@@ -164,7 +160,6 @@ const Homepage = () => {
         return;
       }
 
-      // Identify if lead or helper
       let leadLoser = key;
       let isHelper = false;
       Object.entries(map).forEach(([lead, hArr]) => {
@@ -178,7 +173,6 @@ const Homepage = () => {
         newPriv[key] = 0;
         newWon.push(key);
         
-        // Before/After Total Logic
         const beforeTotal = chain.slice(0, myIdx).reduce((acc, k) => acc + (gameStakes[k] || 0), 0);
         const afterTotal = chain.slice(myIdx + 1).reduce((acc, k) => acc + (gameStakes[k] || 0), 0);
 
@@ -224,13 +218,18 @@ const Homepage = () => {
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Week {week} / 38</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => saveBase()} className="bg-green-600 p-2 rounded text-xs">SAVE</button>
-          <button onClick={fetchBase} className="bg-slate-800 p-2 rounded text-xs"><FiRefreshCw/></button>
+          <button onClick={() => saveBase()} className="bg-green-600 p-2 rounded text-xs font-bold active:scale-95 transition">SAVE</button>
+          <button 
+            onClick={fetchBase} 
+            disabled={isReloading} 
+            className="bg-slate-800 p-2 rounded text-xs active:scale-95 transition disabled:opacity-40"
+          >
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
+          </button>
         </div>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto space-y-4">
-        {/* Main Grid UI - Restored to Original Style */}
         <div className="grid grid-cols-2 gap-3">
           <button onClick={() => setClicked(new Set([...clicked, "six"]))} 
             className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
@@ -278,14 +277,12 @@ const Homepage = () => {
           })}
         </div>
 
-        {/* Inputs */}
         <div className="grid grid-cols-2 gap-2 pt-4">
           <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
           <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
           <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl">Calculate Odds</button>
         </div>
 
-        {/* Status */}
         <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10">
           <div className="flex justify-between text-xs">
             <span className="text-slate-400">Current Small Deficit:</span>
