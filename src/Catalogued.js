@@ -32,7 +32,6 @@ const Homepage = () => {
   const [week, setWeek] = useState(1);
   const [bank, setBank] = useState(0);
 
-  // Array-based history stacks for each asset
   const [stacks, setStacks] = useState(makeEmptyStacks());
   const [wonAssets, setWonAssets] = useState([]);
   const [carriedAssets, setCarriedAssets] = useState([]);
@@ -79,7 +78,6 @@ const Homepage = () => {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  // Distribute helpers to target arrays and build execution stakes
   const distributeAndCalculate = useCallback((found, sd, currentStacks, won, carried) => {
     const stakes = Object.fromEntries(ASSET_KEYS.map(k => [k, 0]));
     const targetMap = {}; 
@@ -91,7 +89,6 @@ const Homepage = () => {
     activeLosers.forEach(k => { targetMap[k] = []; });
     helpers.forEach(h => { reverseMap[h] = null; });
 
-    // Round-robin assignment based on order of priority
     if (activeLosers.length > 0 && helpers.length > 0) {
       let hIdx = 0;
       while (hIdx < helpers.length) {
@@ -105,7 +102,6 @@ const Homepage = () => {
       }
     }
 
-    // Calculate Martingale stakes cascading down the array chains
     activeLosers.forEach(target => {
       const tOdd = found[ASSET_ODD_KEY[target]] || 0;
       const targetHistorySum = (currentStacks[target] || []).reduce((a, b) => a + b, 0);
@@ -156,9 +152,9 @@ const Homepage = () => {
     let nextSD = smallDeficit;
     let seasonalWinOccurred = false;
 
-    const { targetMap, reverseMap, stakes } = distributeAndCalculate(fixture, smallDeficit, stacks, wonAssets, carriedAssets);
+    // Fixed: Removed unused 'reverseMap' from this specific destructuring
+    const { targetMap, stakes } = distributeAndCalculate(fixture, smallDeficit, stacks, wonAssets, carriedAssets);
 
-    // Temp array entries mapping for this current game iteration
     const roundPlacements = Object.fromEntries(ASSET_KEYS.map(k => [k, []]));
 
     ASSET_KEYS.forEach(key => {
@@ -181,7 +177,6 @@ const Homepage = () => {
       });
     });
 
-    // Evaluate results against arrays
     Object.keys(targetMap).forEach(target => {
       const chainPlacements = roundPlacements[target] || [];
       let targetWinIdx = -1;
@@ -196,44 +191,31 @@ const Homepage = () => {
       if (targetWinIdx !== -1) {
         seasonalWinOccurred = true;
         const winningItem = chainPlacements[targetWinIdx];
-
-        // Before Total Logic: Accumulate losses prior to the winning index inside the array chain
         let beforeTotal = 0;
         for (let i = 0; i < targetWinIdx; i++) {
           beforeTotal += chainPlacements[i].stake;
         }
 
-        if (beforeTotal > 0) {
-          nextSD += beforeTotal;
-        }
-
-        // Close and flag the winning item
-        if (!nextWon.includes(winningItem.key)) {
-          nextWon.push(winningItem.key);
-        }
+        if (beforeTotal > 0) nextSD += beforeTotal;
+        if (!nextWon.includes(winningItem.key)) nextWon.push(winningItem.key);
         nextStacks[winningItem.key] = [];
 
-        // If a helper won this array, the target main asset transitions into carried status
         if (winningItem.key !== target) {
           if (!nextCarried.includes(target) && !nextWon.includes(target)) {
             nextCarried.push(target);
           }
         }
 
-        // Clear target array since it was successfully settled
         nextStacks[target] = [];
         nextCarried = nextCarried.filter(c => c !== winningItem.key);
       } else {
-        // No win: Push all game stakes directly into the target asset's historical stack array
         chainPlacements.forEach(item => {
           nextStacks[target].push(item.stake);
         });
       }
     });
 
-    if (seasonalWinOccurred) {
-      nextSD = 0;
-    }
+    if (seasonalWinOccurred) nextSD = 0;
 
     let nextWk = week + 1;
     let finalBase = baseStake;
@@ -292,14 +274,12 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* Restore Flat Original Clean Layout */}
         <div className="grid grid-cols-2 gap-2">
           {ASSET_KEYS.map((key) => {
             const isWon = wonAssets.includes(key);
             const isCarried = carriedAssets.includes(key);
             const isWinning = winners.has(key);
             const stake = gameStakes[key] || 0;
-            
             const targetLeadKey = currentHelpersRouting[key];
             const currentStackSum = (stacks[key] || []).reduce((a, b) => a + b, 0);
 
@@ -324,7 +304,7 @@ const Homepage = () => {
                   <div className="flex flex-col">
                     <span className="font-black text-sm">{ASSET_LABELS[key]}</span>
                     {targetLeadKey && (
-                      <span className="text-[9px] font-extrabold text-cyan-300 mt-0.5">➔ FOR {ASSET_LABELS[targetLeadKey]}</span>
+                      <span className="text-[9px] font-extrabold text-cyan-300 mt-0.5 uppercase tracking-tighter">➔ FOR {ASSET_LABELS[targetLeadKey]}</span>
                     )}
                   </div>
                   {isWon && <span className="text-[8px] bg-indigo-500 px-1 rounded font-bold">HELPER</span>}
@@ -333,7 +313,7 @@ const Homepage = () => {
                 <div className="mt-2 text-xl font-black text-center">
                   {stake > 0 ? stake : (isCarried ? "0" : "-")}
                 </div>
-                <div className="text-[9px] opacity-65 font-bold mt-1 text-right">
+                <div className="text-[9px] opacity-65 font-bold mt-1 text-right italic">
                   D: {currentStackSum} ({stacks[key]?.length || 0})
                 </div>
               </button>
