@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios"; // Fixed: Was incorrectly set to 'ajax'
+import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
@@ -103,12 +103,13 @@ const Homepage = () => {
         stakes[loser] = Math.max(Math.round((sd + pd) / (odd - 1)), 10);
       }
 
-      let runningChain = sd + pd + (stakes[loser] || 0);
+      // Helper follows the lead loser: Target = (SmallDef + LeadDef + LeadStake)
+      let runningChainRecoverable = sd + pd + (stakes[loser] || 0);
       map[loser].forEach(helperKey => {
         const hOdd = found[ASSET_ODD_KEY[helperKey]] || 0;
         if (hOdd > 1.01) {
-          stakes[helperKey] = Math.max(Math.round(runningChain / (hOdd - 1)), 10);
-          runningChain += stakes[helperKey];
+          stakes[helperKey] = Math.max(Math.round(runningChainRecoverable / (hOdd - 1)), 10);
+          runningChainRecoverable += stakes[helperKey];
         }
       });
     });
@@ -143,17 +144,21 @@ const Homepage = () => {
     let newWon = [...wonAssets];
     let newSD = smallDeficit;
     let newCarried = [...carriedAssets];
+    let missionAccomplished = false;
 
     const { map } = getHelperMapAndStakes(fixture, smallDeficit, privateDef, wonAssets, carriedAssets);
 
     ASSET_KEYS.forEach(key => {
       if (wonAssets.includes(key)) return;
-      const won = winners.has(key);
+      const won = winners.has(key) || (clicked.has("six") && key === "six");
       const stake = gameStakes[key] || 0;
+
+      // Reset Small Deficit if any win occurs (including Jackpot)
+      if (won) missionAccomplished = true;
 
       if (carriedAssets.includes(key)) {
         if (won) {
-          newWon.push(key);
+          if (!newWon.includes(key)) newWon.push(key);
           newCarried = newCarried.filter(c => c !== key);
           newPriv[key] = 0;
         }
@@ -171,22 +176,29 @@ const Homepage = () => {
 
       if (won) {
         newPriv[key] = 0;
-        newWon.push(key);
+        if (!newWon.includes(key)) newWon.push(key);
         
+        // Before/After Total Logic
         const beforeTotal = chain.slice(0, myIdx).reduce((acc, k) => acc + (gameStakes[k] || 0), 0);
-        const afterTotal = chain.slice(myIdx + 1).reduce((acc, k) => acc + (gameStakes[k] || 0), 0);
-
+        
+        // If I win, I cover the debt of everyone before me in my chain
         if (beforeTotal > 0) newPriv[leadLoser] += beforeTotal;
-        if (afterTotal > 0) newSD += afterTotal;
 
+        // If I am a helper and I win, my lead loser's mission is done (carried)
         if (isHelper && !newWon.includes(leadLoser)) {
           if (!newCarried.includes(leadLoser)) newCarried.push(leadLoser);
         }
         if (!isHelper) newCarried = newCarried.filter(c => c !== key);
       } else {
+        // Only add stake to private deficit if we didn't win
         newPriv[key] += stake;
       }
     });
+
+    // If any asset won, clear the Small Deficit
+    if (missionAccomplished) {
+      newSD = 0;
+    }
 
     let nextWk = week + 1;
     let finalBase = baseStake;
@@ -206,7 +218,7 @@ const Homepage = () => {
     setSmallDeficit(newSD);
     setWeek(nextWk);
     setBaseStake(finalBase);
-    setFixture(null); setInputA(""); setInputB(""); setGameStakes(emptyObj());
+    setFixture(null); setInputA(""); setInputB(""); setGameStakes(emptyObj()); setClicked(new Set());
     saveBase({ base: finalBase, smallDeficit: newSD, week: nextWk, privateDef: newPriv, wonAssets: newWon, carriedAssets: newCarried });
   };
 
@@ -232,12 +244,12 @@ const Homepage = () => {
       <div className="flex-1 p-3 overflow-y-auto space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <button onClick={() => setClicked(new Set([...clicked, "six"]))} 
-            className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
+            className={`p-4 rounded-xl font-bold flex flex-col items-center border-2 transition ${clicked.has("six") ? "bg-white text-black border-white" : "bg-red-600 border-red-500"}`}>
             <span className="text-xs opacity-80 font-black">6-0 JACKPOT</span>
             <span className="text-lg">{winnerStake}</span>
           </button>
           <button onClick={handleNext} disabled={!fixture} 
-            className="bg-emerald-600 p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-30">
+            className="bg-emerald-600 p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-30 active:scale-95 transition">
             NEXT GAME
           </button>
         </div>
@@ -246,6 +258,7 @@ const Homepage = () => {
           {ASSET_KEYS.map((key) => {
             const isWon = wonAssets.includes(key);
             const isCarried = carriedAssets.includes(key);
+            const isWinning = winners.has(key);
             const stake = gameStakes[key] || 0;
             
             return (
@@ -260,15 +273,15 @@ const Homepage = () => {
                 }}
                 disabled={isWon || !fixture}
                 className={`relative p-3 rounded-xl border-b-4 transition-all active:translate-y-1 ${
-                  isWon ? "bg-slate-800 border-slate-900 opacity-40" :
-                  winners.has(key) ? "bg-green-500 border-green-700" :
-                  isCarried ? "bg-amber-500 border-amber-700" : "bg-slate-700 border-slate-900"
+                  isWon ? "bg-slate-800 border-slate-900 opacity-40 cursor-default" :
+                  isWinning ? "bg-green-500 border-green-700" :
+                  isCarried ? "bg-amber-500 border-amber-700 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-slate-700 border-slate-900"
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <span className="font-black text-sm">{ASSET_LABELS[key]}</span>
                   {isWon && <span className="text-[8px] bg-green-500 px-1 rounded">WON</span>}
-                  {isCarried && <span className="text-[8px] bg-white text-black px-1 rounded">HELPED</span>}
+                  {isCarried && <span className="text-[8px] bg-white text-black px-1 rounded animate-pulse">HELPED</span>}
                 </div>
                 <div className="mt-2 text-xl font-bold">{stake > 0 ? stake : (isCarried ? "0" : "-")}</div>
                 <div className="text-[9px] opacity-60 font-bold mt-1">D: {privateDef[key]}</div>
@@ -280,7 +293,7 @@ const Homepage = () => {
         <div className="grid grid-cols-2 gap-2 pt-4">
           <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
           <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="bg-slate-900 p-3 rounded-lg border border-white/10 text-center uppercase font-bold" />
-          <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl">Calculate Odds</button>
+          <button onClick={handleSubmit} className="col-span-2 bg-red-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition">Calculate Odds</button>
         </div>
 
         <div className="bg-white/5 p-4 rounded-2xl space-y-2 border border-white/10">
