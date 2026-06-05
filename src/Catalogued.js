@@ -87,7 +87,9 @@ const Homepage = () => {
     for (const step of code) {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
-      let stake = Math.round(runningTotal / (odd - 1));
+      
+      // Minimum cap floor of 10 applied across all computed sub-ladder stakes
+      let stake = Math.max(10, Math.round(runningTotal / (odd - 1)));
 
       ladder.push({ step, stake, type });
       if (step === "H") homeAmount = stake;
@@ -104,6 +106,7 @@ const Homepage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    // Realigned fallback selectors explicitly targeted to 'liv'
     const home = sanitizeTeam(inputA) || "liv";
     const away = sanitizeTeam(inputB) || "liv";
 
@@ -127,15 +130,12 @@ const Homepage = () => {
     let targetWinner = 0;
 
     if (isSmall) {
-      // Small game asset configuration: calculate COP target stake from smallDeficit pool
       let cop = smallDeficit > 0 ? Math.round(smallDeficit / found.winner) : 0;
       targetWinner = cop > 0 ? Math.max(cop, 1) : 0;
 
-      // Accumulate the current winner stake directly into smallDeficit
       const nextSmallDeficit = smallDeficit + targetWinner;
       setSmallDeficit(nextSmallDeficit);
 
-      // Build specific COP HDA chain
       const resCop = buildLadder(targetWinner, "COP", code, oddsMap);
       newStakes.push(...resCop.ladder);
 
@@ -146,7 +146,6 @@ const Homepage = () => {
         awayAmount: resCop.awayAmount,
       });
     } else {
-      // Standard game configuration
       const newBase6 = baseStake + deficit;
       setBaseStake(newBase6);
       setDeficit(0);
@@ -191,17 +190,14 @@ const Homepage = () => {
     let nextDeficit = deficit;
 
     if (isSmallOddsGame) {
-      // Small Game Route: Losses fall into COP Deficit tracker
       const copLoss = calcLoss("COP");
       nextSmallDeficit += copLoss;
 
-      // Trigger automatic baseline balance push if threshold cleared
       if (nextSmallDeficit >= 10000) {
         nextBaseStake += nextSmallDeficit;
         nextSmallDeficit = 0;
       }
     } else {
-      // Standard 6-0 Route
       const mainLoss = calcLoss("6-0");
       nextDeficit = mainLoss;
       nextBaseDeficit += mainLoss;
@@ -227,20 +223,18 @@ const Homepage = () => {
     });
 
     let nextSmallDeficit = smallDeficit;
-    let nextBaseStake = baseStake;
+    let nxtBaseStake = baseStake;
 
     if (isSmallOddsGame) {
-      // Direct COP target strike resets the small odds pool completely
       nextSmallDeficit = 0;
     } else {
-      // Standard 6-0 strike handles default reset parameters
-      nextBaseStake = 10000;
+      nxtBaseStake = 10000;
       setBaseDeficit(0);
       setDeficit(0);
     }
 
     setSmallDeficit(nextSmallDeficit);
-    setBaseStake(nextBaseStake);
+    setBaseStake(nxtBaseStake);
   };
 
   /* ================================================================
@@ -297,7 +291,7 @@ const Homepage = () => {
       {/* ── SCROLLABLE CONTENT ── */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-5 overflow-y-auto">
 
-        {/* ── MAIN MERGED WINNER MATCH RESETSUBMIT BUTTON ── */}
+        {/* ── MAIN MERGED WINNER MATCH SUBMIT BUTTON ── */}
         <button
           onClick={handleJackpot}
           disabled={!fixture}
