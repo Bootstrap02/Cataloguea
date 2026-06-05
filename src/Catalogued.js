@@ -88,7 +88,6 @@ const Homepage = () => {
       const odd = oddsMap[step];
       if (!odd || odd <= 1.01) continue;
       
-      // Minimum cap floor of 10 applied across all computed sub-ladder stakes
       let stake = Math.max(10, Math.round(runningTotal / (odd - 1)));
 
       ladder.push({ step, stake, type });
@@ -106,7 +105,6 @@ const Homepage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Realigned fallback selectors explicitly targeted to 'liv'
     const home = sanitizeTeam(inputA) || "liv";
     const away = sanitizeTeam(inputB) || "liv";
 
@@ -130,12 +128,11 @@ const Homepage = () => {
     let targetWinner = 0;
 
     if (isSmall) {
+      // COP mode: calculate winner stake directly from smallDeficit pool using winner odd
       let cop = smallDeficit > 0 ? Math.round(smallDeficit / found.winner) : 0;
-      targetWinner = cop > 0 ? Math.max(cop, 1) : 0;
+      targetWinner = cop > 0 ? Math.max(cop, 10) : 0;
 
-      const nextSmallDeficit = smallDeficit + targetWinner;
-      setSmallDeficit(nextSmallDeficit);
-
+      // Build COP sub-ladder matching the calculated target winner stake
       const resCop = buildLadder(targetWinner, "COP", code, oddsMap);
       newStakes.push(...resCop.ladder);
 
@@ -146,11 +143,12 @@ const Homepage = () => {
         awayAmount: resCop.awayAmount,
       });
     } else {
+      // Standard 6-0 mode
       const newBase6 = baseStake + deficit;
       setBaseStake(newBase6);
       setDeficit(0);
 
-      targetWinner = Math.round(newBase6 / found.winner);
+      targetWinner = Math.max(10, Math.round(newBase6 / found.winner));
       const res6 = buildLadder(targetWinner, "6-0", code, oddsMap);
       newStakes.push(...res6.ladder);
 
@@ -190,14 +188,16 @@ const Homepage = () => {
     let nextDeficit = deficit;
 
     if (isSmallOddsGame) {
+      // Small game HDA route loss accumulation
       const copLoss = calcLoss("COP");
-      nextSmallDeficit += copLoss;
+      nextSmallDeficit += amounts.winnerAmount + copLoss;
 
       if (nextSmallDeficit >= 10000) {
         nextBaseStake += nextSmallDeficit;
         nextSmallDeficit = 0;
       }
     } else {
+      // Standard 6-0 Route
       const mainLoss = calcLoss("6-0");
       nextDeficit = mainLoss;
       nextBaseDeficit += mainLoss;
@@ -212,7 +212,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      JACKPOT HANDLER
+      JACKPOT / WINNER HIT HANDLER
      ================================================================ */
   const handleJackpot = () => {
     if (!fixture) return;
@@ -226,8 +226,10 @@ const Homepage = () => {
     let nxtBaseStake = baseStake;
 
     if (isSmallOddsGame) {
+      // Direct COP winner hit clears out the small deficit pool completely
       nextSmallDeficit = 0;
     } else {
+      // Standard 6-0 strike resets system parameters
       nxtBaseStake = 10000;
       setBaseDeficit(0);
       setDeficit(0);
