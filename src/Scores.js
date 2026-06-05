@@ -29,8 +29,10 @@ export const odds = [
   // winner: 416 - Liverpool away vs Bournemouth/Fulham/Crystal Palace
   { id: "bouliv", home: "bou", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, code: "HDA" },
   { id: "fulliv", home: "ful", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, code: "HDA" },
-  { id: "cryliv", home: "cry", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, code: "HDA" },
+  { id: "cryliv", home: "cry", away: "liv", winner: 416, win: 6.1, draw: 4.37, lose: 1.52, code: "HDA" }
+];
 
+  export const smallOdds = [
   // winner: 105 - Liverpool home vs Crystal Palace/Bournemouth/Fulham
   { id: "livcry", home: "liv", away: "cry", winner: 105, win: 1.42, draw: 4.56, lose: 7.96, code: "ADH" },
   { id: "livbou", home: "liv", away: "bou", winner: 105, win: 1.42, draw: 4.56, lose: 7.96, code: "ADH" },
