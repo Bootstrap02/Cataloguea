@@ -34,7 +34,7 @@ const Homepage = () => {
   /* ---------- CORE ENGINE BALANCES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [baseDeficit, setBaseDeficit] = useState(0); 
-  const [deficit, setDeficit] = useState(0); // Master Dead Sea Pool (Winner stakes pile here on setup)
+  const [deficit, setDeficit] = useState(0); 
 
   /* ---------- ASSET TRACKING ---------- */
   const [arrayDeficits, setArrayDeficits] = useState({
@@ -112,19 +112,15 @@ const Homepage = () => {
     setFixture(found);
     setClicked(new Set());
 
-    // 1. Calculate Winner stake exactly
-    // 1. Calculate Winner stake with a minimum limit floor of 10
-const calculated60 = Math.max(Math.round(baseStake / found.winner), 10);
-setWinnerAmount(calculated60);
-    
-    // 2. Winner stake piles directly into the master deficit states immediately
+    const calculated60 = Math.max(Math.round(baseStake / found.winner), 10);
+    setWinnerAmount(calculated60);
+
     const updatedDeficitPool = deficit + calculated60;
     const updatedAccumulatedDef = baseDeficit + calculated60;
     
     setDeficit(updatedDeficitPool);
     setBaseDeficit(updatedAccumulatedDef);
 
-    // 3. Targets (Master Deficit + Private Asset Deficit) / (Odd - 1)
     const nextStakes = {};
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
@@ -134,8 +130,6 @@ setWinnerAmount(calculated60);
 
       if (assetOdd && assetOdd > 1.01) {
         const privateDeficit = arrayDeficits[asset] || 0;
-        
-        // Pure calculation targeting the newly updated master pool + their own private pool
         let calcTarget = Math.round((updatedDeficitPool + privateDeficit) / (assetOdd - 1));
         nextStakes[asset] = calcTarget;
       }
@@ -144,7 +138,7 @@ setWinnerAmount(calculated60);
   };
 
   /* ================================================================
-      CLEAR & SAVE TRANSACTIONS
+      EXPLICIT CLEAR ACTION ENGINE (RUNS ONLY VIA NEXT PROCESS BUTTON)
      ================================================================ */
   const clearForNext = useCallback((
     nxtBase = baseStake, 
@@ -169,12 +163,12 @@ setWinnerAmount(calculated60);
         wonArrayAssets: Array.from(nxtWonSet)
       });
     } catch (err) {
-      console.error("❌ Inline save update failed:", err.message);
+      console.error("❌ Database synchronization failure on clear transaction:", err.message);
     }
   }, [baseStake, baseDeficit, deficit, arrayDeficits, wonArrayAssets]);
 
   /* ================================================================
-      RESOLVE ASSET WIN
+      RESOLVE ASSET WIN (STAYS LIVE ON SCREEN - NO AUTO CLEAR)
      ================================================================ */
   const resolveArrayAssetWin = (asset) => {
     if (!fixture) return;
@@ -185,27 +179,42 @@ setWinnerAmount(calculated60);
       return next;
     });
     
+    // 1. Target asset shifts to dormant list
     let newWonSet = new Set(wonArrayAssets);
     newWonSet.add(asset);
     
+    // 2. Clear out private asset deficit pool, and clear master deficit pool completely
     let updatedDeficits = { ...arrayDeficits, [asset]: 0 };
+    const nextDeficitPool = 0;
 
     if (newWonSet.size === arrayedAssets.length) {
       newWonSet = new Set();
       for (const key of arrayedAssets) {
         updatedDeficits[key] = 0;
       }
-      console.log("🔄 Matrix Cycle Reset: Dormant assets returned to action.");
+      console.log("🔄 Matrix Cycle Reset: All assets returned to circulation.");
     }
 
     setWonArrayAssets(newWonSet);
     setArrayDeficits(updatedDeficits);
+    setDeficit(nextDeficitPool);
 
-    clearForNext(baseStake, baseDeficit, deficit, updatedDeficits, newWonSet);
+    // Save calculation data silently to database without wiping screen layout UI fields
+    try {
+      axios.put(API_BASE, {
+        base: baseStake,
+        baseDeficit,
+        deficit: nextDeficitPool,
+        arrayDeficits: updatedDeficits,
+        wonArrayAssets: Array.from(newWonSet)
+      });
+    } catch (err) {
+      console.error("❌ Live win state database sync error:", err.message);
+    }
   };
 
   /* ================================================================
-      MATCH LOSS RESOLUTION (STAKES PILE TO EACH PRIVATE DEFICIT)
+      MATCH LOSS RESOLUTION (THE EXPLICIT RUNNER THAT CLEARS INTERFACE)
      ================================================================ */
   const handleGameLossResolution = () => {
     if (!fixture) return;
@@ -213,7 +222,6 @@ setWinnerAmount(calculated60);
     let totalBaseStakePush = 0;
     const updatedDeficits = { ...arrayDeficits };
 
-    // Assets pile their active stake into their own private tracking deficit pool
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
@@ -221,7 +229,6 @@ setWinnerAmount(calculated60);
       if (currentStakeValue > 0) {
         let ongoingDeficit = (updatedDeficits[asset] || 0) + currentStakeValue;
         
-        // 10K Breakout threshold configuration
         if (ongoingDeficit >= 10000) {
           totalBaseStakePush += ongoingDeficit;
           ongoingDeficit = 0; 
@@ -235,7 +242,7 @@ setWinnerAmount(calculated60);
     setArrayDeficits(updatedDeficits);
     setBaseStake(finalBaseStake);
 
-    // Master deficit stays exactly as it is (doesn't receive asset stakes)
+    // Clears dashboard and transitions views forward safely
     clearForNext(finalBaseStake, baseDeficit, deficit, updatedDeficits, wonArrayAssets);
   };
 
