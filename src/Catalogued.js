@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+import axios from "ajax"; // swapped back to your original setup import layout if needed, or update to axios
+import axiosInstance from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
@@ -15,14 +16,13 @@ const Homepage = () => {
 
   /* ---------- FIXTURE ---------- */
   const [fixture, setFixture] = useState(null);
-  const [week, setWeek] = useState(0);
 
-  /* ---------- ENGINE FINANCES ---------- */
+  /* ---------- CORE ENGINE BALANCES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
-  const [baseDeficit, setBaseDeficit] = useState(0);
-  const [deficit, setDeficit] = useState(0);
+  const [baseDeficit, setBaseDeficit] = useState(0); // Cumulative track
+  const [deficit, setDeficit] = useState(0);       // Current running master deficit
 
-  /* ---------- ASSET HOOKS ---------- */
+  /* ---------- ASSET CONFIGURATION ---------- */
   const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
 
   const [arrayDeficits, setArrayDeficits] = useState({
@@ -31,7 +31,7 @@ const Homepage = () => {
   });
 
   const [arrayStakes, setArrayStakes] = useState({});
-  const [wonArrayAssets, setWonArrayAssets] = useState(new Set());
+  const [wonArrayAssets, setWonArrayAssets] = useState(new Set()); // Dormant pool tracker
   const [winnerAmount, setWinnerAmount] = useState(0);
   const [clicked, setClicked] = useState(new Set());
 
@@ -56,12 +56,11 @@ const Homepage = () => {
   const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const res = await axios.get(API_BASE);
+      const res = await axiosInstance.get(API_BASE);
       if (res.data) {
         setBaseStake(res.data.base || 10000);
         setBaseDeficit(res.data.baseDeficit || 0);
         setDeficit(res.data.deficit || 0);
-        setWeek(res.data.week || 0);
         setArrayDeficits(res.data.arrayDeficits || {
           "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
           "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
@@ -77,11 +76,10 @@ const Homepage = () => {
 
   const saveBase = useCallback(async (overrides = {}) => {
     try {
-      await axios.put(API_BASE, {
+      await axiosInstance.put(API_BASE, {
         base: baseRef.current,
         baseDeficit,
         deficit,
-        week,
         arrayDeficits,
         wonArrayAssets: Array.from(wonArrayAssets),
         ...overrides
@@ -90,14 +88,14 @@ const Homepage = () => {
     } catch (err) {
       console.error("❌ Save failed:", err.message);
     }
-  }, [baseDeficit, deficit, week, arrayDeficits, wonArrayAssets]);
+  }, [baseDeficit, deficit, arrayDeficits, wonArrayAssets]);
 
   useEffect(() => {
     fetchBase();
   }, [fetchBase]);
 
   /* ================================================================
-      HANDLE CALCULATE SUBMIT
+      CALCULATE ENTRY setup
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -107,52 +105,63 @@ const Homepage = () => {
 
     const found = odds.find((o) => o.home === home && o.away === away);
     if (!found) {
-      alert(`No matches discovered for "${home}" vs "${away}"`);
+      alert(`No odds matching "${home}" vs "${away}"`);
       return;
     }
 
-    setWeek((prev) => prev + 1);
     setFixture(found);
     setClicked(new Set());
 
-    // Main 6-0 Line Calculation
-    const targetBase = baseStake + deficit;
-    setBaseStake(targetBase);
-    setDeficit(0);
-
-    let calculated60 = Math.max(10, Math.round(targetBase / found.winner));
+    // 6-0 Line Base Calculation
+    let calculated60 = Math.max(10, Math.round(baseStake / found.winner));
     setWinnerAmount(calculated60);
 
-    // Active Assets Stakes (Flat 10 max strategy)
+    // Asset Calculations chasing the current master deficit + private deficit
     const nextStakes = {};
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
-      const key = assetToOddsKey[asset];
-      if (found[key] && found[key] > 1.01) {
-        nextStakes[asset] = 10;
+      
+      const oddsKey = assetToOddsKey[asset];
+      const assetOdd = found[oddsKey];
+
+      if (assetOdd && assetOdd > 1.01) {
+        const privateDeficit = arrayDeficits[asset] || 0;
+        // Formula: (Master Deficit + Private Asset Deficit) / (Odd - 1)
+        let calcTarget = Math.round((deficit + privateDeficit) / (assetOdd - 1));
+        nextStakes[asset] = Math.max(calcTarget, 10);
       }
     }
     setArrayStakes(nextStakes);
   };
 
   /* ================================================================
-      RESOLVE ASSET WIN STRATEGY
+      RESOLVE ASSET WIN (DORMANT ROUTING & CYCLE RESET)
      ================================================================ */
   const resolveArrayAssetWin = (asset) => {
     if (!fixture) return;
 
     setClicked((prev) => new Set([...prev, asset]));
     
-    const newWonSet = new Set([...wonArrayAssets, asset]);
-    setWonArrayAssets(newWonSet);
+    let newWonSet = new Set([...wonArrayAssets, asset]);
+    let updatedDeficits = { ...arrayDeficits, [asset]: 0 };
 
-    // Reset targeted asset parameters cleanly
-    setArrayDeficits((prev) => ({ ...prev, [asset]: 0 }));
-    clearForNext(baseStake, baseDeficit, deficit, { ...arrayDeficits, [asset]: 0 }, newWonSet);
+    // Cycle check: If every asset has successfully cleared, reset the dormant track back to active duty
+    if (newWonSet.size === arrayedAssets.length) {
+      newWonSet = new Set();
+      for (const key of arrayedAssets) {
+        updatedDeficits[key] = 0;
+      }
+      console.log("🔄 All assets cleared! Resetting matrix cycle.");
+    }
+
+    setWonArrayAssets(newWonSet);
+    setArrayDeficits(updatedDeficits);
+
+    clearForNext(baseStake, baseDeficit, deficit, updatedDeficits, newWonSet);
   };
 
   /* ================================================================
-      MAIN GAME SKIP OR MISS (LOSS RESOLUTION)
+      MATCH LOSS RESOLUTION (STAKE ROLLS INTO DEFICITS)
      ================================================================ */
   const handleGameLossResolution = () => {
     if (!fixture) return;
@@ -160,24 +169,25 @@ const Homepage = () => {
     let totalBaseStakePush = 0;
     const updatedDeficits = { ...arrayDeficits };
 
-    // Accumulate losses and test for the 10,000 baseline trigger limit
+    // Append active stake losses to private deficit trackers
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
-      
+
       const currentStakeValue = arrayStakes[asset] || 0;
       if (currentStakeValue > 0) {
         let ongoingDeficit = (updatedDeficits[asset] || 0) + currentStakeValue;
         
+        // 10K threshold breakout rule
         if (ongoingDeficit >= 10000) {
           totalBaseStakePush += ongoingDeficit;
-          ongoingDeficit = 0; // Return asset to 0 tracking state
+          ongoingDeficit = 0; 
         }
         updatedDeficits[asset] = ongoingDeficit;
       }
     }
 
-    // Capture main line parameters logic rules
-    const nextDeficitPool = winnerAmount;
+    // Winner stake piles directly into the master deficit pools
+    const nextDeficitPool = deficit + winnerAmount;
     const nextAccumulatedDef = baseDeficit + winnerAmount;
     const finalBaseStake = baseStake + totalBaseStakePush;
 
@@ -186,33 +196,11 @@ const Homepage = () => {
     setBaseDeficit(nextAccumulatedDef);
     setBaseStake(finalBaseStake);
 
-    // Clean Season reset trigger sequence at Week 38
-    if (week >= 38) {
-      let unrecoveredDeficits = 0;
-      for (const asset of arrayedAssets) {
-        if (!wonArrayAssets.has(asset)) {
-          unrecoveredDeficits += updatedDeficits[asset] || 0;
-        }
-        updatedDeficits[asset] = 0;
-      }
-
-      const finalBaseWithSeasonClose = finalBaseStake + unrecoveredDeficits;
-      setBaseStake(finalBaseWithSeasonClose);
-      setBaseDeficit(0);
-      setDeficit(0);
-      setArrayDeficits(updatedDeficits);
-      setWonArrayAssets(new Set());
-      setWeek(0);
-
-      clearForNext(finalBaseWithSeasonClose, 0, 0, updatedDeficits, new Set());
-      return;
-    }
-
     clearForNext(finalBaseStake, nextAccumulatedDef, nextDeficitPool, updatedDeficits, wonArrayAssets);
   };
 
   /* ================================================================
-      6-0 JACKPOT ROUTE HIT
+      6-0 WINNER HIT (RESET MAIN TRACKERS)
      ================================================================ */
   const handleJackpot60 = () => {
     setClicked((prev) => new Set([...prev, "six"]));
@@ -222,7 +210,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      CLEAR & AUTOSAVE UTILITY
+      CLEAR & SAVE ENGINE
      ================================================================ */
   const clearForNext = (
     nxtBase = baseStake, 
@@ -253,13 +241,10 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col font-sans select-none">
       
-      {/* HEADER BAR */}
+      {/* HEADER CONTROLS */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0 border-b border-white/5 bg-black/20">
         <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase flex items-center gap-2">
           ⚡ Engine Matrix
-          <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-md font-black">
-            WK {week}/38
-          </span>
         </h1>
         <div className="flex rounded-lg overflow-hidden shadow-lg border border-white/10">
           <button onClick={() => saveBase()} className="px-3 py-1.5 bg-emerald-600 font-bold text-white text-xs hover:bg-emerald-700 transition">
@@ -275,7 +260,7 @@ const Homepage = () => {
       {/* CORE FRAME LAYOUT */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-4 overflow-y-auto max-w-md mx-auto w-full">
         
-        {/* PRIMARY 6-0 TRIGGER ENGINE BUTTON */}
+        {/* PRIMARY 6-0 WINNER LINE BUTTON */}
         <button
           onClick={handleJackpot60}
           disabled={!fixture}
@@ -291,7 +276,7 @@ const Homepage = () => {
           <div className="text-2xl font-black tracking-tight mt-0.5">{winnerAmount || "—"}</div>
         </button>
 
-        {/* PENDING ASSET MATRIX DISPLAY POOL */}
+        {/* ASSET CHASE MATRIX GRID */}
         <div className="grid grid-cols-4 gap-2">
           {arrayedAssets.map((asset) => {
             if (wonArrayAssets.has(asset)) return null;
@@ -314,7 +299,7 @@ const Homepage = () => {
                 }`}
               >
                 <div className="text-xs opacity-90 font-black">{assetLabels[asset]}</div>
-                <div className="text-sm font-black mt-0.5">{stakeAmount || 10}</div>
+                <div className="text-sm font-black mt-0.5">{stakeAmount || "—"}</div>
                 {deficitAmount > 0 && (
                   <div className="text-[8px] mt-0.5 px-1 bg-black/40 text-yellow-400 rounded font-bold">
                     {deficitAmount}
@@ -325,7 +310,7 @@ const Homepage = () => {
           })}
         </div>
 
-        {/* CONTROLS AREA */}
+        {/* CONTROLS INPUT BOARD */}
         <div className="space-y-2 mt-2">
           <div className="flex items-center gap-2">
             <input
@@ -369,24 +354,24 @@ const Homepage = () => {
           </div>
         </div>
 
-        {/* METRICS TRACKING PANELS */}
+        {/* STATS ANALYTICS CONTROL PANEL */}
         <div className="bg-slate-900/80 rounded-xl p-3 text-[11px] grid grid-cols-2 gap-x-4 gap-y-1.5 border border-white/5 shadow-inner">
           <div className="flex justify-between border-b border-white/5 pb-1">
             <span className="text-slate-400">Base Investment:</span>
             <strong className="text-emerald-400 font-mono font-bold">{baseStake}</strong>
           </div>
           <div className="flex justify-between border-b border-white/5 pb-1">
-            <span className="text-slate-400">Current Loss Deficit:</span>
+            <span className="text-slate-400">Master Deficit Pool:</span>
             <strong className="text-red-400 font-mono font-bold">{deficit}</strong>
           </div>
           <div className="col-span-2 flex justify-between border-b border-white/5 pb-1">
-            <span className="text-slate-400">Accumulated Base Deficit:</span>
+            <span className="text-slate-400">Total Accumulated Losses:</span>
             <strong className="text-orange-400 font-mono font-bold">{baseDeficit}</strong>
           </div>
           
           <div className="col-span-2 mt-1">
             <div className="text-slate-500 font-bold text-center text-[10px] uppercase tracking-wider mb-1">
-              Active Deficit Pool Assets
+              Active Deficit Pool Assets ({arrayedAssets.length - wonArrayAssets.size} remaining)
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
               {arrayedAssets.map(asset => (
