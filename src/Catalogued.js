@@ -389,10 +389,7 @@ const Homepage = () => {
             <span className="text-slate-400">Master Deficit Pool:</span>
             <strong className="text-red-400 font-mono font-bold">{deficit}</strong>
           </div>
-          <div className="col-span-2 flex justify-between border-b border-white/5 pb-1">
-            <span className="text-slate-400">Total Accumulated Losses:</span>
-            <strong className="text-orange-400 font-mono font-bold">{baseDeficit}</strong>
-          </div>
+          
           
           <div className="col-span-2 mt-1">
             <div className="text-slate-500 font-bold text-center text-[10px] uppercase tracking-wider mb-1">
