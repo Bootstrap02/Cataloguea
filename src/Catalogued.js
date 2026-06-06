@@ -1,12 +1,26 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "ajax"; // swapped back to your original setup import layout if needed, or update to axios
-import axiosInstance from "axios";
+import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+
+/* ---------- STATIC CONFIGURATIONS (Moved outside to satisfy ESLint rules) ---------- */
+const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
+
+const assetLabels = {
+  "f0": "F0", "e0": "E0", "e1": "E1", "4-2": "4-2", "3-3": "3-3",
+  "1-3": "1-3", "0-3": "0-3", "2-3": "2-3", "0-4": "0-4", "1-4": "1-4", "2-4": "2-4",
+  "12": "1-2", "21": "2-1"
+};
+
+const assetToOddsKey = {
+  "f0": "f0", "e0": "e0", "e1": "e1", "4-2": "fourTwo", "3-3": "threeThree",
+  "1-3": "oneThree", "0-3": "zeroThree", "2-3": "twoThree", "0-4": "zeroFour",
+  "1-4": "oneFour", "2-4": "twoFour", "12": "oneTwo", "21": "twoOne"
+};
 
 const Homepage = () => {
   /* ---------- INPUTS ---------- */
@@ -19,36 +33,22 @@ const Homepage = () => {
 
   /* ---------- CORE ENGINE BALANCES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
-  const [baseDeficit, setBaseDeficit] = useState(0); // Cumulative track
-  const [deficit, setDeficit] = useState(0);       // Current running master deficit
+  const [baseDeficit, setBaseDeficit] = useState(0); 
+  const [deficit, setDeficit] = useState(0);       
 
   /* ---------- ASSET CONFIGURATION ---------- */
-  const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
-
   const [arrayDeficits, setArrayDeficits] = useState({
     "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
     "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
   });
 
   const [arrayStakes, setArrayStakes] = useState({});
-  const [wonArrayAssets, setWonArrayAssets] = useState(new Set()); // Dormant pool tracker
+  const [wonArrayAssets, setWonArrayAssets] = useState(new Set()); 
   const [winnerAmount, setWinnerAmount] = useState(0);
   const [clicked, setClicked] = useState(new Set());
 
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
-
-  const assetLabels = {
-    "f0": "F0", "e0": "E0", "e1": "E1", "4-2": "4-2", "3-3": "3-3",
-    "1-3": "1-3", "0-3": "0-3", "2-3": "2-3", "0-4": "0-4", "1-4": "1-4", "2-4": "2-4",
-    "12": "1-2", "21": "2-1"
-  };
-
-  const assetToOddsKey = {
-    "f0": "f0", "e0": "e0", "e1": "e1", "4-2": "fourTwo", "3-3": "threeThree",
-    "1-3": "oneThree", "0-3": "zeroThree", "2-3": "twoThree", "0-4": "zeroFour",
-    "1-4": "oneFour", "2-4": "twoFour", "12": "oneTwo", "21": "twoOne"
-  };
 
   /* ================================================================
       API INTEGRATION
@@ -56,7 +56,7 @@ const Homepage = () => {
   const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const res = await axiosInstance.get(API_BASE);
+      const res = await axios.get(API_BASE);
       if (res.data) {
         setBaseStake(res.data.base || 10000);
         setBaseDeficit(res.data.baseDeficit || 0);
@@ -76,7 +76,7 @@ const Homepage = () => {
 
   const saveBase = useCallback(async (overrides = {}) => {
     try {
-      await axiosInstance.put(API_BASE, {
+      await axios.put(API_BASE, {
         base: baseRef.current,
         baseDeficit,
         deficit,
@@ -95,7 +95,7 @@ const Homepage = () => {
   }, [fetchBase]);
 
   /* ================================================================
-      CALCULATE ENTRY setup
+      CALCULATE ENTRY SETUP
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -112,11 +112,9 @@ const Homepage = () => {
     setFixture(found);
     setClicked(new Set());
 
-    // 6-0 Line Base Calculation
     let calculated60 = Math.max(10, Math.round(baseStake / found.winner));
     setWinnerAmount(calculated60);
 
-    // Asset Calculations chasing the current master deficit + private deficit
     const nextStakes = {};
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
@@ -126,7 +124,6 @@ const Homepage = () => {
 
       if (assetOdd && assetOdd > 1.01) {
         const privateDeficit = arrayDeficits[asset] || 0;
-        // Formula: (Master Deficit + Private Asset Deficit) / (Odd - 1)
         let calcTarget = Math.round((deficit + privateDeficit) / (assetOdd - 1));
         nextStakes[asset] = Math.max(calcTarget, 10);
       }
@@ -135,17 +132,53 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      RESOLVE ASSET WIN (DORMANT ROUTING & CYCLE RESET)
+      CLEAR & SAVE UTILITY ENGINE
+     ================================================================ */
+  const clearForNext = useCallback((
+    nxtBase = baseStake, 
+    nxtBaseDef = baseDeficit, 
+    nxtDef = deficit, 
+    nxtArrDef = arrayDeficits, 
+    nxtWonSet = wonArrayAssets
+  ) => {
+    setInputA("");
+    setInputB("");
+    setFixture(null);
+    setArrayStakes({});
+    setWinnerAmount(0);
+    setClicked(new Set());
+    
+    // Inline save updates inside clean transaction pass
+    try {
+      axios.put(API_BASE, {
+        base: nxtBase,
+        baseDeficit: nxtBaseDef,
+        deficit: nxtDef,
+        arrayDeficits: nxtArrDef,
+        wonArrayAssets: Array.from(nxtWonSet)
+      });
+    } catch (err) {
+      console.error("❌ Inline safe save run failed:", err.message);
+    }
+  }, [baseStake, baseDeficit, deficit, arrayDeficits, wonArrayAssets]);
+
+  /* ================================================================
+      RESOLVE ASSET WIN
      ================================================================ */
   const resolveArrayAssetWin = (asset) => {
     if (!fixture) return;
 
-    setClicked((prev) => new Set([...prev, asset]));
+    setClicked((prev) => {
+      const next = new Set(prev);
+      next.add(asset);
+      return next;
+    });
     
-    let newWonSet = new Set([...wonArrayAssets, asset]);
+    let newWonSet = new Set(wonArrayAssets);
+    newWonSet.add(asset);
+    
     let updatedDeficits = { ...arrayDeficits, [asset]: 0 };
 
-    // Cycle check: If every asset has successfully cleared, reset the dormant track back to active duty
     if (newWonSet.size === arrayedAssets.length) {
       newWonSet = new Set();
       for (const key of arrayedAssets) {
@@ -161,7 +194,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      MATCH LOSS RESOLUTION (STAKE ROLLS INTO DEFICITS)
+      MATCH LOSS RESOLUTION
      ================================================================ */
   const handleGameLossResolution = () => {
     if (!fixture) return;
@@ -169,7 +202,6 @@ const Homepage = () => {
     let totalBaseStakePush = 0;
     const updatedDeficits = { ...arrayDeficits };
 
-    // Append active stake losses to private deficit trackers
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
@@ -177,7 +209,6 @@ const Homepage = () => {
       if (currentStakeValue > 0) {
         let ongoingDeficit = (updatedDeficits[asset] || 0) + currentStakeValue;
         
-        // 10K threshold breakout rule
         if (ongoingDeficit >= 10000) {
           totalBaseStakePush += ongoingDeficit;
           ongoingDeficit = 0; 
@@ -186,7 +217,6 @@ const Homepage = () => {
       }
     }
 
-    // Winner stake piles directly into the master deficit pools
     const nextDeficitPool = deficit + winnerAmount;
     const nextAccumulatedDef = baseDeficit + winnerAmount;
     const finalBaseStake = baseStake + totalBaseStakePush;
@@ -200,39 +230,17 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      6-0 WINNER HIT (RESET MAIN TRACKERS)
+      6-0 WINNER HIT
      ================================================================ */
   const handleJackpot60 = () => {
-    setClicked((prev) => new Set([...prev, "six"]));
+    setClicked((prev) => {
+      const next = new Set(prev);
+      next.add("six");
+      return next;
+    });
     setBaseStake(10000);
     setBaseDeficit(0);
     setDeficit(0);
-  };
-
-  /* ================================================================
-      CLEAR & SAVE ENGINE
-     ================================================================ */
-  const clearForNext = (
-    nxtBase = baseStake, 
-    nxtBaseDef = baseDeficit, 
-    nxtDef = deficit, 
-    nxtArrDef = arrayDeficits, 
-    nxtWonSet = wonArrayAssets
-  ) => {
-    setInputA("");
-    setInputB("");
-    setFixture(null);
-    setArrayStakes({});
-    setWinnerAmount(0);
-    setClicked(new Set());
-    
-    saveBase({
-      base: nxtBase,
-      baseDeficit: nxtBaseDef,
-      deficit: nxtDef,
-      arrayDeficits: nxtArrDef,
-      wonArrayAssets: Array.from(nxtWonSet)
-    });
   };
 
   const teamA = sanitizeTeam(inputA) || "HME";
@@ -283,7 +291,7 @@ const Homepage = () => {
 
             const stakeAmount = arrayStakes[asset];
             const deficitAmount = arrayDeficits[asset];
-            const isSelectable = fixture && stakeAmount;
+            const isSelectable = !!(fixture && stakeAmount);
 
             return (
               <button
