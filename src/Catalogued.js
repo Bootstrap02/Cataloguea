@@ -34,7 +34,7 @@ const Homepage = () => {
   /* ---------- CORE ENGINE BALANCES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [baseDeficit, setBaseDeficit] = useState(0); 
-  const [deficit, setDeficit] = useState(0); // Master Dead Sea pool (Winner stakes accumulate here)
+  const [deficit, setDeficit] = useState(0); // Master Dead Sea Pool (Winner stakes pile here on setup)
 
   /* ---------- ASSET TRACKING ---------- */
   const [arrayDeficits, setArrayDeficits] = useState({
@@ -95,7 +95,7 @@ const Homepage = () => {
   }, [fetchBase]);
 
   /* ================================================================
-      CALCULATE ENTRY SETUP (WINNER STAKE PILES IMMEDIATELY HERE)
+      CALCULATE ENTRY SETUP
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -112,18 +112,18 @@ const Homepage = () => {
     setFixture(found);
     setClicked(new Set());
 
-    // 1. Calculate precise 6-0 Winner Line stake (No minimum floor restriction)
+    // 1. Calculate Winner stake exactly
     const calculated60 = Math.round(baseStake / found.winner);
     setWinnerAmount(calculated60);
 
-    // 2. Winner stake immediately piles into the master deficit states regardless of win/loss
+    // 2. Winner stake piles directly into the master deficit states immediately
     const updatedDeficitPool = deficit + calculated60;
     const updatedAccumulatedDef = baseDeficit + calculated60;
     
     setDeficit(updatedDeficitPool);
     setBaseDeficit(updatedAccumulatedDef);
 
-    // 3. Pending assets calculate stake targeting the newly updated master deficit pool
+    // 3. Targets (Master Deficit + Private Asset Deficit) / (Odd - 1)
     const nextStakes = {};
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
@@ -134,8 +134,7 @@ const Homepage = () => {
       if (assetOdd && assetOdd > 1.01) {
         const privateDeficit = arrayDeficits[asset] || 0;
         
-        // Pure calculation: (Updated Master Deficit + Private Asset Deficit) / (Odd - 1)
-        // Completely removed Math.max(..., 10) boundaries. If it's 1, 2, or 3, it displays exactly that.
+        // Pure calculation targeting the newly updated master pool + their own private pool
         let calcTarget = Math.round((updatedDeficitPool + privateDeficit) / (assetOdd - 1));
         nextStakes[asset] = calcTarget;
       }
@@ -190,7 +189,6 @@ const Homepage = () => {
     
     let updatedDeficits = { ...arrayDeficits, [asset]: 0 };
 
-    // Cycle check: If every single asset has won, pour all assets back into the loop
     if (newWonSet.size === arrayedAssets.length) {
       newWonSet = new Set();
       for (const key of arrayedAssets) {
@@ -206,7 +204,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      MATCH LOSS RESOLUTION (PRIVATE LOSS AND 10K THRESHOLD BREAKOUT)
+      MATCH LOSS RESOLUTION (STAKES PILE TO EACH PRIVATE DEFICIT)
      ================================================================ */
   const handleGameLossResolution = () => {
     if (!fixture) return;
@@ -214,7 +212,7 @@ const Homepage = () => {
     let totalBaseStakePush = 0;
     const updatedDeficits = { ...arrayDeficits };
 
-    // Assets pile their active stake into their own private tracking deficit state
+    // Assets pile their active stake into their own private tracking deficit pool
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
@@ -222,7 +220,7 @@ const Homepage = () => {
       if (currentStakeValue > 0) {
         let ongoingDeficit = (updatedDeficits[asset] || 0) + currentStakeValue;
         
-        // Threshold breakout rule: if private pool reaches 10,000+, push to base investment and wipe asset to 0
+        // 10K Breakout threshold configuration
         if (ongoingDeficit >= 10000) {
           totalBaseStakePush += ongoingDeficit;
           ongoingDeficit = 0; 
@@ -236,6 +234,7 @@ const Homepage = () => {
     setArrayDeficits(updatedDeficits);
     setBaseStake(finalBaseStake);
 
+    // Master deficit stays exactly as it is (doesn't receive asset stakes)
     clearForNext(finalBaseStake, baseDeficit, deficit, updatedDeficits, wonArrayAssets);
   };
 
