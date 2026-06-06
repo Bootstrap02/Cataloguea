@@ -113,9 +113,10 @@ const Homepage = () => {
     setClicked(new Set());
 
     // 1. Calculate Winner stake exactly
-    const calculated60 = Math.round(baseStake / found.winner);
-    setWinnerAmount(calculated60);
-
+    // 1. Calculate Winner stake with a minimum limit floor of 10
+const calculated60 = Math.max(Math.round(baseStake / found.winner), 10);
+setWinnerAmount(calculated60);
+    
     // 2. Winner stake piles directly into the master deficit states immediately
     const updatedDeficitPool = deficit + calculated60;
     const updatedAccumulatedDef = baseDeficit + calculated60;
