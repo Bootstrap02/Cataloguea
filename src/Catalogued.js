@@ -7,7 +7,7 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-/* ---------- STATIC CONFIGURATIONS (Moved outside to satisfy ESLint rules) ---------- */
+/* ---------- STATIC CONFIGURATIONS ---------- */
 const arrayedAssets = ["f0", "e0", "e1", "4-2", "3-3", "1-3", "0-3", "2-3", "0-4", "1-4", "2-4", "12", "21"];
 
 const assetLabels = {
@@ -34,9 +34,9 @@ const Homepage = () => {
   /* ---------- CORE ENGINE BALANCES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [baseDeficit, setBaseDeficit] = useState(0); 
-  const [deficit, setDeficit] = useState(0);       
+  const [deficit, setDeficit] = useState(0); // Master Dead Sea pool (Winner stakes accumulate here)
 
-  /* ---------- ASSET CONFIGURATION ---------- */
+  /* ---------- ASSET TRACKING ---------- */
   const [arrayDeficits, setArrayDeficits] = useState({
     "f0": 0, "e0": 0, "e1": 0, "4-2": 0, "3-3": 0,
     "1-3": 0, "0-3": 0, "2-3": 0, "0-4": 0, "1-4": 0, "2-4": 0, "12": 0, "21": 0
@@ -95,7 +95,7 @@ const Homepage = () => {
   }, [fetchBase]);
 
   /* ================================================================
-      CALCULATE ENTRY SETUP
+      CALCULATE ENTRY SETUP (WINNER STAKE PILES IMMEDIATELY HERE)
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -112,9 +112,18 @@ const Homepage = () => {
     setFixture(found);
     setClicked(new Set());
 
-    let calculated60 = Math.max(10, Math.round(baseStake / found.winner));
+    // 1. Calculate precise 6-0 Winner Line stake (No minimum floor restriction)
+    const calculated60 = Math.round(baseStake / found.winner);
     setWinnerAmount(calculated60);
 
+    // 2. Winner stake immediately piles into the master deficit states regardless of win/loss
+    const updatedDeficitPool = deficit + calculated60;
+    const updatedAccumulatedDef = baseDeficit + calculated60;
+    
+    setDeficit(updatedDeficitPool);
+    setBaseDeficit(updatedAccumulatedDef);
+
+    // 3. Pending assets calculate stake targeting the newly updated master deficit pool
     const nextStakes = {};
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
@@ -124,15 +133,18 @@ const Homepage = () => {
 
       if (assetOdd && assetOdd > 1.01) {
         const privateDeficit = arrayDeficits[asset] || 0;
-        let calcTarget = Math.round((deficit + privateDeficit) / (assetOdd - 1));
-        nextStakes[asset] = Math.max(calcTarget, 10);
+        
+        // Pure calculation: (Updated Master Deficit + Private Asset Deficit) / (Odd - 1)
+        // Completely removed Math.max(..., 10) boundaries. If it's 1, 2, or 3, it displays exactly that.
+        let calcTarget = Math.round((updatedDeficitPool + privateDeficit) / (assetOdd - 1));
+        nextStakes[asset] = calcTarget;
       }
     }
     setArrayStakes(nextStakes);
   };
 
   /* ================================================================
-      CLEAR & SAVE UTILITY ENGINE
+      CLEAR & SAVE TRANSACTIONS
      ================================================================ */
   const clearForNext = useCallback((
     nxtBase = baseStake, 
@@ -148,7 +160,6 @@ const Homepage = () => {
     setWinnerAmount(0);
     setClicked(new Set());
     
-    // Inline save updates inside clean transaction pass
     try {
       axios.put(API_BASE, {
         base: nxtBase,
@@ -158,7 +169,7 @@ const Homepage = () => {
         wonArrayAssets: Array.from(nxtWonSet)
       });
     } catch (err) {
-      console.error("❌ Inline safe save run failed:", err.message);
+      console.error("❌ Inline save update failed:", err.message);
     }
   }, [baseStake, baseDeficit, deficit, arrayDeficits, wonArrayAssets]);
 
@@ -179,12 +190,13 @@ const Homepage = () => {
     
     let updatedDeficits = { ...arrayDeficits, [asset]: 0 };
 
+    // Cycle check: If every single asset has won, pour all assets back into the loop
     if (newWonSet.size === arrayedAssets.length) {
       newWonSet = new Set();
       for (const key of arrayedAssets) {
         updatedDeficits[key] = 0;
       }
-      console.log("🔄 All assets cleared! Resetting matrix cycle.");
+      console.log("🔄 Matrix Cycle Reset: Dormant assets returned to action.");
     }
 
     setWonArrayAssets(newWonSet);
@@ -194,7 +206,7 @@ const Homepage = () => {
   };
 
   /* ================================================================
-      MATCH LOSS RESOLUTION
+      MATCH LOSS RESOLUTION (PRIVATE LOSS AND 10K THRESHOLD BREAKOUT)
      ================================================================ */
   const handleGameLossResolution = () => {
     if (!fixture) return;
@@ -202,6 +214,7 @@ const Homepage = () => {
     let totalBaseStakePush = 0;
     const updatedDeficits = { ...arrayDeficits };
 
+    // Assets pile their active stake into their own private tracking deficit state
     for (const asset of arrayedAssets) {
       if (wonArrayAssets.has(asset)) continue;
 
@@ -209,6 +222,7 @@ const Homepage = () => {
       if (currentStakeValue > 0) {
         let ongoingDeficit = (updatedDeficits[asset] || 0) + currentStakeValue;
         
+        // Threshold breakout rule: if private pool reaches 10,000+, push to base investment and wipe asset to 0
         if (ongoingDeficit >= 10000) {
           totalBaseStakePush += ongoingDeficit;
           ongoingDeficit = 0; 
@@ -217,16 +231,12 @@ const Homepage = () => {
       }
     }
 
-    const nextDeficitPool = deficit + winnerAmount;
-    const nextAccumulatedDef = baseDeficit + winnerAmount;
     const finalBaseStake = baseStake + totalBaseStakePush;
 
     setArrayDeficits(updatedDeficits);
-    setDeficit(nextDeficitPool);
-    setBaseDeficit(nextAccumulatedDef);
     setBaseStake(finalBaseStake);
 
-    clearForNext(finalBaseStake, nextAccumulatedDef, nextDeficitPool, updatedDeficits, wonArrayAssets);
+    clearForNext(finalBaseStake, baseDeficit, deficit, updatedDeficits, wonArrayAssets);
   };
 
   /* ================================================================
@@ -291,7 +301,7 @@ const Homepage = () => {
 
             const stakeAmount = arrayStakes[asset];
             const deficitAmount = arrayDeficits[asset];
-            const isSelectable = !!(fixture && stakeAmount);
+            const isSelectable = !!(fixture && stakeAmount !== undefined);
 
             return (
               <button
@@ -307,7 +317,7 @@ const Homepage = () => {
                 }`}
               >
                 <div className="text-xs opacity-90 font-black">{assetLabels[asset]}</div>
-                <div className="text-sm font-black mt-0.5">{stakeAmount || "—"}</div>
+                <div className="text-sm font-black mt-0.5">{stakeAmount !== undefined ? stakeAmount : "—"}</div>
                 {deficitAmount > 0 && (
                   <div className="text-[8px] mt-0.5 px-1 bg-black/40 text-yellow-400 rounded font-bold">
                     {deficitAmount}
