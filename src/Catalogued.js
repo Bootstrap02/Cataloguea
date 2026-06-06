@@ -233,6 +233,7 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       nextSmallDeficit = 0;
+      nxtBaseStake = 10000;
     } else {
       nxtBaseStake = 10000;
       setBaseDeficit(0);
@@ -254,6 +255,11 @@ const Homepage = () => {
     setOrderedStakes([]);
     setClicked(new Set());
     setAmounts({ winnerAmount: 0, homeAmount: 0, drawAmount: 0, awayAmount: 0 });
+    
+    if (smallDeficit >= 10000) {
+    setBaseStake((prev) => prev + smallDeficit);
+    setSmallDeficit(0);
+    }
     saveBase({ base: nxtBase, baseDeficit: nxtBaseDef, deficit: nxtDef, smallDeficit: nxtSmallDef });
   };
 
