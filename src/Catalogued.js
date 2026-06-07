@@ -6,7 +6,7 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-const LS_KEY   = "virt-epl-chain-v2";
+const LS_KEY   = "virt-epl-chain-v3";
 
 const ALL_ASSETS = ["f0","e0","e1","4-2","3-3","1-3","0-3","2-3","0-4","1-4","2-4","12","21"];
 
@@ -33,19 +33,15 @@ const Homepage = () => {
   const [deficit,     setDeficit]     = useState(0);
   const [winnerStake, setWinnerStake] = useState(0);
 
-  /* ── SINGLE CHAIN DEFICIT — all 13 assets pile into this ── */
+  /* ── CHAIN DEFICIT ── */
   const [smallDeficit, setSmallDeficit] = useState(0);
-  const [shadow,       setShadow]       = useState(0);
+  const [shadow,       setShadow]       = useState(0); // captured at submit
   const [bank,         setBank]         = useState(0);
 
-  /* ── WON ASSETS (removed from active chain) ── */
-  const [wonAssets, setWonAssets] = useState([]);
-
-  /* ── GAME STAKES (computed on submit) ── */
+  /* ── GAME STAKES ── */
   const [chainStakes, setChainStakes] = useState({});
-  const [activeOrder, setActiveOrder] = useState([]);
 
-  /* ── CLICKED / WINNERS THIS GAME ── */
+  /* ── WINNERS / CLICKED THIS GAME ── */
   const [winners, setWinners] = useState(new Set());
   const [clicked, setClicked] = useState(new Set());
 
@@ -56,12 +52,11 @@ const Homepage = () => {
      PERSIST
      ================================================================ */
   const applyData = useCallback((d) => {
-    setBaseStake(d.base         ?? 10000);
-    setDeficit(d.deficit        ?? 0);
+    setBaseStake(d.base          ?? 10000);
+    setDeficit(d.deficit         ?? 0);
     setSmallDeficit(d.smallDeficit ?? 0);
-    setShadow(d.shadow          ?? 0);
-    setBank(d.bank              ?? 0);
-    setWonAssets(d.wonAssets    || []);
+    setShadow(d.shadow           ?? 0);
+    setBank(d.bank               ?? 0);
   }, []);
 
   const fetchBase = useCallback(async () => {
@@ -76,36 +71,32 @@ const Homepage = () => {
 
   const saveBase = useCallback(async (overrides = {}) => {
     const p = {
-      base: baseRef.current, deficit, smallDeficit, shadow, bank, wonAssets,
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
       ...overrides,
     };
     try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
     try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
-  }, [deficit, smallDeficit, shadow, bank, wonAssets]);
+  }, [deficit, smallDeficit, shadow, bank]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
      BUILD CHAIN
-     Pure single-deficit martingale line:
-       running starts at smallDeficit
-       each asset: stake = running / (odd - 1), running += stake
-     So each asset recovers everything before it if it wins.
+     running starts at smallDeficit
+     each asset: stake = running / (odd - 1), running += stake
      ================================================================ */
-  const buildChain = (found, cd, wonArr) => {
-    const active = ALL_ASSETS.filter(k => !wonArr.includes(k));
+  const buildChain = (found, sd) => {
     const stakes = {};
-    let running = cd;
-
-    active.forEach(key => {
+    let running = sd;
+    ALL_ASSETS.forEach(key => {
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         stakes[key] = Math.round(running / (odd - 1));
         running += stakes[key];
       }
     });
-
-    return { stakes, order: active };
+    return stakes;
   };
 
   /* ================================================================
@@ -122,25 +113,25 @@ const Homepage = () => {
     setClicked(new Set());
     setWinners(new Set());
 
-    /* ── 6-0 winner stake → piles into smallDeficit ── */
+    /* ── 6-0 winner stake ── */
     const newBase = baseStake + deficit;
     setBaseStake(newBase);
     setDeficit(0);
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    const curCD = smallDeficit + wStake;
-    setSmallDeficit(curCD);
+    /* Shadow = smallDeficit BEFORE winner is added */
+    setShadow(smallDeficit);
 
-    /* ── Build martingale chain from curCD ── */
-    const { stakes, order } = buildChain(found, curCD, wonAssets);
-    setChainStakes(stakes);
-    setActiveOrder(order);
+    const curSD = smallDeficit + wStake;
+    setSmallDeficit(curSD);
+
+    setChainStakes(buildChain(found, curSD));
   };
 
   /* ── Mark win ── */
   const markWin = (key) => {
-    if (!fixture || clicked.has(key) || wonAssets.includes(key)) return;
+    if (!fixture || clicked.has(key)) return;
     setClicked(p => new Set([...p, key]));
     setWinners(p => new Set([...p, key]));
   };
@@ -160,86 +151,70 @@ const Homepage = () => {
   const handleNext = () => {
     if (!fixture) return;
 
-    let newCD     = smallDeficit;
+    let newSD     = smallDeficit;
     let newShadow = shadow;
     let newBank   = bank;
-    let newWon    = [...wonAssets];
     let newDef    = deficit;
     let newBase   = baseStake;
 
-    /* ── Wins: process in chain order ── */
-    const winList = activeOrder.filter(k => winners.has(k));
+    const winList = ALL_ASSETS.filter(k => winners.has(k));
 
-    if (winList.length > 0) {
+    if (winList.length === 0) {
+      /* No wins — all stakes pile into smallDeficit */
+      const totalStaked = ALL_ASSETS.reduce((s, k) => s + (chainStakes[k] || 0), 0);
+      newSD = smallDeficit + totalStaked;
+
+    } else {
       winList.forEach((winKey, wi) => {
-        const myIdx = activeOrder.indexOf(winKey);
+        const myIdx = ALL_ASSETS.indexOf(winKey);
 
-        /* Before total = sum of stakes of assets BEFORE this one in chain */
-        const beforeTotal = activeOrder
+        const beforeTotal = ALL_ASSETS
           .slice(0, myIdx)
           .reduce((s, k) => s + (chainStakes[k] || 0), 0);
 
-        /* After total = sum of stakes of assets AFTER this one in chain */
-        const afterTotal = activeOrder
+        const afterTotal = ALL_ASSETS
           .slice(myIdx + 1)
           .reduce((s, k) => s + (chainStakes[k] || 0), 0);
 
         if (wi === 0) {
-          /* First win: before total stays in smallDeficit (already lost),
-             after total saved as shadow (recovered by this win) */
-          newCD     = beforeTotal;
-          newShadow = afterTotal;
+          /* First win:
+             afterTotal (stakes after winner) → pushed into smallDeficit
+             beforeTotal already lost — gone */
+          newSD = afterTotal;
         } else {
-          /* Second+ win: previous shadow → bank */
-          newBank  += newShadow;
-          newShadow = afterTotal;
-          newCD     = beforeTotal;
+          /* Second+ win:
+             beforeTotal of this winner + shadow → bank */
+          newBank += beforeTotal + newShadow;
+          newShadow = 0;
+          newSD = afterTotal;
         }
-
-        /* Mark asset as won */
-        if (!newWon.includes(winKey)) newWon.push(winKey);
       });
-
-    } else {
-      /* No wins: all stakes pile into smallDeficit */
-      const totalStaked = activeOrder.reduce((s, k) => s + (chainStakes[k] || 0), 0);
-      newCD = smallDeficit + totalStaked;
     }
 
-    /* Overflow: if smallDeficit >= 10000 → push to baseStake */
-    if (newCD >= 10000) {
-      newBase += newCD;
-      newDef  += newCD;
-      newCD    = 0;
+    /* Overflow: smallDeficit >= 10000 → push to baseStake */
+    if (newSD >= 10000) {
+      newBase += newSD;
+      newDef  += newSD;
+      newSD    = 0;
     }
 
-    /* All won → full reset */
-    if (newWon.length === ALL_ASSETS.length) {
-      newWon    = [];
-      newCD     = 0;
-      newShadow = 0;
-    }
-
-    setSmallDeficit(newCD);
+    setSmallDeficit(newSD);
     setShadow(newShadow);
     setBank(newBank);
-    setWonAssets(newWon);
     setDeficit(newDef);
     setBaseStake(newBase);
 
     setFixture(null); setInputA(""); setInputB("");
-    setChainStakes({}); setActiveOrder([]);
-    setWinners(new Set()); setClicked(new Set()); setWinnerStake(0);
+    setChainStakes({}); setWinners(new Set()); setClicked(new Set()); setWinnerStake(0);
 
     saveBase({
-      base: newBase, deficit: newDef, smallDeficit: newCD,
-      shadow: newShadow, bank: newBank, wonAssets: newWon,
+      base: newBase, deficit: newDef,
+      smallDeficit: newSD, shadow: newShadow, bank: newBank,
     });
   };
 
-  const teamA  = sanitizeTeam(inputA) || "HME";
-  const teamB  = sanitizeTeam(inputB) || "AWY";
-  const active = ALL_ASSETS.filter(k => !wonAssets.includes(k));
+  const teamA = sanitizeTeam(inputA) || "HME";
+  const teamB = sanitizeTeam(inputB) || "AWY";
 
   /* ================================================================
      RENDER
@@ -252,7 +227,7 @@ const Homepage = () => {
         <div>
           <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Chain Matrix</h1>
           <div className="text-[9px] text-slate-500 mt-0.5">
-            {active.length} active · {wonAssets.length} dormant · smallDef: {smallDeficit}
+            smallDef: {smallDeficit} · shadow: {shadow} · bank: {bank}
           </div>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-white/10">
@@ -288,13 +263,13 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* CHAIN GRID */}
+        {/* CHAIN GRID — all 13 always visible */}
         <div className="bg-slate-900/60 rounded-2xl p-2 border border-white/5">
           <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-2">
-            — single martingale · f0 → e0 → e1 → ... → 2-1 —
+            — martingale chain · f0 → ... → 2-1 —
           </div>
           <div className="grid grid-cols-4 gap-1.5">
-            {active.map((key, idx) => {
+            {ALL_ASSETS.map((key, idx) => {
               const stake = chainStakes[key];
               const isWon = winners.has(key);
               return (
@@ -315,20 +290,6 @@ const Homepage = () => {
             })}
           </div>
         </div>
-
-        {/* DORMANT */}
-        {wonAssets.length > 0 && (
-          <div className="bg-black/20 rounded-2xl p-2 border border-white/5">
-            <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-1">— dormant —</div>
-            <div className="flex flex-wrap gap-1.5 justify-center">
-              {wonAssets.map(k => (
-                <span key={k} className="px-2 py-1 rounded-lg text-[9px] font-bold text-white bg-slate-700 opacity-50">
-                  {ASSET_LABELS[k]} ✓
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* INPUTS */}
         <div className="space-y-2">
@@ -366,13 +327,9 @@ const Homepage = () => {
             <span className="text-slate-400">Shadow</span>
             <strong className="text-blue-300">{shadow}</strong>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between col-span-2">
             <span className="text-slate-400">Bank</span>
             <strong className="text-emerald-300">{bank}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Active</span>
-            <strong className="text-purple-400">{active.length}/13</strong>
           </div>
           {fixture && (
             <div className="col-span-2 pt-1 border-t border-white/5 text-center font-black text-[9px] text-purple-400 uppercase tracking-widest">
