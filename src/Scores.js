@@ -15,7 +15,7 @@ export const odds = [
   { id: "totliv", home: "tot", away: "liv", winner: 847, oneX: 16.8, twoX: 16.8, x2: 13.3, zeroGoals: 13, sixGoals: 23.7, ht12: 24.7, ht21: 16.2, ht30: 40.2, ft40: 58.6, ft41: 44.3 },
 
   // winner: 229 - Liverpool home vs Wolves/Aston Villa/Tottenham
-  { id: "livwol", home: "liv", away: "wol", winner: 229, oneX: 16.6, twoX: 16.6, x2: 18.2, zeroGoals: 16, sixGoals: 17.2, ht12: 26.3, ht21: 13, ht30: 21.4, ft40: 27.7, ft41: 26.1 },
+  
   { id: "livast", home: "liv", away: "ast", winner: 229, oneX: 16.6, twoX: 16.6, x2: 18.2, zeroGoals: 16, sixGoals: 17.2, ht12: 26.3, ht21: 13, ht30: 21.4, ft40: 27.7, ft41: 26.1 },
   { id: "livtot", home: "liv", away: "tot", winner: 229, oneX: 16.6, twoX: 16.6, x2: 18.2, zeroGoals: 16, sixGoals: 17.2, ht12: 26.3, ht21: 13, ht30: 21.4, ft40: 27.7, ft41: 26.1 },
 
