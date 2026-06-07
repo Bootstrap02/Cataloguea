@@ -6,27 +6,24 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-const LS_KEY   = "virt-epl-chain-v4";
+const LS_KEY   = "virt-epl-solo-v1";
 
-const ALL_ASSETS = ["f0","e0","e1","4-2","3-3","1-3","0-3","2-3","0-4","1-4","2-4","12","21"];
+const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
 
 const ASSET_LABELS = {
-  "f0":"F0","e0":"E0","e1":"E1","4-2":"4-2","3-3":"3-3",
-  "1-3":"1-3","0-3":"0-3","2-3":"2-3","0-4":"0-4",
-  "1-4":"1-4","2-4":"2-4","12":"1-2","21":"2-1"
+  oneX:"1X", twoX:"2X", x2:"X2", tg0:"TG0", tg6:"TG6",
+  ht12:"HT12", ht21:"HT21", ht30:"HT30", ft40:"FT40", ft41:"FT41"
 };
 
 const ASSET_ODD_KEY = {
-  "f0":"f0","e0":"e0","e1":"e1","4-2":"fourTwo","3-3":"threeThree",
-  "1-3":"oneThree","0-3":"zeroThree","2-3":"twoThree","0-4":"zeroFour",
-  "1-4":"oneFour","2-4":"twoFour","12":"oneTwo","21":"twoOne"
+  oneX:"oneX", twoX:"twoX", x2:"x2", tg0:"tg0", tg6:"tg6",
+  ht12:"ht12", ht21:"ht21", ht30:"ht30", ft40:"ft40", ft41:"ft41"
 };
 
 const ASSET_COLORS = {
-  "f0":"bg-slate-600","e0":"bg-violet-600","e1":"bg-purple-600",
-  "4-2":"bg-blue-600","3-3":"bg-cyan-600","1-3":"bg-teal-600",
-  "0-3":"bg-emerald-600","2-3":"bg-green-700","0-4":"bg-lime-700",
-  "1-4":"bg-yellow-600","2-4":"bg-orange-600","12":"bg-red-600","21":"bg-pink-600"
+  oneX:"bg-purple-600", twoX:"bg-pink-600", x2:"bg-lime-600",
+  tg0:"bg-cyan-600", tg6:"bg-teal-600", ht12:"bg-blue-600",
+  ht21:"bg-emerald-600", ht30:"bg-green-700", ft40:"bg-indigo-600", ft41:"bg-violet-600"
 };
 
 const emptyMap = () => Object.fromEntries(ALL_ASSETS.map(k => [k, 0]));
@@ -42,21 +39,21 @@ const Homepage = () => {
   const [deficit,     setDeficit]     = useState(0);
   const [winnerStake, setWinnerStake] = useState(0);
 
-  /* ── CHAIN DEFICIT ── */
+  /* ── SHARED SMALL DEFICIT ── */
   const [smallDeficit, setSmallDeficit] = useState(0);
   const [shadow,       setShadow]       = useState(0);
   const [bank,         setBank]         = useState(0);
 
   /* ── PER-ASSET STATES ── */
-  const [privateDef,    setPrivateDef]    = useState(emptyMap()); // piles from losses
-  const [bigDef,        setBigDef]        = useState(emptyMap()); // overflow from privateDef>=1000
-  const [brokenTarget,  setBrokenTarget]  = useState(emptyMap()); // receives bigDef stake/10
+  const [privateDef,   setPrivateDef]   = useState(emptyMap());
+  const [bigDef,       setBigDef]       = useState(emptyMap());
+  const [brokenTarget, setBrokenTarget] = useState(emptyMap());
 
   /* ── GAME STAKES ── */
-  const [chainStakes,  setChainStakes]  = useState({}); // normal martingale stakes
-  const [bigStakes,    setBigStakes]    = useState({}); // big deficit stakes
+  const [gameStakes, setGameStakes] = useState(emptyMap());
+  const [bigStakes,  setBigStakes]  = useState({});
 
-  /* ── WINNERS / CLICKED THIS GAME ── */
+  /* ── WINNERS / CLICKED ── */
   const [winners,    setWinners]    = useState(new Set());
   const [bigWinners, setBigWinners] = useState(new Set());
   const [clicked,    setClicked]    = useState(new Set());
@@ -68,13 +65,13 @@ const Homepage = () => {
      PERSIST
      ================================================================ */
   const applyData = useCallback((d) => {
-    setBaseStake(d.base           ?? 10000);
-    setDeficit(d.deficit          ?? 0);
+    setBaseStake(d.base            ?? 10000);
+    setDeficit(d.deficit           ?? 0);
     setSmallDeficit(d.smallDeficit ?? 0);
-    setShadow(d.shadow            ?? 0);
-    setBank(d.bank                ?? 0);
-    setPrivateDef(d.privateDef    || emptyMap());
-    setBigDef(d.bigDef            || emptyMap());
+    setShadow(d.shadow             ?? 0);
+    setBank(d.bank                 ?? 0);
+    setPrivateDef(d.privateDef     || emptyMap());
+    setBigDef(d.bigDef             || emptyMap());
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
@@ -100,44 +97,6 @@ const Homepage = () => {
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
-
-  /* ================================================================
-     BUILD NORMAL CHAIN
-     calc: (brokenTarget[key] + smallDeficit + privateDef[key]) / (odd - 1)
-     Each asset's stake added to running for martingale chain.
-     ================================================================ */
-  const buildChain = (found, sd, privMap, btMap) => {
-    const stakes = {};
-    let running = sd;
-    ALL_ASSETS.forEach(key => {
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        const bt  = btMap[key]   || 0;
-        const pd  = privMap[key] || 0;
-        const target = bt + running + pd;
-        stakes[key] = Math.round(target / (odd - 1));
-        running += stakes[key];
-      }
-    });
-    return stakes;
-  };
-
-  /* ================================================================
-     BUILD BIG DEFICIT STAKES
-     calc: bigDef[key] / odd   (no -1)
-     Only for assets where bigDef[key] > 0
-     ================================================================ */
-  const buildBigStakes = (found, bdMap) => {
-    const stakes = {};
-    ALL_ASSETS.forEach(key => {
-      if ((bdMap[key] || 0) === 0) return;
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        stakes[key] = Math.round((bdMap[key] || 0) / odd);
-      }
-    });
-    return stakes;
-  };
 
   /* ================================================================
      HANDLE SUBMIT
@@ -167,8 +126,28 @@ const Homepage = () => {
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
 
-    setChainStakes(buildChain(found, curSD, privateDef, brokenTarget));
-    setBigStakes(buildBigStakes(found, bigDef));
+    /* ── Solo stakes: each asset independent ── */
+    const newStakes = emptyMap();
+    ALL_ASSETS.forEach(key => {
+      const odd = found[ASSET_ODD_KEY[key]] || 0;
+      if (odd > 1.01) {
+        const bt  = brokenTarget[key] || 0;
+        const pd  = privateDef[key]   || 0;
+        newStakes[key] = Math.round((bt + curSD + pd) / (odd - 1));
+      }
+    });
+    setGameStakes(newStakes);
+
+    /* ── Big deficit stakes: bigDef[key] / odd ── */
+    const newBigStakes = {};
+    ALL_ASSETS.forEach(key => {
+      if ((bigDef[key] || 0) === 0) return;
+      const odd = found[ASSET_ODD_KEY[key]] || 0;
+      if (odd > 1.01) {
+        newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
+      }
+    });
+    setBigStakes(newBigStakes);
   };
 
   const markWin    = (key) => {
@@ -207,94 +186,59 @@ const Homepage = () => {
     let newBigDef  = { ...bigDef };
     let newBroken  = { ...brokenTarget };
 
-    /* ── 1. Settle big deficit wins ── */
-    ALL_ASSETS.forEach(key => {
-      if (!bigWinners.has(key)) return;
-      newBigDef[key] = 0;
-    });
-
-    /* ── 2. Big deficit stake → distribute stake/10 to every brokenTarget ── */
+    /* ── 1. Settle big deficit ── */
     ALL_ASSETS.forEach(key => {
       const bStake = bigStakes[key] || 0;
       if (bStake === 0) return;
-      if (bigWinners.has(key)) return; // won, no distribution needed on loss
-      /* On loss: bigDef persists (not cleared). Stake/10 still distributed */
+
       const share = Math.floor(bStake / 10);
+
+      if (bigWinners.has(key)) {
+        /* Big win: clear bigDef, distribute stake/10 to all brokenTargets */
+        newBigDef[key] = 0;
+      }
+      /* Win or loss: always distribute share to every brokenTarget */
       if (share > 0) {
-        ALL_ASSETS.forEach(k => {
-          newBroken[k] = (newBroken[k] || 0) + share;
-        });
+        ALL_ASSETS.forEach(k => { newBroken[k] = (newBroken[k] || 0) + share; });
       }
     });
 
-    /* Also distribute on BIG WIN — the win stake/10 goes to brokenTargets */
+    /* ── 2. Settle normal solo assets ── */
+    let firstWin = true;
     ALL_ASSETS.forEach(key => {
-      const bStake = bigStakes[key] || 0;
-      if (bStake === 0 || !bigWinners.has(key)) return;
-      const share = Math.floor(bStake / 10);
-      if (share > 0) {
-        ALL_ASSETS.forEach(k => {
-          newBroken[k] = (newBroken[k] || 0) + share;
-        });
-      }
-    });
+      const stake = gameStakes[key] || 0;
 
-    /* ── 3. Settle normal chain wins/losses ── */
-    const winList = ALL_ASSETS.filter(k => winners.has(k));
+      if (winners.has(key)) {
+        /* Win: clear this asset's privateDef and brokenTarget */
+        newPriv[key]   = 0;
+        newBroken[key] = 0;
 
-    if (winList.length === 0) {
-      /* No wins: all stakes pile into privateDef, then check overflow */
-      ALL_ASSETS.forEach(key => {
-        const stake = chainStakes[key] || 0;
-        newPriv[key] = (newPriv[key] || 0) + stake;
-      });
-      /* Also pile into smallDeficit */
-      const totalStaked = ALL_ASSETS.reduce((s, k) => s + (chainStakes[k] || 0), 0);
-      newSD = smallDeficit + totalStaked;
-
-    } else {
-      winList.forEach((winKey, wi) => {
-        const myIdx = ALL_ASSETS.indexOf(winKey);
-
-        const beforeTotal = ALL_ASSETS
-          .slice(0, myIdx)
-          .reduce((s, k) => s + (chainStakes[k] || 0), 0);
-
-        const afterTotal = ALL_ASSETS
-          .slice(myIdx + 1)
-          .reduce((s, k) => s + (chainStakes[k] || 0), 0);
-
-        if (wi === 0) {
-          newSD = afterTotal;
-          /* Clear winner's privateDef and brokenTarget */
-          newPriv[winKey]   = 0;
-          newBroken[winKey] = 0;
+        if (firstWin) {
+          /* First win: smallDeficit → 0 (shadow already saved at submit) */
+          newSD    = 0;
+          firstWin = false;
         } else {
-          newBank  += beforeTotal + newShadow;
+          /* Second+ win: shadow → bank */
+          newBank  += newShadow;
           newShadow = 0;
-          newSD     = afterTotal;
-          newPriv[winKey]   = 0;
-          newBroken[winKey] = 0;
+          newSD     = 0;
+        }
+      } else {
+        /* Loss: stake → privateDef */
+        newPriv[key] = (newPriv[key] || 0) + stake;
+
+        /* Overflow: privateDef >= 1000 → bigDef */
+        if (newPriv[key] >= 1000) {
+          newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
+          newPriv[key]   = 0;
         }
 
-        /* Losers before winner: their stakes pile into their privateDef */
-        ALL_ASSETS.slice(0, myIdx).forEach(k => {
-          if (!winners.has(k)) {
-            newPriv[k] = (newPriv[k] || 0) + (chainStakes[k] || 0);
-          }
-        });
-      });
-    }
-
-    /* ── 4. Overflow check: privateDef >= 1000 → push to bigDef ── */
-    ALL_ASSETS.forEach(key => {
-      if ((newPriv[key] || 0) >= 1000) {
-        newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
-        newPriv[key]   = 0;
+        /* Loss stake also piles into smallDeficit */
+        newSD += stake;
       }
     });
 
-    /* ── 5. SmallDeficit overflow ── */
+    /* ── 3. SmallDeficit overflow ── */
     if (newSD >= 10000) {
       newBase += newSD;
       newDef  += newSD;
@@ -311,7 +255,7 @@ const Homepage = () => {
     setBrokenTarget(newBroken);
 
     setFixture(null); setInputA(""); setInputB("");
-    setChainStakes({}); setBigStakes({});
+    setGameStakes(emptyMap()); setBigStakes({});
     setWinners(new Set()); setBigWinners(new Set());
     setClicked(new Set()); setWinnerStake(0);
 
@@ -322,9 +266,8 @@ const Homepage = () => {
     });
   };
 
-  const teamA = sanitizeTeam(inputA) || "HME";
-  const teamB = sanitizeTeam(inputB) || "AWY";
-
+  const teamA     = sanitizeTeam(inputA) || "HME";
+  const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
 
   /* ================================================================
@@ -336,7 +279,7 @@ const Homepage = () => {
       {/* TOP BAR */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
         <div>
-          <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Chain Matrix</h1>
+          <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Solo Matrix</h1>
           <div className="text-[9px] text-slate-500 mt-0.5">
             SD:{smallDeficit} · shadow:{shadow} · bank:{bank}
           </div>
@@ -374,13 +317,13 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* BIG DEFICIT BUTTONS — only shown when any bigDef > 0 */}
+        {/* BIG DEFICIT SECTION */}
         {hasBigDefs && (
           <div className="bg-red-950/60 rounded-2xl p-2 border border-red-500/20">
             <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-2">
               — big deficit · bigDef / odd —
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5">
               {ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0).map(key => {
                 const bStake = bigStakes[key];
                 const isWon  = bigWinners.has(key);
@@ -388,13 +331,11 @@ const Homepage = () => {
                   <button key={key} onClick={() => markBigWin(key)}
                     disabled={!fixture || clicked.has(`b_${key}`)}
                     className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center gap-0.5 ${
-                      isWon
-                        ? "bg-green-500 text-white border-green-700"
-                        : !fixture
-                        ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed text-slate-500"
-                        : "bg-red-600 text-white border-red-900"
+                      isWon ? "bg-green-500 text-white border-green-700"
+                      : !fixture ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed"
+                      : "bg-red-600 text-white border-red-900"
                     }`}>
-                    <div className="text-[8px] opacity-60 font-bold">BIG</div>
+                    <div className="text-[8px] opacity-60">BIG</div>
                     <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
                     <div className="text-sm font-black">{bStake ?? "—"}</div>
                     <div className="text-[7px] opacity-60">D:{bigDef[key]}</div>
@@ -405,14 +346,14 @@ const Homepage = () => {
           </div>
         )}
 
-        {/* NORMAL CHAIN GRID */}
+        {/* SOLO ASSET GRID */}
         <div className="bg-slate-900/60 rounded-2xl p-2 border border-white/5">
           <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-2">
-            — normal chain · (bt + sd + pd) / (odd-1) —
+            — solo · (bt + sd + pd) / (odd-1) —
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {ALL_ASSETS.map((key, idx) => {
-              const stake = chainStakes[key];
+          <div className="grid grid-cols-5 gap-1.5">
+            {ALL_ASSETS.map(key => {
+              const stake = gameStakes[key];
               const isWon = winners.has(key);
               const pd    = privateDef[key]   || 0;
               const bt    = brokenTarget[key] || 0;
@@ -420,17 +361,15 @@ const Homepage = () => {
                 <button key={key} onClick={() => markWin(key)}
                   disabled={!fixture || clicked.has(`n_${key}`)}
                   className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center gap-0.5 ${
-                    isWon
-                      ? "bg-green-500 text-white border-green-700"
-                      : !fixture
-                      ? `${ASSET_COLORS[key]} opacity-25 cursor-not-allowed text-slate-500`
-                      : `${ASSET_COLORS[key]} text-white`
+                    isWon ? "bg-green-500 text-white border-green-700"
+                    : !fixture ? `${ASSET_COLORS[key]} opacity-25 cursor-not-allowed text-slate-500`
+                    : `${ASSET_COLORS[key]} text-white`
                   }`}>
-                  <div className="text-[8px] opacity-60 font-bold">#{idx + 1}</div>
                   <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
                   <div className="text-sm font-black">{stake ?? "—"}</div>
-                  <div className="text-[7px] opacity-60">
-                    {pd > 0 && `P:${pd}`}{bt > 0 && ` B:${bt}`}
+                  <div className="text-[7px] opacity-60 leading-tight">
+                    {pd > 0 && <div>P:{pd}</div>}
+                    {bt > 0 && <div>T:{bt}</div>}
                   </div>
                 </button>
               );
@@ -484,10 +423,10 @@ const Homepage = () => {
               {ALL_ASSETS.map(k => (
                 <div key={k} className="flex justify-between text-[9px]">
                   <span className="text-slate-500">{ASSET_LABELS[k]}</span>
-                  <span>
+                  <span className="space-x-1">
                     <span className="text-purple-300">P:{privateDef[k]}</span>
-                    {(bigDef[k] || 0) > 0 && <span className="text-red-400 ml-1">B:{bigDef[k]}</span>}
-                    {(brokenTarget[k] || 0) > 0 && <span className="text-yellow-400 ml-1">T:{brokenTarget[k]}</span>}
+                    {(bigDef[k] || 0) > 0 && <span className="text-red-400">B:{bigDef[k]}</span>}
+                    {(brokenTarget[k] || 0) > 0 && <span className="text-yellow-400">T:{brokenTarget[k]}</span>}
                   </span>
                 </div>
               ))}
