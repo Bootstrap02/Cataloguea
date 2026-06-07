@@ -102,7 +102,7 @@ const Homepage = () => {
     active.forEach(key => {
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
-        stakes[key] = Math.max(Math.round(running / (odd - 1)), 10);
+        stakes[key] = Math.round(running / (odd - 1));
         running += stakes[key];
       }
     });
