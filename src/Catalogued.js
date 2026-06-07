@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -26,39 +28,26 @@ const ASSET_COLORS = {
 
 const emptyMap = () => Object.fromEntries(ALL_ASSETS.map(k => [k, 0]));
 
-// Safe helper to grab historical values synchronously at initial parse boot
-const getInitialStorage = () => {
-  try {
-    const stored = localStorage.getItem(LS_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch (e) {
-    console.error("Error parsing initial localStorage data", e);
-  }
-  return null;
-};
-
 const Homepage = () => {
-  const initialData = getInitialStorage();
-
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,     setFixture]     = useState(null);
 
   /* ── WINNER (6-0) ── */
-  const [baseStake,   setBaseStake]   = useState(() => initialData?.base ?? 10000);
-  const [deficit,     setDeficit]     = useState(() => initialData?.deficit ?? 0);
+  const [baseStake,   setBaseStake]   = useState(10000);
+  const [deficit,     setDeficit]     = useState(0);
   const [winnerStake, setWinnerStake] = useState(0);
 
   /* ── SHARED SMALL DEFICIT ── */
-  const [smallDeficit, setSmallDeficit] = useState(() => initialData?.smallDeficit ?? 0);
-  const [shadow,       setShadow]       = useState(() => initialData?.smallDeficit ?? 0); // Kept matched
-  const [bank,         setBank]         = useState(() => initialData?.bank ?? 0);
+  const [smallDeficit, setSmallDeficit] = useState(0);
+  const [shadow,       setShadow]       = useState(0);
+  const [bank,         setBank]         = useState(0);
 
   /* ── PER-ASSET STATES ── */
-  const [privateDef,   setPrivateDef]   = useState(() => initialData?.privateDef || emptyMap());
-  const [bigDef,       setBigDef]       = useState(() => initialData?.bigDef || emptyMap());
-  const [brokenTarget, setBrokenTarget] = useState(() => initialData?.brokenTarget || emptyMap());
+  const [privateDef,   setPrivateDef]   = useState(emptyMap());
+  const [bigDef,       setBigDef]       = useState(emptyMap());
+  const [brokenTarget, setBrokenTarget] = useState(emptyMap());
 
   /* ── GAME STAKES ── */
   const [gameStakes, setGameStakes] = useState(emptyMap());
@@ -73,54 +62,41 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST ENGINE (SYNCHRONIZED DEEP TRANSFERS)
+     PERSIST
      ================================================================ */
   const applyData = useCallback((d) => {
-    if (!d) return;
     setBaseStake(d.base            ?? 10000);
     setDeficit(d.deficit           ?? 0);
     setSmallDeficit(d.smallDeficit ?? 0);
-    setShadow(d.smallDeficit       ?? 0); // Ensure absolute parity on sync updates
+    setShadow(d.shadow             ?? 0);
     setBank(d.bank                 ?? 0);
     setPrivateDef(d.privateDef     || emptyMap());
     setBigDef(d.bigDef             || emptyMap());
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(() => {
+  const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const stored = localStorage.getItem(LS_KEY);
-      if (stored) {
-        applyData(JSON.parse(stored));
-        console.log("✅ State fetched from localStorage");
-      }
-    } catch (err) {
-      console.error("❌ Local storage read failed:", err.message);
-    } finally {
-      setIsReloading(false);
-    }
+      const res = await axios.get(API_BASE);
+      if (res.data) applyData(res.data);
+    } catch {
+      try { const s = localStorage.getItem(LS_KEY); if (s) applyData(JSON.parse(s)); } catch {}
+    } finally { setIsReloading(false); }
   }, [applyData]);
 
-  const saveBase = useCallback((overrides = {}) => {
-    const payload = {
-      base: baseRef.current,
-      deficit,
-      smallDeficit,
-      shadow: smallDeficit, // Lock shadow directly to absolute smallDeficit value
-      bank,
-      privateDef,
-      bigDef,
-      brokenTarget,
+  const saveBase = useCallback(async (overrides = {}) => {
+    const p = {
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
       ...overrides,
     };
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(payload));
-      console.log("✅ Saved to Local Storage");
-    } catch (err) {
-      console.error("❌ Local storage write failed:", err.message);
-    }
-  }, [deficit, smallDeficit, bank, privateDef, bigDef, brokenTarget]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
+    try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+
+  useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -144,9 +120,11 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
+    /* Shadow = smallDeficit BEFORE winner added */
+    setShadow(smallDeficit);
+
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
-    setShadow(curSD); // Mirrors curSD instantly
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -162,14 +140,21 @@ const Homepage = () => {
 
     /* ── Big deficit stakes: bigDef[key] / odd ── */
     const newBigStakes = {};
+    const newBrokenFromBig = { ...brokenTarget };
     ALL_ASSETS.forEach(key => {
       if ((bigDef[key] || 0) === 0) return;
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
+        /* Distribute stake/10 immediately into every asset's brokenTarget */
+        const share = Math.floor(newBigStakes[key] / 10);
+        if (share > 0) {
+          ALL_ASSETS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
+        }
       }
     });
     setBigStakes(newBigStakes);
+    setBrokenTarget(newBrokenFromBig);
   };
 
   const markWin    = (key) => {
@@ -191,11 +176,6 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setShadow(0);
-    
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      base: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank,
-      privateDef, bigDef, brokenTarget
-    }));
   };
 
   /* ================================================================
@@ -215,17 +195,11 @@ const Homepage = () => {
 
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
-      const bStake = bigStakes[key] || 0;
-      if (bStake === 0) return;
-
-      const share = Math.floor(bStake / 10);
-      if (share > 0) {
-        ALL_ASSETS.forEach(k => { newBroken[k] = (newBroken[k] || 0) + share; });
-      }
-
       if (bigWinners.has(key)) {
+        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
+      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -234,31 +208,47 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
+        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
-          newSD     = 0;
-          newShadow = 0; // Drop together
-          firstWin  = false;
+          /* First win: wipe smallDeficit */
+          newSD    = 0;
+          firstWin = false;
         } else {
+          /* Second+ win: shadow → bank, wipe smallDeficit */
+          newBank  += newShadow;
+          newShadow = 0;
           newSD     = 0;
-          newShadow = 0; // Safe clamp
         }
       } else {
+        /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
+        /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
-          newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
-          newPriv[key]   = 0;
+          /* Bank check: if bank > 500, use 500 to reduce privateDef before pushing */
+          if (newBank > 500) {
+            newBank     -= 500;
+            newPriv[key] = Math.max(0, newPriv[key] - 500);
+          }
+          /* Push remainder to bigDef */
+          if (newPriv[key] >= 1000) {
+            newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
+            newPriv[key]   = 0;
+          }
         }
       }
     });
 
-    // If no asset won, make sure shadow remains completely in sync with smallDeficit's state
-    if (firstWin) {
-      newShadow = newSD;
-    }
+    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
+    ALL_ASSETS.forEach(key => {
+      if ((newBroken[key] || 0) >= 1000) {
+        newBase += newBroken[key];
+        newBroken[key] = 0;
+      }
+    });
 
     setSmallDeficit(newSD);
     setShadow(newShadow);
@@ -276,7 +266,7 @@ const Homepage = () => {
 
     saveBase({
       base: newBase, deficit: newDef,
-      smallDeficit: newSD, shadow: newSD, bank: newBank, // Absolute synchronization pass
+      smallDeficit: newSD, shadow: newShadow, bank: newBank,
       privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
     });
   };
@@ -285,6 +275,9 @@ const Homepage = () => {
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
 
+  /* ================================================================
+     RENDER
+     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
 
