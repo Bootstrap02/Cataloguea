@@ -145,10 +145,11 @@ const Homepage = () => {
     setWinnerStake(wStake);
 
     /* Shadow = smallDeficit BEFORE winner added */
-    setShadow(smallDeficit);
+  
 
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
+    setShadow(curSD);
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
