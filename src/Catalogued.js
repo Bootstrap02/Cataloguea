@@ -1,11 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -28,26 +26,39 @@ const ASSET_COLORS = {
 
 const emptyMap = () => Object.fromEntries(ALL_ASSETS.map(k => [k, 0]));
 
+// Safe helper to grab historical values synchronously at initial parse boot
+const getInitialStorage = () => {
+  try {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (e) {
+    console.error("Error parsing initial localStorage data", e);
+  }
+  return null;
+};
+
 const Homepage = () => {
+  const initialData = getInitialStorage();
+
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,     setFixture]     = useState(null);
 
   /* ── WINNER (6-0) ── */
-  const [baseStake,   setBaseStake]   = useState(10000);
-  const [deficit,     setDeficit]     = useState(0);
+  const [baseStake,   setBaseStake]   = useState(() => initialData?.base ?? 10000);
+  const [deficit,     setDeficit]     = useState(() => initialData?.deficit ?? 0);
   const [winnerStake, setWinnerStake] = useState(0);
 
   /* ── SHARED SMALL DEFICIT ── */
-  const [smallDeficit, setSmallDeficit] = useState(0);
-  const [shadow,       setShadow]       = useState(0);
-  const [bank,         setBank]         = useState(0);
+  const [smallDeficit, setSmallDeficit] = useState(() => initialData?.smallDeficit ?? 0);
+  const [shadow,       setShadow]       = useState(() => initialData?.shadow ?? 0);
+  const [bank,         setBank]         = useState(() => initialData?.bank ?? 0);
 
   /* ── PER-ASSET STATES ── */
-  const [privateDef,   setPrivateDef]   = useState(emptyMap());
-  const [bigDef,       setBigDef]       = useState(emptyMap());
-  const [brokenTarget, setBrokenTarget] = useState(emptyMap());
+  const [privateDef,   setPrivateDef]   = useState(() => initialData?.privateDef || emptyMap());
+  const [bigDef,       setBigDef]       = useState(() => initialData?.bigDef || emptyMap());
+  const [brokenTarget, setBrokenTarget] = useState(() => initialData?.brokenTarget || emptyMap());
 
   /* ── GAME STAKES ── */
   const [gameStakes, setGameStakes] = useState(emptyMap());
@@ -62,9 +73,10 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST
+     PERSIST ENGINE (SYNCHRONIZED DEEP TRANSFERS)
      ================================================================ */
   const applyData = useCallback((d) => {
+    if (!d) return;
     setBaseStake(d.base            ?? 10000);
     setDeficit(d.deficit           ?? 0);
     setSmallDeficit(d.smallDeficit ?? 0);
@@ -75,21 +87,13 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  /* ================================================================
-     PERSIST (LOCAL STORAGE EXCLUSIVE)
-     ================================================================ */
-  const fetchBase = useCallback(async () => {
+  const fetchBase = useCallback(() => {
     setIsReloading(true);
     try {
       const stored = localStorage.getItem(LS_KEY);
       if (stored) {
         applyData(JSON.parse(stored));
-      } else {
-        // Fallback initialization if local storage is completely empty
-        applyData({
-          base: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank: 0,
-          privateDef: emptyMap(), bigDef: emptyMap(), brokenTarget: emptyMap()
-        });
+        console.log("✅ State fetched from localStorage");
       }
     } catch (err) {
       console.error("❌ Local storage read failed:", err.message);
@@ -98,7 +102,7 @@ const Homepage = () => {
     }
   }, [applyData]);
 
-  const saveBase = useCallback(async (overrides = {}) => {
+  const saveBase = useCallback((overrides = {}) => {
     const payload = {
       base: baseRef.current,
       deficit,
@@ -112,13 +116,11 @@ const Homepage = () => {
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(payload));
-      console.log("✅ State saved locally");
+      console.log("✅ Saved to Local Storage");
     } catch (err) {
       console.error("❌ Local storage write failed:", err.message);
     }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-  
-  useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -191,6 +193,12 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setShadow(0);
+    
+    // Immediate persist on hard engine reset
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      base: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank,
+      privateDef, bigDef, brokenTarget
+    }));
   };
 
   /* ================================================================
@@ -223,7 +231,6 @@ const Homepage = () => {
         /* Big win: wipe bigDef entirely — remove from map */
         newBigDef[key] = 0;
       }
-      /* Loss: bigDef persists unchanged */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -283,9 +290,6 @@ const Homepage = () => {
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
 
