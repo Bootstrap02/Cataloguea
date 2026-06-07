@@ -186,21 +186,22 @@ const Homepage = () => {
     let newBigDef  = { ...bigDef };
     let newBroken  = { ...brokenTarget };
 
-    /* ── 1. Settle big deficit ── */
+    /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       const bStake = bigStakes[key] || 0;
       if (bStake === 0) return;
 
+      /* Always distribute stake/10 to every asset's brokenTarget (win or loss) */
       const share = Math.floor(bStake / 10);
-
-      if (bigWinners.has(key)) {
-        /* Big win: clear bigDef, distribute stake/10 to all brokenTargets */
-        newBigDef[key] = 0;
-      }
-      /* Win or loss: always distribute share to every brokenTarget */
       if (share > 0) {
         ALL_ASSETS.forEach(k => { newBroken[k] = (newBroken[k] || 0) + share; });
       }
+
+      if (bigWinners.has(key)) {
+        /* Big win: wipe bigDef entirely — remove from map */
+        newBigDef[key] = 0;
+      }
+      /* Loss: bigDef persists unchanged */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -209,41 +210,31 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
-        /* Win: clear this asset's privateDef and brokenTarget */
+        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
-          /* First win: smallDeficit → 0 (shadow already saved at submit) */
+          /* First win: wipe smallDeficit (shadow already saved at submit) */
           newSD    = 0;
           firstWin = false;
         } else {
-          /* Second+ win: shadow → bank */
+          /* Second+ win: shadow → bank, then wipe smallDeficit */
           newBank  += newShadow;
           newShadow = 0;
           newSD     = 0;
         }
       } else {
-        /* Loss: stake → privateDef */
+        /* Loss: stake piles ONLY into privateDef — NOT into smallDeficit */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
-        /* Overflow: privateDef >= 1000 → bigDef */
+        /* Overflow: privateDef >= 1000 → push into bigDef, reset privateDef */
         if (newPriv[key] >= 1000) {
           newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
           newPriv[key]   = 0;
         }
-
-        /* Loss stake also piles into smallDeficit */
-        newSD += stake;
       }
     });
-
-    /* ── 3. SmallDeficit overflow ── */
-    if (newSD >= 10000) {
-      newBase += newSD;
-      newDef  += newSD;
-      newSD    = 0;
-    }
 
     setSmallDeficit(newSD);
     setShadow(newShadow);
@@ -418,16 +409,17 @@ const Homepage = () => {
             <strong className="text-emerald-300">{bank}</strong>
           </div>
           <div className="col-span-2 border-t border-white/5 pt-1.5">
-            <div className="text-[8px] text-slate-500 uppercase tracking-widest text-center mb-1">Per-Asset</div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            <div className="text-[8px] text-slate-500 uppercase tracking-widest text-center mb-1">Per-Asset Deficits</div>
+            <div className="grid grid-cols-1 gap-y-1">
               {ALL_ASSETS.map(k => (
-                <div key={k} className="flex justify-between text-[9px]">
-                  <span className="text-slate-500">{ASSET_LABELS[k]}</span>
-                  <span className="space-x-1">
-                    <span className="text-purple-300">P:{privateDef[k]}</span>
-                    {(bigDef[k] || 0) > 0 && <span className="text-red-400">B:{bigDef[k]}</span>}
-                    {(brokenTarget[k] || 0) > 0 && <span className="text-yellow-400">T:{brokenTarget[k]}</span>}
-                  </span>
+                <div key={k} className="flex justify-between items-center text-[9px] bg-white/5 rounded px-2 py-0.5">
+                  <span className="text-slate-400 font-bold w-10">{ASSET_LABELS[k]}</span>
+                  <span className="text-purple-300">P:<strong>{privateDef[k]}</strong></span>
+                  <span className="text-yellow-400">T:<strong>{brokenTarget[k]}</strong></span>
+                  {(bigDef[k] || 0) > 0
+                    ? <span className="text-red-400">B:<strong>{bigDef[k]}</strong></span>
+                    : <span className="text-slate-700">B:—</span>
+                  }
                 </div>
               ))}
             </div>
