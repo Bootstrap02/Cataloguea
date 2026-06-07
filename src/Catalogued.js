@@ -52,7 +52,7 @@ const Homepage = () => {
 
   /* ── SHARED SMALL DEFICIT ── */
   const [smallDeficit, setSmallDeficit] = useState(() => initialData?.smallDeficit ?? 0);
-  const [shadow,       setShadow]       = useState(() => initialData?.shadow ?? 0);
+  const [shadow,       setShadow]       = useState(() => initialData?.smallDeficit ?? 0); // Kept matched
   const [bank,         setBank]         = useState(() => initialData?.bank ?? 0);
 
   /* ── PER-ASSET STATES ── */
@@ -80,7 +80,7 @@ const Homepage = () => {
     setBaseStake(d.base            ?? 10000);
     setDeficit(d.deficit           ?? 0);
     setSmallDeficit(d.smallDeficit ?? 0);
-    setShadow(d.shadow             ?? 0);
+    setShadow(d.smallDeficit       ?? 0); // Ensure absolute parity on sync updates
     setBank(d.bank                 ?? 0);
     setPrivateDef(d.privateDef     || emptyMap());
     setBigDef(d.bigDef             || emptyMap());
@@ -107,7 +107,7 @@ const Homepage = () => {
       base: baseRef.current,
       deficit,
       smallDeficit,
-      shadow,
+      shadow: smallDeficit, // Lock shadow directly to absolute smallDeficit value
       bank,
       privateDef,
       bigDef,
@@ -120,7 +120,7 @@ const Homepage = () => {
     } catch (err) {
       console.error("❌ Local storage write failed:", err.message);
     }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [deficit, smallDeficit, bank, privateDef, bigDef, brokenTarget]);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -144,12 +144,9 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* Shadow = smallDeficit BEFORE winner added */
-  
-
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
-    setShadow(curSD);
+    setShadow(curSD); // Mirrors curSD instantly
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -195,7 +192,6 @@ const Homepage = () => {
     setSmallDeficit(0);
     setShadow(0);
     
-    // Immediate persist on hard engine reset
     localStorage.setItem(LS_KEY, JSON.stringify({
       base: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank,
       privateDef, bigDef, brokenTarget
@@ -222,14 +218,12 @@ const Homepage = () => {
       const bStake = bigStakes[key] || 0;
       if (bStake === 0) return;
 
-      /* Always distribute stake/10 to every asset's brokenTarget (win or loss) */
       const share = Math.floor(bStake / 10);
       if (share > 0) {
         ALL_ASSETS.forEach(k => { newBroken[k] = (newBroken[k] || 0) + share; });
       }
 
       if (bigWinners.has(key)) {
-        /* Big win: wipe bigDef entirely — remove from map */
         newBigDef[key] = 0;
       }
     });
@@ -240,31 +234,31 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
-        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
-          /* First win: wipe smallDeficit (shadow already saved at submit) */
-          newSD    = 0;
-          firstWin = false;
-        } else {
-          /* Second+ win: shadow → bank, then wipe smallDeficit */
-          newBank  += newShadow;
-          newShadow = 0;
           newSD     = 0;
+          newShadow = 0; // Drop together
+          firstWin  = false;
+        } else {
+          newSD     = 0;
+          newShadow = 0; // Safe clamp
         }
       } else {
-        /* Loss: stake piles ONLY into privateDef — NOT into smallDeficit */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
-        /* Overflow: privateDef >= 1000 → push into bigDef, reset privateDef */
         if (newPriv[key] >= 1000) {
           newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
           newPriv[key]   = 0;
         }
       }
     });
+
+    // If no asset won, make sure shadow remains completely in sync with smallDeficit's state
+    if (firstWin) {
+      newShadow = newSD;
+    }
 
     setSmallDeficit(newSD);
     setShadow(newShadow);
@@ -282,7 +276,7 @@ const Homepage = () => {
 
     saveBase({
       base: newBase, deficit: newDef,
-      smallDeficit: newSD, shadow: newShadow, bank: newBank,
+      smallDeficit: newSD, shadow: newSD, bank: newBank, // Absolute synchronization pass
       privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
     });
   };
