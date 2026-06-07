@@ -34,7 +34,7 @@ const Homepage = () => {
   const [winnerStake, setWinnerStake] = useState(0);
 
   /* ── SINGLE CHAIN DEFICIT — all 13 assets pile into this ── */
-  const [chainDeficit, setChainDeficit] = useState(0);
+  const [smallDeficit, setSmallDeficit] = useState(0);
   const [shadow,       setShadow]       = useState(0);
   const [bank,         setBank]         = useState(0);
 
@@ -42,9 +42,7 @@ const Homepage = () => {
   const [wonAssets, setWonAssets] = useState([]);
 
   /* ── GAME STAKES (computed on submit) ── */
-  // stakes[key] = stake for that asset this game
   const [chainStakes, setChainStakes] = useState({});
-  // active order this game (ALL_ASSETS minus wonAssets)
   const [activeOrder, setActiveOrder] = useState([]);
 
   /* ── CLICKED / WINNERS THIS GAME ── */
@@ -60,7 +58,7 @@ const Homepage = () => {
   const applyData = useCallback((d) => {
     setBaseStake(d.base         ?? 10000);
     setDeficit(d.deficit        ?? 0);
-    setChainDeficit(d.chainDeficit ?? 0);
+    setSmallDeficit(d.smallDeficit ?? 0);
     setShadow(d.shadow          ?? 0);
     setBank(d.bank              ?? 0);
     setWonAssets(d.wonAssets    || []);
@@ -78,19 +76,19 @@ const Homepage = () => {
 
   const saveBase = useCallback(async (overrides = {}) => {
     const p = {
-      base: baseRef.current, deficit, chainDeficit, shadow, bank, wonAssets,
+      base: baseRef.current, deficit, smallDeficit, shadow, bank, wonAssets,
       ...overrides,
     };
     try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
     try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
-  }, [deficit, chainDeficit, shadow, bank, wonAssets]);
+  }, [deficit, smallDeficit, shadow, bank, wonAssets]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
      BUILD CHAIN
      Pure single-deficit martingale line:
-       running starts at chainDeficit
+       running starts at smallDeficit
        each asset: stake = running / (odd - 1), running += stake
      So each asset recovers everything before it if it wins.
      ================================================================ */
@@ -124,15 +122,15 @@ const Homepage = () => {
     setClicked(new Set());
     setWinners(new Set());
 
-    /* ── 6-0 winner stake → piles into chainDeficit ── */
+    /* ── 6-0 winner stake → piles into smallDeficit ── */
     const newBase = baseStake + deficit;
     setBaseStake(newBase);
     setDeficit(0);
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    const curCD = chainDeficit + wStake;
-    setChainDeficit(curCD);
+    const curCD = smallDeficit + wStake;
+    setSmallDeficit(curCD);
 
     /* ── Build martingale chain from curCD ── */
     const { stakes, order } = buildChain(found, curCD, wonAssets);
@@ -152,7 +150,7 @@ const Homepage = () => {
     setClicked(p => new Set([...p, "six"]));
     setBaseStake(10000);
     setDeficit(0);
-    setChainDeficit(0);
+    setSmallDeficit(0);
     setShadow(0);
   };
 
@@ -162,7 +160,7 @@ const Homepage = () => {
   const handleNext = () => {
     if (!fixture) return;
 
-    let newCD     = chainDeficit;
+    let newCD     = smallDeficit;
     let newShadow = shadow;
     let newBank   = bank;
     let newWon    = [...wonAssets];
@@ -187,7 +185,7 @@ const Homepage = () => {
           .reduce((s, k) => s + (chainStakes[k] || 0), 0);
 
         if (wi === 0) {
-          /* First win: before total stays in chainDeficit (already lost),
+          /* First win: before total stays in smallDeficit (already lost),
              after total saved as shadow (recovered by this win) */
           newCD     = beforeTotal;
           newShadow = afterTotal;
@@ -203,12 +201,12 @@ const Homepage = () => {
       });
 
     } else {
-      /* No wins: all stakes pile into chainDeficit */
+      /* No wins: all stakes pile into smallDeficit */
       const totalStaked = activeOrder.reduce((s, k) => s + (chainStakes[k] || 0), 0);
-      newCD = chainDeficit + totalStaked;
+      newCD = smallDeficit + totalStaked;
     }
 
-    /* Overflow: if chainDeficit >= 10000 → push to baseStake */
+    /* Overflow: if smallDeficit >= 10000 → push to baseStake */
     if (newCD >= 10000) {
       newBase += newCD;
       newDef  += newCD;
@@ -222,7 +220,7 @@ const Homepage = () => {
       newShadow = 0;
     }
 
-    setChainDeficit(newCD);
+    setSmallDeficit(newCD);
     setShadow(newShadow);
     setBank(newBank);
     setWonAssets(newWon);
@@ -234,7 +232,7 @@ const Homepage = () => {
     setWinners(new Set()); setClicked(new Set()); setWinnerStake(0);
 
     saveBase({
-      base: newBase, deficit: newDef, chainDeficit: newCD,
+      base: newBase, deficit: newDef, smallDeficit: newCD,
       shadow: newShadow, bank: newBank, wonAssets: newWon,
     });
   };
@@ -254,7 +252,7 @@ const Homepage = () => {
         <div>
           <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Chain Matrix</h1>
           <div className="text-[9px] text-slate-500 mt-0.5">
-            {active.length} active · {wonAssets.length} dormant · chainDef: {chainDeficit}
+            {active.length} active · {wonAssets.length} dormant · smallDef: {smallDeficit}
           </div>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-white/10">
@@ -361,8 +359,8 @@ const Homepage = () => {
             <strong className="text-red-400">{deficit}</strong>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-400">Chain Def</span>
-            <strong className="text-purple-400">{chainDeficit}</strong>
+            <span className="text-slate-400">SmallDef</span>
+            <strong className="text-purple-400">{smallDeficit}</strong>
           </div>
           <div className="flex justify-between">
             <span className="text-slate-400">Shadow</span>
