@@ -75,27 +75,49 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
+  /* ================================================================
+     PERSIST (LOCAL STORAGE EXCLUSIVE)
+     ================================================================ */
   const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const res = await axios.get(API_BASE);
-      if (res.data) applyData(res.data);
-    } catch {
-      try { const s = localStorage.getItem(LS_KEY); if (s) applyData(JSON.parse(s)); } catch {}
-    } finally { setIsReloading(false); }
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored) {
+        applyData(JSON.parse(stored));
+      } else {
+        // Fallback initialization if local storage is completely empty
+        applyData({
+          base: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank: 0,
+          privateDef: emptyMap(), bigDef: emptyMap(), brokenTarget: emptyMap()
+        });
+      }
+    } catch (err) {
+      console.error("❌ Local storage read failed:", err.message);
+    } finally {
+      setIsReloading(false);
+    }
   }, [applyData]);
 
   const saveBase = useCallback(async (overrides = {}) => {
-    const p = {
-      base: baseRef.current, deficit,
-      smallDeficit, shadow, bank,
-      privateDef, bigDef, brokenTarget,
+    const payload = {
+      base: baseRef.current,
+      deficit,
+      smallDeficit,
+      shadow,
+      bank,
+      privateDef,
+      bigDef,
+      brokenTarget,
       ...overrides,
     };
-    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
-    try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(payload));
+      console.log("✅ State saved locally");
+    } catch (err) {
+      console.error("❌ Local storage write failed:", err.message);
+    }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-
+  
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
