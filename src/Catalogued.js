@@ -1,11 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -75,29 +73,31 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(async () => {
+  const fetchBase = useCallback(() => {
     setIsReloading(true);
     try {
-      const res = await axios.get(API_BASE);
-      if (res.data) applyData(res.data);
-    } catch {
-      try { const s = localStorage.getItem(LS_KEY); if (s) applyData(JSON.parse(s)); } catch {}
-    } finally { setIsReloading(false); }
+      const s = localStorage.getItem(LS_KEY);
+      if (s) applyData(JSON.parse(s));
+    } catch (err) { console.error("❌ load:", err.message); }
+    finally { setIsReloading(false); }
   }, [applyData]);
 
-  const saveBase = useCallback(async (overrides = {}) => {
+  const saveBase = useCallback((overrides = {}) => {
     const p = {
       base: baseRef.current, deficit,
       smallDeficit, shadow, bank,
       privateDef, bigDef, brokenTarget,
       ...overrides,
     };
-    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
-    try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ save:", err.message); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
+  /* ================================================================
+     HANDLE SUBMIT
+     ================================================================ */
+  
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
@@ -120,11 +120,10 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* Shadow = smallDeficit BEFORE winner added */
-    setShadow(smallDeficit);
-
+    /* ── Equate small Deficit and Shadow perfectly at all times ── */
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
+    setShadow(curSD); 
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -228,17 +227,15 @@ const Homepage = () => {
 
         /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
-          /* Use full bank balance (whatever is available) to reduce before pushing */
+          /* Use up to 500 from bank to reduce privateDef before pushing */
           if (newBank > 0) {
-            const reduction = Math.min(newBank, newPriv[key]);
+            const reduction = Math.min(newBank, 500);
             newBank        -= reduction;
             newPriv[key]   -= reduction;
           }
-          /* Push whatever remains into bigDef */
-          if (newPriv[key] > 0) {
-            newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
-            newPriv[key]   = 0;
-          }
+          /* Push remainder into bigDef */
+          newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
+          newPriv[key]   = 0;
         }
       }
     });
