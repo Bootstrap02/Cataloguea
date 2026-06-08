@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
