@@ -1,11 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -62,7 +60,7 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST
+     PERSIST ENGINE (LOCAL STORAGE ONLY)
      ================================================================ */
   const applyData = useCallback((d) => {
     setBaseStake(d.base            ?? 10000);
@@ -75,9 +73,6 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  /* ================================================================
-     PERSIST ENGINE (LOCAL STORAGE ONLY)
-     ================================================================ */
   const fetchBase = useCallback(() => {
     setIsReloading(true);
     try {
@@ -112,13 +107,9 @@ const Homepage = () => {
       console.error("❌ Local storage write failed:", err.message);
     }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-  
     
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  /* ================================================================
-     HANDLE SUBMIT
-     ================================================================ */
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
@@ -177,7 +168,7 @@ const Homepage = () => {
     setBrokenTarget(newBrokenFromBig);
   };
 
-  const markWin    = (key) => {
+  const markWin = (key) => {
     if (!fixture || clicked.has(`n_${key}`)) return;
     setClicked(p => new Set([...p, `n_${key}`]));
     setWinners(p => new Set([...p, key]));
@@ -216,10 +207,8 @@ const Homepage = () => {
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       if (bigWinners.has(key)) {
-        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
-      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -228,32 +217,25 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
-        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
-          /* First win: wipe smallDeficit */
           newSD    = 0;
           firstWin = false;
         } else {
-          /* Second+ win: shadow → bank, wipe smallDeficit */
           newBank  += newShadow;
           newShadow = 0;
           newSD     = 0;
         }
       } else {
-        /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
-        /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
-          /* Bank check: if bank > 500, use 500 to reduce privateDef before pushing */
           if (newBank > 500) {
             newBank     -= 500;
             newPriv[key] = Math.max(0, newPriv[key] - 500);
           }
-          /* Push remainder to bigDef */
           if (newPriv[key] >= 1000) {
             newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
             newPriv[key]   = 0;
@@ -262,7 +244,7 @@ const Homepage = () => {
       }
     });
 
-    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
+    /* ── 3. brokenTarget overflow ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -295,9 +277,6 @@ const Homepage = () => {
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
 
