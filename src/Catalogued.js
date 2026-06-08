@@ -75,29 +75,50 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(async () => {
+  /* ================================================================
+     PERSIST ENGINE (LOCAL STORAGE ONLY)
+     ================================================================ */
+  const fetchBase = useCallback(() => {
     setIsReloading(true);
     try {
-      const res = await axios.get(API_BASE);
-      if (res.data) applyData(res.data);
-    } catch {
-      try { const s = localStorage.getItem(LS_KEY); if (s) applyData(JSON.parse(s)); } catch {}
-    } finally { setIsReloading(false); }
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored) {
+        applyData(JSON.parse(stored));
+        console.log("✅ State fetched from Local Storage");
+      }
+    } catch (err) {
+      console.error("❌ Local storage read failed:", err.message);
+    } finally {
+      setIsReloading(false);
+    }
   }, [applyData]);
 
-  const saveBase = useCallback(async (overrides = {}) => {
+  const saveBase = useCallback((overrides = {}) => {
     const p = {
-      base: baseRef.current, deficit,
-      smallDeficit, shadow, bank,
-      privateDef, bigDef, brokenTarget,
+      base: baseRef.current,
+      deficit,
+      smallDeficit,
+      shadow,
+      bank,
+      privateDef,
+      bigDef,
+      brokenTarget,
       ...overrides,
     };
-    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
-    try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(p));
+      console.log("✅ Saved to Local Storage");
+    } catch (err) {
+      console.error("❌ Local storage write failed:", err.message);
+    }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-
+  
+    
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
+  /* ================================================================
+     HANDLE SUBMIT
+     ================================================================ */
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
@@ -120,11 +141,10 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* Shadow = smallDeficit BEFORE winner added */
-    setShadow(smallDeficit);
-
+    /* ── Sync smallDeficit and shadow instantly ── */
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
+    setShadow(curSD); 
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
