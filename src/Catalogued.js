@@ -184,9 +184,7 @@ const Homepage = () => {
   const handleJackpot = () => {
     setClicked(p => new Set([...p, "six"]));
     setBaseStake(10000);
-    setDeficit(0);
-    setSmallDeficit(0);
-    setShadow(0);
+    
   };
 
   /* ================================================================
