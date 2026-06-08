@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -60,7 +62,7 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST ENGINE (LOCAL STORAGE ONLY)
+     PERSIST
      ================================================================ */
   const applyData = useCallback((d) => {
     setBaseStake(d.base            ?? 10000);
@@ -73,41 +75,27 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(() => {
+  const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const stored = localStorage.getItem(LS_KEY);
-      if (stored) {
-        applyData(JSON.parse(stored));
-        console.log("✅ State fetched from Local Storage");
-      }
-    } catch (err) {
-      console.error("❌ Local storage read failed:", err.message);
-    } finally {
-      setIsReloading(false);
-    }
+      const res = await axios.get(API_BASE);
+      if (res.data) applyData(res.data);
+    } catch {
+      try { const s = localStorage.getItem(LS_KEY); if (s) applyData(JSON.parse(s)); } catch {}
+    } finally { setIsReloading(false); }
   }, [applyData]);
 
-  const saveBase = useCallback((overrides = {}) => {
+  const saveBase = useCallback(async (overrides = {}) => {
     const p = {
-      base: baseRef.current,
-      deficit,
-      smallDeficit,
-      shadow,
-      bank,
-      privateDef,
-      bigDef,
-      brokenTarget,
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
       ...overrides,
     };
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(p));
-      console.log("✅ Saved to Local Storage");
-    } catch (err) {
-      console.error("❌ Local storage write failed:", err.message);
-    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch {}
+    try { await axios.put(API_BASE, p); } catch (err) { console.error("❌", err.message); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-    
+
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
@@ -132,10 +120,11 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* ── Sync smallDeficit and shadow instantly ── */
+    /* Shadow = smallDeficit BEFORE winner added */
+    setShadow(smallDeficit);
+
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
-    setShadow(curSD); 
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -168,7 +157,7 @@ const Homepage = () => {
     setBrokenTarget(newBrokenFromBig);
   };
 
-  const markWin = (key) => {
+  const markWin    = (key) => {
     if (!fixture || clicked.has(`n_${key}`)) return;
     setClicked(p => new Set([...p, `n_${key}`]));
     setWinners(p => new Set([...p, key]));
@@ -184,7 +173,9 @@ const Homepage = () => {
   const handleJackpot = () => {
     setClicked(p => new Set([...p, "six"]));
     setBaseStake(10000);
-    
+    setDeficit(0);
+    setSmallDeficit(0);
+    setShadow(0);
   };
 
   /* ================================================================
@@ -205,8 +196,10 @@ const Homepage = () => {
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       if (bigWinners.has(key)) {
+        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
+      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -215,26 +208,34 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
+        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
+          /* First win: wipe smallDeficit */
           newSD    = 0;
           firstWin = false;
         } else {
+          /* Second+ win: shadow → bank, wipe smallDeficit */
           newBank  += newShadow;
           newShadow = 0;
           newSD     = 0;
         }
       } else {
+        /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
+        /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
-          if (newBank > 500) {
-            newBank     -= 500;
-            newPriv[key] = Math.max(0, newPriv[key] - 500);
+          /* Use full bank balance (whatever is available) to reduce before pushing */
+          if (newBank > 0) {
+            const reduction = Math.min(newBank, newPriv[key]);
+            newBank        -= reduction;
+            newPriv[key]   -= reduction;
           }
-          if (newPriv[key] >= 1000) {
+          /* Push whatever remains into bigDef */
+          if (newPriv[key] > 0) {
             newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
             newPriv[key]   = 0;
           }
@@ -242,7 +243,7 @@ const Homepage = () => {
       }
     });
 
-    /* ── 3. brokenTarget overflow ── */
+    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -275,6 +276,9 @@ const Homepage = () => {
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
 
+  /* ================================================================
+     RENDER
+     ================================================================ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
 
