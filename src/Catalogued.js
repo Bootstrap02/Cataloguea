@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
+
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const LS_KEY   = "virt-epl-solo-v1";
@@ -92,12 +95,24 @@ const Homepage = () => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ save:", err.message); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const syncToBackend = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      await axios.put(API_BASE, {
+        base: baseRef.current, deficit,
+        smallDeficit, shadow, bank,
+        privateDef, bigDef, brokenTarget,
+      });
+      console.log("✅ Synced to backend");
+    } catch (err) {
+      console.error("❌ sync:", err.message);
+    } finally { setIsSyncing(false); }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
-  /* ================================================================
-     HANDLE SUBMIT
-     ================================================================ */
-  
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
@@ -120,10 +135,11 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* ── Equate small Deficit and Shadow perfectly at all times ── */
+    /* Shadow = smallDeficit BEFORE winner added */
+    setShadow(smallDeficit);
+
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
-    setShadow(curSD); 
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -290,6 +306,10 @@ const Homepage = () => {
         <div className="flex rounded-lg overflow-hidden border border-white/10">
           <button onClick={() => saveBase()}
             className="px-3 py-1.5 bg-emerald-600 font-bold text-white text-xs">💾</button>
+          <button onClick={syncToBackend} disabled={isSyncing}
+            className="px-3 py-1.5 bg-blue-600 font-bold text-white text-xs disabled:opacity-50">
+            {isSyncing ? "…" : "☁️"}
+          </button>
           <button onClick={fetchBase} disabled={isReloading}
             className="px-3 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
@@ -323,9 +343,21 @@ const Homepage = () => {
         {/* BIG DEFICIT SECTION */}
         {hasBigDefs && (
           <div className="bg-red-950/60 rounded-2xl p-2 border border-red-500/20">
-            <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-2">
+            <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">
               — big deficit · bigDef / odd —
             </div>
+            {/* Total sum of all active big stakes */}
+            {fixture && (() => {
+              const totalBig = ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0)
+                .reduce((s, k) => s + (bigStakes[k] || 0), 0);
+              return totalBig > 0 ? (
+                <div className="text-center mb-2">
+                  <span className="text-[9px] text-red-300 font-black bg-red-900/50 px-3 py-0.5 rounded-full">
+                    TOTAL BIG STAKE: {totalBig}
+                  </span>
+                </div>
+              ) : null;
+            })()}
             <div className="grid grid-cols-5 gap-1.5">
               {ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0).map(key => {
                 const bStake = bigStakes[key];
