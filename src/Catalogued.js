@@ -76,13 +76,17 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(() => {
+  const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
-      const s = localStorage.getItem(LS_KEY);
-      if (s) applyData(JSON.parse(s));
-    } catch (err) { console.error("❌ load:", err.message); }
-    finally { setIsReloading(false); }
+      const res = await axios.get(API_BASE);
+      if (res.data) applyData(res.data);
+    } catch {
+      try {
+        const s = localStorage.getItem(LS_KEY);
+        if (s) applyData(JSON.parse(s));
+      } catch (err) { console.error("❌ load:", err.message); }
+    } finally { setIsReloading(false); }
   }, [applyData]);
 
   const saveBase = useCallback((overrides = {}) => {
@@ -373,7 +377,9 @@ const Homepage = () => {
                     <div className="text-[8px] opacity-60">BIG</div>
                     <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
                     <div className="text-sm font-black">{bStake ?? "—"}</div>
-                    <div className="text-[7px] opacity-60">D:{bigDef[key]}</div>
+                    <div className="text-[9px] font-black text-yellow-400 mt-0.5">
+                      {(bStake || 0) + (gameStakes[key] || 0)}
+                    </div>
                   </button>
                 );
               })}
