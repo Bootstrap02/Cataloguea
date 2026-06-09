@@ -231,6 +231,10 @@ const Homepage = () => {
   /* ================================================================
      HANDLE NEXT
      ================================================================ */
+
+  /* ================================================================
+     HANDLE NEXT
+     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -252,6 +256,8 @@ const Homepage = () => {
 
     /* ── 2. Settle normal solo assets ── */
     let firstWin = true;
+    const shadowPayout = newShadow; // Snapshot the shadow value so multiple wins don't add 0
+
     ALL_ASSETS.forEach(key => {
       const stake = gameStakes[key] || 0;
 
@@ -260,14 +266,17 @@ const Homepage = () => {
         newBroken[key] = 0;
 
         if (firstWin) {
+          /* First win: wipe smallDeficit */
           newSD    = 0;
           firstWin = false;
         } else {
-          newBank  += newShadow;
+          /* Second+ win: add the stored shadow snapshot to bank every time */
+          newBank  += shadowPayout;
           newShadow = 0;
           newSD     = 0;
         }
       } else {
+        /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
         if (newPriv[key] >= 1000) {
@@ -311,7 +320,6 @@ const Homepage = () => {
       privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
     });
   };
-
   const teamA     = sanitizeTeam(inputA) || "HME";
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
