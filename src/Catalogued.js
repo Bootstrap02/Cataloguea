@@ -4,9 +4,8 @@ import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
-
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
+const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -63,7 +62,7 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST
+     PERSIST CORE DATA PARSER
      ================================================================ */
   const applyData = useCallback((d) => {
     setBaseStake(d.base            ?? 10000);
@@ -76,17 +75,19 @@ const Homepage = () => {
     setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  const fetchBase = useCallback(async () => {
-    setIsReloading(true);
+  /* ================================================================
+     PERSIST LAYER 1: LOCAL STORAGE (AUTOMATIC & IMMEDIATE)
+     ================================================================ */
+  const fetchBase = useCallback(() => {
     try {
-      const res = await axios.get(API_BASE);
-      if (res.data) applyData(res.data);
-    } catch {
-      try {
-        const s = localStorage.getItem(LS_KEY);
-        if (s) applyData(JSON.parse(s));
-      } catch (err) { console.error("❌ load:", err.message); }
-    } finally { setIsReloading(false); }
+      const s = localStorage.getItem(LS_KEY);
+      if (s) {
+        applyData(JSON.parse(s));
+        console.log("💾 L1: Loaded from Local Storage");
+      }
+    } catch (err) {
+      console.error("❌ L1 Load error:", err.message);
+    }
   }, [applyData]);
 
   const saveBase = useCallback((overrides = {}) => {
@@ -96,25 +97,52 @@ const Homepage = () => {
       privateDef, bigDef, brokenTarget,
       ...overrides,
     };
-    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ save:", err.message); }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const syncToBackend = useCallback(async () => {
-    setIsSyncing(true);
     try {
-      await axios.put(API_BASE, {
-        base: baseRef.current, deficit,
-        smallDeficit, shadow, bank,
-        privateDef, bigDef, brokenTarget,
-      });
-      console.log("✅ Synced to backend");
+      localStorage.setItem(LS_KEY, JSON.stringify(p));
+      console.log("💾 L1: Saved to Local Storage");
     } catch (err) {
-      console.error("❌ sync:", err.message);
-    } finally { setIsSyncing(false); }
+      console.error("❌ L1 Save error:", err.message);
+    }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
+  /* ================================================================
+     PERSIST LAYER 2: BACKEND API (MANUAL VIA BUTTONS ONLY)
+     ================================================================ */
+  const fetchFromAPI = useCallback(async () => {
+    setIsReloading(true);
+    try {
+      const res = await axios.get(API_BASE);
+      if (res.data) {
+        applyData(res.data);
+        // Overwrite L1 storage to remain synced
+        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
+        console.log("☁️ L2: Fetched from API & Synchronized Local Storage");
+      }
+    } catch (err) {
+      console.error("❌ L2 Fetch failed:", err.message);
+      alert("API fetch failed. Reverting to local fallback data.");
+    } finally {
+      setIsReloading(false);
+    }
+  }, [applyData]);
+
+  const saveToAPI = useCallback(async () => {
+    const p = {
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
+    };
+    try {
+      await axios.put(API_BASE, p);
+      console.log("✅ L2: Master Backup Synced to API");
+      alert("State fully backed up to API successfully.");
+    } catch (err) {
+      console.error("❌ L2 Sync failed:", err.message);
+      alert("API backup failed. Local Storage is still active.");
+    }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+
+  // Handle baseline initial app mount load via L1 Local Storage
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
@@ -139,11 +167,10 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* Shadow = smallDeficit BEFORE winner added */
-    setShadow(smallDeficit);
-
+    /* Sync small Deficit and Shadow instantly together at all times */
     const curSD = smallDeficit + wStake;
     setSmallDeficit(curSD);
+    setShadow(curSD);
 
     /* ── Solo stakes: each asset independent ── */
     const newStakes = emptyMap();
@@ -195,6 +222,10 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setShadow(0);
+    
+    saveBase({
+      base: 10000, deficit: 0, smallDeficit: 0, shadow: 0
+    });
   };
 
   /* ================================================================
@@ -215,10 +246,8 @@ const Homepage = () => {
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       if (bigWinners.has(key)) {
-        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
-      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
@@ -227,40 +256,33 @@ const Homepage = () => {
       const stake = gameStakes[key] || 0;
 
       if (winners.has(key)) {
-        /* Win: wipe privateDef, brokenTarget, smallDeficit all to 0 */
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
         if (firstWin) {
-          /* First win: wipe smallDeficit */
           newSD    = 0;
           firstWin = false;
         } else {
-          /* Second+ win: shadow → bank, wipe smallDeficit */
           newBank  += newShadow;
           newShadow = 0;
           newSD     = 0;
         }
       } else {
-        /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
-        /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
-          /* Use up to 500 from bank to reduce privateDef before pushing */
           if (newBank > 0) {
             const reduction = Math.min(newBank, 500);
             newBank        -= reduction;
             newPriv[key]   -= reduction;
           }
-          /* Push remainder into bigDef */
           newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
           newPriv[key]   = 0;
         }
       }
     });
 
-    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
+    /* ── 3. brokenTarget overflow ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -282,6 +304,7 @@ const Homepage = () => {
     setWinners(new Set()); setBigWinners(new Set());
     setClicked(new Set()); setWinnerStake(0);
 
+    // Write instantly to L1 Storage engine
     saveBase({
       base: newBase, deficit: newDef,
       smallDeficit: newSD, shadow: newShadow, bank: newBank,
@@ -308,15 +331,12 @@ const Homepage = () => {
           </div>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-white/10">
-          <button onClick={() => saveBase()}
-            className="px-3 py-1.5 bg-emerald-600 font-bold text-white text-xs">💾</button>
-          <button onClick={syncToBackend} disabled={isSyncing}
-            className="px-3 py-1.5 bg-blue-600 font-bold text-white text-xs disabled:opacity-50">
-            {isSyncing ? "…" : "☁️"}
-          </button>
-          <button onClick={fetchBase} disabled={isReloading}
-            className="px-3 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50">
+          <button onClick={saveToAPI}
+            className="px-4 py-1.5 bg-emerald-600 font-bold text-white text-xs tracking-wide active:bg-emerald-700 transition">💾 API</button>
+          <button onClick={fetchFromAPI} disabled={isReloading}
+            className="px-4 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50 active:bg-slate-700 transition flex items-center justify-center gap-1">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
+            <span>API</span>
           </button>
         </div>
       </div>
@@ -350,7 +370,6 @@ const Homepage = () => {
             <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">
               — big deficit · bigDef / odd —
             </div>
-            {/* Total sum of all active big stakes */}
             {fixture && (() => {
               const totalBig = ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0)
                 .reduce((s, k) => s + (bigStakes[k] || 0), 0);
@@ -364,21 +383,27 @@ const Homepage = () => {
             })()}
             <div className="grid grid-cols-5 gap-1.5">
               {ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0).map(key => {
-                const bStake = bigStakes[key];
+                const bStake = bigStakes[key] || 0;
+                const sStake = gameStakes[key] || 0;
+                const combinedTotal = bStake + sStake;
                 const isWon  = bigWinners.has(key);
                 return (
                   <button key={key} onClick={() => markBigWin(key)}
                     disabled={!fixture || clicked.has(`b_${key}`)}
-                    className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center gap-0.5 ${
+                    className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center justify-between min-h-[72px] gap-0.5 ${
                       isWon ? "bg-green-500 text-white border-green-700"
                       : !fixture ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed"
                       : "bg-red-600 text-white border-red-900"
                     }`}>
-                    <div className="text-[8px] opacity-60">BIG</div>
-                    <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
-                    <div className="text-sm font-black">{bStake ?? "—"}</div>
-                    <div className="text-[9px] font-black text-yellow-400 mt-0.5">
-                      {(bStake || 0) + (gameStakes[key] || 0)}
+                    <div className="text-[8px] opacity-60 tracking-wider">BIG {ASSET_LABELS[key]}</div>
+                    
+                    {/* ENHANCED VISIBILITY: Large, highlighted total absolute stake readout */}
+                    <div className="text-base font-black tracking-tight text-white scale-105 my-0.5 drop-shadow-md">
+                      {fixture ? combinedTotal : "—"}
+                    </div>
+
+                    <div className="text-[7px] opacity-75 leading-none text-red-200">
+                      B:{bStake} · S:{sStake}
                     </div>
                   </button>
                 );
