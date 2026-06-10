@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
-const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+
+const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const LS_KEY   = "virt-epl-solo-v1";
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
@@ -58,11 +58,14 @@ const Homepage = () => {
   const [bigWinners, setBigWinners] = useState(new Set());
   const [clicked,    setClicked]    = useState(new Set());
 
+  const [roundUp, setRoundUp] = useState(false);
+  const [nullAssets, setNullAssets] = useState([]); // assets mapped out during round up
+
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     PERSIST CORE DATA PARSER
+     PERSIST
      ================================================================ */
   const applyData = useCallback((d) => {
     setBaseStake(d.base            ?? 10000);
@@ -73,77 +76,62 @@ const Homepage = () => {
     setPrivateDef(d.privateDef     || emptyMap());
     setBigDef(d.bigDef             || emptyMap());
     setBrokenTarget(d.brokenTarget || emptyMap());
+    setRoundUp(d.roundUp ?? false);
+    setNullAssets(d.nullAssets || []);
   }, []);
 
-  /* ================================================================
-     PERSIST LAYER 1: LOCAL STORAGE (AUTOMATIC & IMMEDIATE)
-     ================================================================ */
-  const fetchBase = useCallback(() => {
-    try {
-      const s = localStorage.getItem(LS_KEY);
-      if (s) {
-        applyData(JSON.parse(s));
-        console.log("💾 L1: Loaded from Local Storage");
-      }
-    } catch (err) {
-      console.error("❌ L1 Load error:", err.message);
-    }
-  }, [applyData]);
-
-  const saveBase = useCallback((overrides = {}) => {
+  /* ── Local storage save (auto, used in handleNext/clearForNext/useEffect) ── */
+  const saveLocalStorage = useCallback((overrides = {}) => {
     const p = {
       base: baseRef.current, deficit,
       smallDeficit, shadow, bank,
       privateDef, bigDef, brokenTarget,
+      roundUp, nullAssets,
       ...overrides,
     };
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(p));
-      console.log("💾 L1: Saved to Local Storage");
-    } catch (err) {
-      console.error("❌ L1 Save error:", err.message);
-    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ ls save:", err.message); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
-  /* ================================================================
-     PERSIST LAYER 2: BACKEND API (MANUAL VIA BUTTONS ONLY)
-     ================================================================ */
-  const fetchFromAPI = useCallback(async () => {
+  /* ── Local storage fetch (auto, used in useEffect) ── */
+  const fetchLocalStorage = useCallback(() => {
+    try {
+      const s = localStorage.getItem(LS_KEY);
+      if (s) applyData(JSON.parse(s));
+    } catch (err) { console.error("❌ ls load:", err.message); }
+  }, [applyData]);
+
+  /* ── API save (manual, button only) — overwrites localStorage after ── */
+  const saveBase = useCallback(async () => {
+    setIsReloading(true);
+    const p = {
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
+      roundUp, nullAssets,
+    };
+    try {
+      await axios.put(API_BASE, p);
+      localStorage.setItem(LS_KEY, JSON.stringify(p));
+      console.log("✅ Saved to API");
+    } catch (err) { console.error("❌ api save:", err.message); }
+    finally { setIsReloading(false); }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+
+  /* ── API fetch (manual, button only) — overwrites localStorage after ── */
+  const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
       if (res.data) {
         applyData(res.data);
-        // Overwrite L1 storage to remain synced
         localStorage.setItem(LS_KEY, JSON.stringify(res.data));
-        console.log("☁️ L2: Fetched from API & Synchronized Local Storage");
+        console.log("✅ Fetched from API");
       }
-    } catch (err) {
-      console.error("❌ L2 Fetch failed:", err.message);
-      alert("API fetch failed. Reverting to local fallback data.");
-    } finally {
-      setIsReloading(false);
-    }
+    } catch (err) { console.error("❌ api fetch:", err.message); }
+    finally { setIsReloading(false); }
   }, [applyData]);
 
-  const saveToAPI = useCallback(async () => {
-    const p = {
-      base: baseRef.current, deficit,
-      smallDeficit, shadow, bank,
-      privateDef, bigDef, brokenTarget,
-    };
-    try {
-      await axios.put(API_BASE, p);
-      console.log("✅ L2: Master Backup Synced to API");
-      alert("State fully backed up to API successfully.");
-    } catch (err) {
-      console.error("❌ L2 Sync failed:", err.message);
-      alert("API backup failed. Local Storage is still active.");
-    }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
-
-  // Handle baseline initial app mount load via L1 Local Storage
-  useEffect(() => { fetchBase(); }, [fetchBase]);
+  useEffect(() => { fetchLocalStorage(); }, [fetchLocalStorage]);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -167,14 +155,15 @@ const Homepage = () => {
     const wStake = Math.max(Math.round(newBase / found.winner), 10);
     setWinnerStake(wStake);
 
-    /* Sync small Deficit and Shadow instantly together at all times */
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
-    setShadow(curSD);
+    /* Shadow captured before winner. If roundUp, 6-0 does NOT pile into smallDeficit */
+    setShadow(smallDeficit);
+    const curSD = roundUp ? smallDeficit : smallDeficit + wStake;
+    if (!roundUp) setSmallDeficit(curSD);
 
-    /* ── Solo stakes: each asset independent ── */
+    /* ── Solo stakes: each asset independent (skip null assets in roundUp) ── */
     const newStakes = emptyMap();
     ALL_ASSETS.forEach(key => {
+      if (nullAssets.includes(key)) return; // null during roundUp — no stake
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         const bt  = brokenTarget[key] || 0;
@@ -222,15 +211,8 @@ const Homepage = () => {
     setDeficit(0);
     setSmallDeficit(0);
     setShadow(0);
-    
-    saveBase({
-      base: 10000, deficit: 0, smallDeficit: 0, shadow: 0
-    });
+    saveLocalStorage({ base: 10000, deficit: 0, smallDeficit: 0, shadow: 0 });
   };
-
-  /* ================================================================
-     HANDLE NEXT
-     ================================================================ */
 
   /* ================================================================
      HANDLE NEXT
@@ -246,52 +228,64 @@ const Homepage = () => {
     let newPriv    = { ...privateDef };
     let newBigDef  = { ...bigDef };
     let newBroken  = { ...brokenTarget };
+    let newNull    = [...nullAssets];
 
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       if (bigWinners.has(key)) {
+        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
+      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
     let firstWin = true;
-    const shadowPayout = newShadow; // Snapshot the shadow value so multiple wins don't add 0
-
     ALL_ASSETS.forEach(key => {
       const stake = gameStakes[key] || 0;
+
+      if (nullAssets.includes(key)) {
+        /* Null asset: skip entirely, brokenTarget arrives passively */
+        return;
+      }
 
       if (winners.has(key)) {
         newPriv[key]   = 0;
         newBroken[key] = 0;
 
-        if (firstWin) {
-          /* First win: wipe smallDeficit */
-          newSD    = 0;
-          firstWin = false;
+        if (roundUp) {
+          /* Round up: winning asset → null, no smallDeficit changes */
+          if (!newNull.includes(key)) newNull.push(key);
         } else {
-          /* Second+ win: add the stored shadow snapshot to bank every time */
-          newBank  += shadowPayout;
-          newShadow = 0;
-          newSD     = 0;
+          if (firstWin) {
+            newSD    = 0;
+            firstWin = false;
+          } else {
+            newBank  += newShadow;
+            newShadow = 0;
+            newSD     = 0;
+          }
         }
       } else {
         /* Loss: stake piles into privateDef only */
         newPriv[key] = (newPriv[key] || 0) + stake;
 
+        /* Overflow: privateDef >= 1000 */
         if (newPriv[key] >= 1000) {
+          /* Use up to 500 from bank to reduce privateDef before pushing */
           if (newBank > 0) {
             const reduction = Math.min(newBank, 500);
             newBank        -= reduction;
             newPriv[key]   -= reduction;
           }
+          /* Push remainder into bigDef */
           newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
           newPriv[key]   = 0;
         }
       }
     });
 
-    /* ── 3. brokenTarget overflow ── */
+    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -307,19 +301,21 @@ const Homepage = () => {
     setPrivateDef(newPriv);
     setBigDef(newBigDef);
     setBrokenTarget(newBroken);
+    setNullAssets(newNull);
 
     setFixture(null); setInputA(""); setInputB("");
     setGameStakes(emptyMap()); setBigStakes({});
     setWinners(new Set()); setBigWinners(new Set());
     setClicked(new Set()); setWinnerStake(0);
 
-    // Write instantly to L1 Storage engine
-    saveBase({
+    saveLocalStorage({
       base: newBase, deficit: newDef,
       smallDeficit: newSD, shadow: newShadow, bank: newBank,
       privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
+      roundUp, nullAssets: newNull,
     });
   };
+
   const teamA     = sanitizeTeam(inputA) || "HME";
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);
@@ -339,20 +335,19 @@ const Homepage = () => {
           </div>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-white/10">
-          <button onClick={saveToAPI}
-            className="px-4 py-1.5 bg-emerald-600 font-bold text-white text-xs tracking-wide active:bg-emerald-700 transition">💾 API</button>
-          <button onClick={fetchFromAPI} disabled={isReloading}
-            className="px-4 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50 active:bg-slate-700 transition flex items-center justify-center gap-1">
+          <button onClick={() => saveBase()}
+            className="px-3 py-1.5 bg-emerald-600 font-bold text-white text-xs">💾</button>
+          <button onClick={fetchBase} disabled={isReloading}
+            className="px-3 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
-            <span>API</span>
           </button>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col px-3 pb-3 gap-3 overflow-y-auto">
 
-        {/* 6-0 + NEXT */}
-        <div className="grid grid-cols-2 gap-2 mt-2">
+        {/* 6-0 + NEXT + ROUND UP */}
+        <div className="grid grid-cols-3 gap-2 mt-2">
           <button onClick={handleJackpot} disabled={!fixture}
             className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${
               clicked.has("six") ? "bg-white text-emerald-600 border-emerald-300"
@@ -370,7 +365,31 @@ const Homepage = () => {
             <div className="text-[10px] opacity-70 uppercase tracking-widest">settle</div>
             <div className="text-xl font-black">NEXT</div>
           </button>
+          <button onClick={() => { setRoundUp(r => !r); saveBase({ roundUp: !roundUp }); }}
+            className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${
+              roundUp
+                ? "bg-orange-500 text-white border-orange-700 ring-2 ring-orange-300"
+                : "bg-slate-700 text-slate-300 border-slate-900"
+            }`}>
+            <div className="text-[9px] opacity-70 uppercase tracking-widest">{roundUp ? "ACTIVE" : "off"}</div>
+            <div className="text-sm font-black">ROUND{"
+"}UP</div>
+          </button>
         </div>
+
+        {/* NULL ASSETS (round up dormant) */}
+        {roundUp && nullAssets.length > 0 && (
+          <div className="bg-slate-800/40 rounded-xl p-2 border border-slate-700/30">
+            <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-1">— null (round up) —</div>
+            <div className="flex flex-wrap gap-1 justify-center">
+              {nullAssets.map(k => (
+                <span key={k} className="px-2 py-0.5 rounded text-[8px] font-bold bg-slate-700 text-slate-400 opacity-60">
+                  {ASSET_LABELS[k]} ∅
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* BIG DEFICIT SECTION */}
         {hasBigDefs && (
@@ -378,6 +397,7 @@ const Homepage = () => {
             <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">
               — big deficit · bigDef / odd —
             </div>
+            {/* Total sum of all active big stakes */}
             {fixture && (() => {
               const totalBig = ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0)
                 .reduce((s, k) => s + (bigStakes[k] || 0), 0);
@@ -391,28 +411,22 @@ const Homepage = () => {
             })()}
             <div className="grid grid-cols-5 gap-1.5">
               {ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0).map(key => {
-                const bStake = bigStakes[key] || 0;
-                const sStake = gameStakes[key] || 0;
-                const combinedTotal = bStake + sStake;
+                const bStake = bigStakes[key];
                 const isWon  = bigWinners.has(key);
                 return (
                   <button key={key} onClick={() => markBigWin(key)}
                     disabled={!fixture || clicked.has(`b_${key}`)}
-                    className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center justify-between min-h-[72px] gap-0.5 ${
+                    className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center gap-0.5 ${
                       isWon ? "bg-green-500 text-white border-green-700"
                       : !fixture ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed"
                       : "bg-red-600 text-white border-red-900"
                     }`}>
-                    <div className="text-[8px] opacity-60 tracking-wider">BIG {ASSET_LABELS[key]}</div>
-                    
-                    {/* ENHANCED VISIBILITY: Large, highlighted total absolute stake readout */}
-                    <div className="text-base font-black tracking-tight text-white scale-105 my-0.5 drop-shadow-md">
-                      {fixture ? combinedTotal : "—"}
+                    <div className="text-[8px] opacity-50">BIG</div>
+                    <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
+                    <div className="text-base font-black text-yellow-300 leading-tight">
+                      {(bStake || 0) + (gameStakes[key] || 0) || "—"}
                     </div>
-
-                    <div className="text-[7px] opacity-75 leading-none text-red-200">
-                      B:{bStake} · S:{sStake}
-                    </div>
+                    <div className="text-[7px] opacity-40">{bStake ?? 0}+{gameStakes[key] ?? 0}</div>
                   </button>
                 );
               })}
