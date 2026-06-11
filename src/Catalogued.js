@@ -149,10 +149,8 @@ const Homepage = () => {
     let curSD = smallDeficit;
 
     if (roundUp) {
-      // 1. If round up is active: 6-0 option produces 0 stake and baseline numbers freeze
       setWinnerStake(0);
     } else {
-      // 2. Normal operational metrics
       const newBase = baseStake + deficit;
       setBaseStake(newBase);
       setDeficit(0);
@@ -162,14 +160,13 @@ const Homepage = () => {
       curSD = smallDeficit + wStake;
     }
 
-    // Shadow tracking directly equates to Small Deficit configuration at all times
     setSmallDeficit(curSD);
     setShadow(curSD);
 
-    /* ── Solo stakes: each asset independent (skip null assets in roundUp) ── */
+    /* ── Solo stakes: Each asset independent (Skips indicators in nullAssets) ── */
     const newStakes = emptyMap();
     ALL_ASSETS.forEach(key => {
-      if (nullAssets.includes(key)) return; // Lockout completely if asset has rounded up
+      if (nullAssets.includes(key)) return; // No stakes calculated if rounded up
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         const bt  = brokenTarget[key] || 0;
@@ -179,7 +176,7 @@ const Homepage = () => {
     });
     setGameStakes(newStakes);
 
-    /* ── Big deficit stakes: distributed to ALL assets broken targets, even won/null ones ── */
+    /* ── Big deficit stakes: Shared distribution remains hot universally ── */
     const newBigStakes = {};
     const newBrokenFromBig = { ...brokenTarget };
     ALL_ASSETS.forEach(key => {
@@ -188,7 +185,6 @@ const Homepage = () => {
       if (odd > 1.01) {
         newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
         
-        // Pushes 10% share into every single asset's broken target configuration universally
         const share = Math.floor(newBigStakes[key] / 10);
         if (share > 0) {
           ALL_ASSETS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
@@ -200,7 +196,7 @@ const Homepage = () => {
   };
 
   const markWin    = (key) => {
-    if (!fixture || clicked.has(`n_${key}`)) return;
+    if (!fixture || clicked.has(`n_${key}`) || nullAssets.includes(key)) return;
     setClicked(p => new Set([...p, `n_${key}`]));
     setWinners(p => new Set([...p, key]));
   };
@@ -250,7 +246,7 @@ const Homepage = () => {
     ALL_ASSETS.forEach(key => {
       const stake = gameStakes[key] || 0;
 
-      // If asset is currently null, it cannot be processed for standard wins/losses
+      // Skip settlement if already marked null/won out for the day
       if (nullAssets.includes(key)) {
         return;
       }
@@ -260,7 +256,7 @@ const Homepage = () => {
         newBroken[key] = 0;
 
         if (roundUp) {
-          /* Round up rule engine: winning asset changes to null status permanently */
+          /* Add to permanent win indicators array if round up is active */
           if (!newNull.includes(key)) newNull.push(key);
         } else {
           if (firstWin) {
@@ -273,12 +269,11 @@ const Homepage = () => {
           }
         }
       } else {
-        /* Loss calculation matrix */
         newPriv[key] = (newPriv[key] || 0) + stake;
       }
     });
 
-    /* ── 3. Universal Private Deficit Overflows (Runs for ALL assets, even if Null!) ── */
+    /* ── 3. Universal Private Deficit Overflows (Processes ALL assets) ── */
     ALL_ASSETS.forEach(key => {
       if ((newPriv[key] || 0) >= 1000) {
         if (newBank > 0) {
@@ -286,13 +281,12 @@ const Homepage = () => {
           newBank        -= reduction;
           newPriv[key]   -= reduction;
         }
-        /* Safely push remainder into bigDef protection layout */
         newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
         newPriv[key]   = 0;
       }
     });
 
-    /* ── 4. BrokenTarget overflow execution (Runs for ALL assets universally) ── */
+    /* ── 4. BrokenTarget overflow execution (Processes ALL assets) ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -383,7 +377,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* NULL ASSETS */}
+        {/* NULL ASSETS BANNER */}
         {roundUp && nullAssets.length > 0 && (
           <div className="bg-slate-800/40 rounded-xl p-2 border border-slate-700/30">
             <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-1">— null (round up) —</div>
@@ -416,7 +410,8 @@ const Homepage = () => {
             })()}
             <div className="grid grid-cols-5 gap-1.5">
               {ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0).map(key => {
-                const bStake = bigStakes[key];
+                const bStake = bigStakes[key] || 0;
+                const sStake = gameStakes[key] || 0;
                 const isWon  = bigWinners.has(key);
                 return (
                   <button key={key} onClick={() => markBigWin(key)}
@@ -429,9 +424,9 @@ const Homepage = () => {
                     <div className="text-[8px] opacity-50">BIG</div>
                     <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
                     <div className="text-base font-black text-yellow-300 leading-tight">
-                      {(bStake || 0) + (gameStakes[key] || 0) || "—"}
+                      {bStake + sStake || "—"}
                     </div>
-                    <div className="text-[7px] opacity-40">{bStake ?? 0}+{gameStakes[key] ?? 0}</div>
+                    <div className="text-[7px] opacity-40">{bStake}+{sStake}</div>
                   </button>
                 );
               })}
@@ -446,20 +441,27 @@ const Homepage = () => {
           </div>
           <div className="grid grid-cols-5 gap-1.5">
             {ALL_ASSETS.map(key => {
-              const stake = gameStakes[key];
-              const isWon = winners.has(key);
-              const pd    = privateDef[key]   || 0;
-              const bt    = brokenTarget[key] || 0;
+              const stake   = gameStakes[key];
+              const isWon   = winners.has(key);
+              const isNull  = nullAssets.includes(key);
+              const pd      = privateDef[key]   || 0;
+              const bt      = brokenTarget[key] || 0;
+              
               return (
                 <button key={key} onClick={() => markWin(key)}
-                  disabled={!fixture || clicked.has(`n_${key}`)}
+                  disabled={!fixture || clicked.has(`n_${key}`) || isNull}
                   className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center gap-0.5 ${
                     isWon ? "bg-green-500 text-white border-green-700"
+                    : isNull ? "bg-slate-900 border-slate-950 text-slate-600 opacity-40 cursor-not-allowed"
                     : !fixture ? `${ASSET_COLORS[key]} opacity-25 cursor-not-allowed text-slate-500`
                     : `${ASSET_COLORS[key]} text-white`
                   }`}>
-                  <div className="text-xs font-black">{ASSET_LABELS[key]}</div>
-                  <div className="text-sm font-black">{stake ?? "—"}</div>
+                  <div className="text-xs font-black">
+                    {ASSET_LABELS[key]}{isNull && " ∅"}
+                  </div>
+                  <div className="text-sm font-black">
+                    {isNull ? "—" : (stake ?? "—")}
+                  </div>
                   <div className="text-[7px] opacity-60 leading-tight">
                     {pd > 0 && <div>P:{pd}</div>}
                     {bt > 0 && <div>T:{bt}</div>}
