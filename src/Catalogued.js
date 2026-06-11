@@ -60,7 +60,7 @@ const Homepage = () => {
   const [clicked,    setClicked]    = useState(new Set());
 
   const [roundUp, setRoundUp] = useState(false);
-  const [nullAssets, setNullAssets] = useState([]); // assets mapped out during round up
+  const [nullAssets, setNullAssets] = useState([]); 
 
   const baseRef = useRef(baseStake);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
@@ -81,7 +81,6 @@ const Homepage = () => {
     setNullAssets(d.nullAssets || []);
   }, []);
 
-  /* ── Local storage save (auto, used in handleNext/clearForNext/useEffect) ── */
   const saveLocalStorage = useCallback((overrides = {}) => {
     const p = {
       base: baseRef.current, deficit,
@@ -93,7 +92,6 @@ const Homepage = () => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ ls save:", err.message); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, roundUp, nullAssets]);
 
-  /* ── Local storage fetch (auto, used in useEffect) ── */
   const fetchLocalStorage = useCallback(() => {
     try {
       const s = localStorage.getItem(LS_KEY);
@@ -101,7 +99,6 @@ const Homepage = () => {
     } catch (err) { console.error("❌ ls load:", err.message); }
   }, [applyData]);
 
-  /* ── API save (manual, button only) — overwrites localStorage after ── */
   const saveBase = useCallback(async () => {
     setIsReloading(true);
     const p = {
@@ -118,7 +115,6 @@ const Homepage = () => {
     finally { setIsReloading(false); }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, roundUp, nullAssets]);
 
-  /* ── API fetch (manual, button only) — overwrites localStorage after ── */
   const fetchBase = useCallback(async () => {
     setIsReloading(true);
     try {
@@ -149,22 +145,31 @@ const Homepage = () => {
     setWinners(new Set());
     setBigWinners(new Set());
 
-    /* ── 6-0 winner stake → smallDeficit ── */
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
+    /* ── 6-0 WINNER STAKE ADJUSTMENT ── */
+    let curSD = smallDeficit;
 
-    /* Shadow captured before winner. If roundUp, 6-0 does NOT pile into smallDeficit */
-    setShadow(smallDeficit);
-    const curSD = roundUp ? smallDeficit : smallDeficit + wStake;
-    if (!roundUp) setSmallDeficit(curSD);
+    if (roundUp) {
+      // 1. If round up is active: 6-0 option produces 0 stake and baseline numbers freeze
+      setWinnerStake(0);
+    } else {
+      // 2. Normal operational metrics
+      const newBase = baseStake + deficit;
+      setBaseStake(newBase);
+      setDeficit(0);
+      
+      const wStake = Math.max(Math.round(newBase / found.winner), 10);
+      setWinnerStake(wStake);
+      curSD = smallDeficit + wStake;
+    }
+
+    // Shadow tracking directly equates to Small Deficit configuration at all times
+    setSmallDeficit(curSD);
+    setShadow(curSD);
 
     /* ── Solo stakes: each asset independent (skip null assets in roundUp) ── */
     const newStakes = emptyMap();
     ALL_ASSETS.forEach(key => {
-      if (nullAssets.includes(key)) return; // null during roundUp — no stake
+      if (nullAssets.includes(key)) return; // Lockout completely if asset has rounded up
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         const bt  = brokenTarget[key] || 0;
@@ -174,7 +179,7 @@ const Homepage = () => {
     });
     setGameStakes(newStakes);
 
-    /* ── Big deficit stakes: bigDef[key] / odd ── */
+    /* ── Big deficit stakes: distributed to ALL assets broken targets, even won/null ones ── */
     const newBigStakes = {};
     const newBrokenFromBig = { ...brokenTarget };
     ALL_ASSETS.forEach(key => {
@@ -182,7 +187,8 @@ const Homepage = () => {
       const odd = found[ASSET_ODD_KEY[key]] || 0;
       if (odd > 1.01) {
         newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
-        /* Distribute stake/10 immediately into every asset's brokenTarget */
+        
+        // Pushes 10% share into every single asset's broken target configuration universally
         const share = Math.floor(newBigStakes[key] / 10);
         if (share > 0) {
           ALL_ASSETS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
@@ -205,7 +211,6 @@ const Homepage = () => {
     setBigWinners(p => new Set([...p, key]));
   };
 
-  /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
     setClicked(p => new Set([...p, "six"]));
     setBaseStake(10000);
@@ -234,19 +239,19 @@ const Homepage = () => {
     /* ── 1. Settle big deficit assets ── */
     ALL_ASSETS.forEach(key => {
       if (bigWinners.has(key)) {
-        /* Big win: wipe bigDef entirely */
         newBigDef[key] = 0;
       }
-      /* Loss: bigDef persists. Distribution already done at submit. */
     });
 
     /* ── 2. Settle normal solo assets ── */
     let firstWin = true;
+    const shadowPayout = newShadow; 
+
     ALL_ASSETS.forEach(key => {
       const stake = gameStakes[key] || 0;
 
+      // If asset is currently null, it cannot be processed for standard wins/losses
       if (nullAssets.includes(key)) {
-        /* Null asset: skip entirely, brokenTarget arrives passively */
         return;
       }
 
@@ -255,38 +260,39 @@ const Homepage = () => {
         newBroken[key] = 0;
 
         if (roundUp) {
-          /* Round up: winning asset → null, no smallDeficit changes */
+          /* Round up rule engine: winning asset changes to null status permanently */
           if (!newNull.includes(key)) newNull.push(key);
         } else {
           if (firstWin) {
             newSD    = 0;
             firstWin = false;
           } else {
-            newBank  += newShadow;
+            newBank  += shadowPayout;
             newShadow = 0;
             newSD     = 0;
           }
         }
       } else {
-        /* Loss: stake piles into privateDef only */
+        /* Loss calculation matrix */
         newPriv[key] = (newPriv[key] || 0) + stake;
-
-        /* Overflow: privateDef >= 1000 */
-        if (newPriv[key] >= 1000) {
-          /* Use up to 500 from bank to reduce privateDef before pushing */
-          if (newBank > 0) {
-            const reduction = Math.min(newBank, 500);
-            newBank        -= reduction;
-            newPriv[key]   -= reduction;
-          }
-          /* Push remainder into bigDef */
-          newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
-          newPriv[key]   = 0;
-        }
       }
     });
 
-    /* ── 3. brokenTarget overflow: if any >= 1000 → add to baseStake, reset ── */
+    /* ── 3. Universal Private Deficit Overflows (Runs for ALL assets, even if Null!) ── */
+    ALL_ASSETS.forEach(key => {
+      if ((newPriv[key] || 0) >= 1000) {
+        if (newBank > 0) {
+          const reduction = Math.min(newBank, 500);
+          newBank        -= reduction;
+          newPriv[key]   -= reduction;
+        }
+        /* Safely push remainder into bigDef protection layout */
+        newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
+        newPriv[key]   = 0;
+      }
+    });
+
+    /* ── 4. BrokenTarget overflow execution (Runs for ALL assets universally) ── */
     ALL_ASSETS.forEach(key => {
       if ((newBroken[key] || 0) >= 1000) {
         newBase += newBroken[key];
@@ -349,10 +355,10 @@ const Homepage = () => {
 
         {/* 6-0 + NEXT + ROUND UP */}
         <div className="grid grid-cols-3 gap-2 mt-2">
-          <button onClick={handleJackpot} disabled={!fixture}
+          <button onClick={handleJackpot} disabled={!fixture || roundUp}
             className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${
               clicked.has("six") ? "bg-white text-emerald-600 border-emerald-300"
-              : !fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed"
+              : !fixture || roundUp ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed"
               : "bg-yellow-400 text-black border-yellow-600"
             }`}>
             <div className="text-[10px] opacity-70 uppercase tracking-widest">6–0</div>
@@ -377,7 +383,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* NULL ASSETS (round up dormant) */}
+        {/* NULL ASSETS */}
         {roundUp && nullAssets.length > 0 && (
           <div className="bg-slate-800/40 rounded-xl p-2 border border-slate-700/30">
             <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-1">— null (round up) —</div>
@@ -397,7 +403,6 @@ const Homepage = () => {
             <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">
               — big deficit · bigDef / odd —
             </div>
-            {/* Total sum of all active big stakes */}
             {fixture && (() => {
               const totalBig = ALL_ASSETS.filter(k => (bigDef[k] || 0) > 0)
                 .reduce((s, k) => s + (bigStakes[k] || 0), 0);
