@@ -373,8 +373,7 @@ const Homepage = () => {
                 : "bg-slate-700 text-slate-300 border-slate-900"
             }`}>
             <div className="text-[9px] opacity-70 uppercase tracking-widest">{roundUp ? "ACTIVE" : "off"}</div>
-            <div className="text-sm font-black">ROUND{"
-"}UP</div>
+            <div className="text-sm font-black">ROUND UP</div>
           </button>
         </div>
 
