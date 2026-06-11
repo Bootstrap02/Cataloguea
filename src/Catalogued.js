@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -90,7 +91,7 @@ const Homepage = () => {
       ...overrides,
     };
     try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (err) { console.error("❌ ls save:", err.message); }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, roundUp, nullAssets]);
 
   /* ── Local storage fetch (auto, used in useEffect) ── */
   const fetchLocalStorage = useCallback(() => {
@@ -115,7 +116,7 @@ const Homepage = () => {
       console.log("✅ Saved to API");
     } catch (err) { console.error("❌ api save:", err.message); }
     finally { setIsReloading(false); }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, roundUp, nullAssets]);
 
   /* ── API fetch (manual, button only) — overwrites localStorage after ── */
   const fetchBase = useCallback(async () => {
@@ -131,7 +132,7 @@ const Homepage = () => {
     finally { setIsReloading(false); }
   }, [applyData]);
 
-  useEffect(() => { fetchLocalStorage(); }, [fetchLocalStorage]);
+  useEffect(() => { fetchLocalStorage(); }, [fetchLocalStorage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ================================================================
      HANDLE SUBMIT
@@ -365,7 +366,7 @@ const Homepage = () => {
             <div className="text-[10px] opacity-70 uppercase tracking-widest">settle</div>
             <div className="text-xl font-black">NEXT</div>
           </button>
-          <button onClick={() => { setRoundUp(r => !r); saveBase({ roundUp: !roundUp }); }}
+          <button onClick={() => { setRoundUp(r => !r); saveLocalStorage({ roundUp: !roundUp }); }}
             className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${
               roundUp
                 ? "bg-orange-500 text-white border-orange-700 ring-2 ring-orange-300"
