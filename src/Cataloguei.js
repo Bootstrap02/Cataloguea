@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
@@ -37,15 +36,13 @@ const Homepage = () => {
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,     setFixture]     = useState(null);
 
-  /* ── CONSTANT STRATEGY RE-ENGINEERING ── */
-  const [smallDeficit, setSmallDeficit] = useState(150); // Locked target constant
+  /* ── CONSTANT STRATEGY CONFIGURATIONS ── */
+  const [smallDeficit, setSmallDeficit] = useState(150);
   const [bank,         setBank]         = useState(0);
 
   /* ── PER-PAIR POOLS ── */
   const [privateDef,   setPrivateDef]   = useState(emptyMap(0));
   const [brokenTarget, setBrokenTarget] = useState(emptyMap(0));
-  
-  // Track active state of arrays (true = active, false = deactivated due to a win)
   const [activePairs,  setActivePairs]  = useState(emptyMap(true));
 
   /* ── CALCULATED GAME STAKES ── */
@@ -54,7 +51,6 @@ const Homepage = () => {
   /* ── WIN ASSESSMENT CAPTURES ── */
   const [primaryWins, setPrimaryWins] = useState(new Set());
   const [backingWins, setBackingWins] = useState(new Set());
-  const [clicked,     setClicked]     = useState(new Set());
 
   const applyData = useCallback((d) => {
     setSmallDeficit(d.smallDeficit ?? 150);
@@ -125,13 +121,11 @@ const Homepage = () => {
     if (!found) { alert(`Odds profile non-existent for targets.`); return; }
 
     setFixture(found);
-    setClicked(new Set());
     setPrimaryWins(new Set());
     setBackingWins(new Set());
 
     const newStakes = {};
     ALL_PAIRS.forEach(slot => {
-      // If array was previously deleted/deactivated by a win, bypass calculations
       if (!activePairs[slot]) {
         newStakes[slot] = { primary: 0, backing: 0 };
         return;
@@ -202,34 +196,29 @@ const Homepage = () => {
     let newBroken = { ...brokenTarget };
 
     ALL_PAIRS.forEach(slot => {
-      if (!activePairs[slot]) return; // Skip previously deactivated lists
+      if (!activePairs[slot]) return;
 
       const stakes = gameStakes[slot] || { primary: 0, backing: 0 };
       const hasPrimaryWon = primaryWins.has(slot);
       const hasBackingWon = backingWins.has(slot);
 
       if (hasPrimaryWon || hasBackingWon) {
-        // ANY WIN removes the array from the processing loop
         newActive[slot] = false;
-        newPriv[slot] = 0; // Clear accumulated private pool on deactivation
+        newPriv[slot] = 0; 
         newBroken[slot] = 0;
 
-        // If primary won but backing lost, push backing stake to small deficit
         if (hasPrimaryWon && !hasBackingWon) {
           runningSmallDeficitModifier += stakes.backing;
         }
-        // If backing won but primary lost, push primary stake to small deficit
         if (hasBackingWon && !hasPrimaryWon) {
           runningSmallDeficitModifier += stakes.primary;
         }
       } else {
-        // If whole sub-array loses, push ALL combined active stakes into its private deficit pool
         const combinedLossSum = stakes.primary + stakes.backing;
         newPriv[slot] = (newPriv[slot] || 0) + combinedLossSum;
       }
     });
 
-    // Finalize additions to standard target balance loop
     const balancedSmallDeficit = Math.max(150, smallDeficit + runningSmallDeficitModifier);
 
     setSmallDeficit(balancedSmallDeficit);
@@ -238,7 +227,6 @@ const Homepage = () => {
     setActivePairs(newActive);
     setBrokenTarget(newBroken);
 
-    // Reset interface pointers
     setFixture(null); setInputA(""); setInputB("");
     setGameStakes(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }])));
     setPrimaryWins(new Set()); setBackingWins(new Set());
@@ -253,6 +241,8 @@ const Homepage = () => {
   };
 
   const activeCount = ALL_PAIRS.filter(k => activePairs[k]).length;
+  const teamA = sanitizeTeam(inputA) || "HME";
+  const teamB = sanitizeTeam(inputB) || "AWY";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col font-sans">
@@ -313,14 +303,12 @@ const Homepage = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {/* Primary side selector */}
                     <button onClick={() => togglePrimaryWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isPWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
                       <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.primary}</div>
                       <div className="text-sm text-white">{fixture ? stakes.primary : "—"}</div>
                       {isPWin && <span className="text-[8px] block text-green-100 uppercase">HIT</span>}
                     </button>
 
-                    {/* Backing side selector */}
                     <button onClick={() => toggleBackingWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isBWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
                       <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.backing}</div>
                       <div className="text-sm text-white">{fixture ? stakes.backing : "—"}</div>
@@ -345,6 +333,24 @@ const Homepage = () => {
           </button>
         </div>
 
+        {/* STATS CONTROL SHEETS */}
+        <div className="bg-slate-900/80 rounded-xl p-3 text-[10px] grid grid-cols-2 gap-x-4 gap-y-1.5 border border-white/5">
+          <div className="flex justify-between"><span className="text-slate-400">SmallDef Total</span><strong className="text-purple-400">{smallDeficit}</strong></div>
+          <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-400">Overflow Bank</span><strong className="text-emerald-300">{bank}</strong></div>
+          
+          <div className="col-span-2">
+            <div className="grid grid-cols-1 gap-1 mt-1">
+              {ALL_PAIRS.map(slot => (
+                <div key={slot} className="flex justify-between items-center text-[9px] bg-white/5 rounded px-2 py-1">
+                  <span className="text-slate-300 font-black w-14">{PAIR_METADATA[slot].label}</span>
+                  <span className="text-purple-300">PrivDef: <strong>{privateDef[slot]}</strong></span>
+                  <span className="text-yellow-400">Target: <strong>{brokenTarget[slot]}</strong></span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {fixture && <div className="col-span-2 pt-1 border-t border-white/5 text-center font-black text-[9px] text-purple-400 uppercase tracking-widest">{teamA} ⚔️ {teamB}</div>}
+        </div>
       </div>
     </div>
   );
