@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -7,10 +8,8 @@ const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
 
-// 10 Distinct Slot Keys corresponding to our Sub-Arrays
 const ALL_PAIRS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10"];
 
-// Structure definitions mapping the arrays together
 const PAIR_METADATA = {
   p1:  { label: "1X Slot",   primary: "oneX",    backing: "ft02" },
   p2:  { label: "2X Slot",   primary: "twoX",    backing: "ft01" },
@@ -30,7 +29,7 @@ const PAIR_COLORS = {
   p7: "bg-emerald-600", p8: "bg-green-700", p9: "bg-indigo-600", p10: "bg-violet-600"
 };
 
-const emptyMap = () => Object.fromEntries(ALL_PAIRS.map(k => [k, 0]));
+const emptyMap = (val = 0) => Object.fromEntries(ALL_PAIRS.map(k => [k, val]));
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
@@ -38,42 +37,31 @@ const Homepage = () => {
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,     setFixture]     = useState(null);
 
-  /* ── WINNER (6-0) ── */
-  const [baseStake,   setBaseStake]   = useState(10000);
-  const [deficit,     setDeficit]     = useState(0);
-  const [winnerStake, setWinnerStake] = useState(0);
-
-  /* ── SHARED SMALL DEFICIT ── */
-  const [smallDeficit, setSmallDeficit] = useState(0);
-  const [shadow,       setShadow]       = useState(0);
+  /* ── CONSTANT STRATEGY RE-ENGINEERING ── */
+  const [smallDeficit, setSmallDeficit] = useState(150); // Locked target constant
   const [bank,         setBank]         = useState(0);
 
-  /* ── PER-PAIR STATES ── */
-  const [privateDef,   setPrivateDef]   = useState(emptyMap());
-  const [bigDef,       setBigDef]       = useState(emptyMap());
-  const [brokenTarget, setBrokenTarget] = useState(emptyMap());
+  /* ── PER-PAIR POOLS ── */
+  const [privateDef,   setPrivateDef]   = useState(emptyMap(0));
+  const [brokenTarget, setBrokenTarget] = useState(emptyMap(0));
+  
+  // Track active state of arrays (true = active, false = deactivated due to a win)
+  const [activePairs,  setActivePairs]  = useState(emptyMap(true));
 
-  /* ── GAME STAKES ── */
+  /* ── CALCULATED GAME STAKES ── */
   const [gameStakes, setGameStakes] = useState(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }])));
-  const [bigStakes,  setBigStakes]  = useState({});
 
-  /* ── WINNERS / CLICKED ── */
-  const [winners,    setWinners]    = useState(new Set()); // Contains Slot IDs ("p1", etc.)
-  const [bigWinners, setBigWinners] = useState(new Set());
-  const [clicked,    setClicked]    = useState(new Set());
-
-  const baseRef = useRef(baseStake);
-  useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
+  /* ── WIN ASSESSMENT CAPTURES ── */
+  const [primaryWins, setPrimaryWins] = useState(new Set());
+  const [backingWins, setBackingWins] = useState(new Set());
+  const [clicked,     setClicked]     = useState(new Set());
 
   const applyData = useCallback((d) => {
-    setBaseStake(d.base            ?? 10000);
-    setDeficit(d.deficit           ?? 0);
-    setSmallDeficit(d.smallDeficit ?? 0);
-    setShadow(d.shadow             ?? 0);
+    setSmallDeficit(d.smallDeficit ?? 150);
     setBank(d.bank                 ?? 0);
-    setPrivateDef(d.privateDef     || emptyMap());
-    setBigDef(d.bigDef             || emptyMap());
-    setBrokenTarget(d.brokenTarget || emptyMap());
+    setPrivateDef(d.privateDef     || emptyMap(0));
+    setBrokenTarget(d.brokenTarget || emptyMap(0));
+    setActivePairs(d.activePairs   || emptyMap(true));
   }, []);
 
   const fetchBase = useCallback(() => {
@@ -81,27 +69,23 @@ const Homepage = () => {
       const s = localStorage.getItem(LS_KEY);
       if (s) {
         applyData(JSON.parse(s));
-        console.log("💾 L1: Loaded from Local Storage");
+        console.log("💾 Loaded saved configuration locally");
       }
     } catch (err) {
-      console.error("❌ L1 Load error:", err.message);
+      console.error("❌ Local retrieval failure:", err.message);
     }
   }, [applyData]);
 
   const saveBase = useCallback((overrides = {}) => {
     const p = {
-      base: baseRef.current, deficit,
-      smallDeficit, shadow, bank,
-      privateDef, bigDef, brokenTarget,
-      ...overrides,
+      smallDeficit, bank, privateDef, brokenTarget, activePairs, ...overrides
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(p));
-      console.log("💾 L1: Saved to Local Storage");
     } catch (err) {
-      console.error("❌ L1 Save error:", err.message);
+      console.error("❌ Storage update failure:", err.message);
     }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [smallDeficit, bank, privateDef, brokenTarget, activePairs]);
 
   const fetchFromAPI = useCallback(async () => {
     setIsReloading(true);
@@ -110,310 +94,240 @@ const Homepage = () => {
       if (res.data) {
         applyData(res.data);
         localStorage.setItem(LS_KEY, JSON.stringify(res.data));
-        console.log("☁️ L2: Fetched from API Sync");
       }
     } catch (err) {
-      console.error("❌ L2 Fetch failed:", err.message);
-      alert("API fetch failed. Reverting to local data.");
+      console.error("❌ API synchronisation loss:", err.message);
     } finally {
       setIsReloading(false);
     }
   }, [applyData]);
 
   const saveToAPI = useCallback(async () => {
-    const p = {
-      base: baseRef.current, deficit,
-      smallDeficit, shadow, bank,
-      privateDef, bigDef, brokenTarget,
-    };
+    const p = { smallDeficit, bank, privateDef, brokenTarget, activePairs };
     try {
       await axios.put(API_BASE, p);
-      console.log("✅ L2: Master Backup Synced to API");
-      alert("State fully backed up to API successfully.");
+      alert("Cloud state matching complete.");
     } catch (err) {
-      console.error("❌ L2 Sync failed:", err.message);
-      alert("API backup failed.");
+      console.error("❌ API remote state push failed:", err.message);
     }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [smallDeficit, bank, privateDef, brokenTarget, activePairs]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   /* ================================================================
-     HANDLE SETUP CALCULATIONS (PAIRED LOGIC)
+     CALCULATE MATRICES
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
     const home = sanitizeTeam(inputA) || "liv";
     const away = sanitizeTeam(inputB) || "liv";
     const found = odds.find(o => o.home === home && o.away === away);
-    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+    if (!found) { alert(`Odds profile non-existent for targets.`); return; }
 
     setFixture(found);
     setClicked(new Set());
-    setWinners(new Set());
-    setBigWinners(new Set());
+    setPrimaryWins(new Set());
+    setBackingWins(new Set());
 
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
-
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
-    setShadow(curSD);
-
-    /* ── Paired Martingale Math Injection ── */
     const newStakes = {};
     ALL_PAIRS.forEach(slot => {
+      // If array was previously deleted/deactivated by a win, bypass calculations
+      if (!activePairs[slot]) {
+        newStakes[slot] = { primary: 0, backing: 0 };
+        return;
+      }
+
       const pKey = PAIR_METADATA[slot].primary;
       const bKey = PAIR_METADATA[slot].backing;
-      
       const oddP = found[pKey] || 0;
       const oddB = found[bKey] || 0;
 
-      const bt = brokenTarget[slot] || 0;
-      const pd = privateDef[slot]   || 0;
-      const combinedTarget = bt + curSD + pd;
+      const targetPool = (brokenTarget[slot] || 0) + smallDeficit + (privateDef[slot] || 0);
 
       let stakeP = 0;
       let stakeB = 0;
 
       if (oddP > 1.01 && oddB > 1.01) {
-        // Paired formula matrix to return objective targets for both markers simultaneously
         const denominator = (oddP * oddB) - oddP - oddB;
         if (denominator > 0) {
-          stakeP = Math.round((combinedTarget * oddB) / denominator);
-          stakeB = Math.round((combinedTarget * oddP) / denominator);
+          stakeP = Math.round((targetPool * oddB) / denominator);
+          stakeB = Math.round((targetPool * oddP) / denominator);
         } else {
-          // Fallback if odds structure cannot bridge mathematical denominator parity
-          stakeP = Math.round(combinedTarget / (oddP - 1));
-          stakeB = Math.round(combinedTarget / (oddB - 1));
+          stakeP = Math.round(targetPool / (oddP - 1));
+          stakeB = Math.round(targetPool / (oddB - 1));
         }
       }
       newStakes[slot] = { primary: Math.max(stakeP, 0), backing: Math.max(stakeB, 0) };
     });
     setGameStakes(newStakes);
+  };
 
-    /* ── Big Deficit Matrix Settings ── */
-    const newBigStakes = {};
-    const newBrokenFromBig = { ...brokenTarget };
-    
-    ALL_PAIRS.forEach(slot => {
-      if ((bigDef[slot] || 0) === 0) return;
-      const pKey = PAIR_METADATA[slot].primary;
-      const oddP = found[pKey] || 0;
-      
-      if (oddP > 1.01) {
-        const totalBigAllocated = Math.round((bigDef[slot] || 0) / oddP);
-        newBigStakes[slot] = totalBigAllocated;
-        
-        const share = Math.floor(totalBigAllocated / 10);
-        if (share > 0) {
-          ALL_PAIRS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
-        }
-      }
+  /* ── TARGETED VALUE CAPTURES ── */
+  const togglePrimaryWin = (slot) => {
+    if (!fixture || !activePairs[slot]) return;
+    setPrimaryWins(prev => {
+      const next = new Set(prev);
+      if (next.has(slot)) next.delete(slot); else next.add(slot);
+      return next;
     });
-    setBigStakes(newBigStakes);
-    setBrokenTarget(newBrokenFromBig);
   };
 
-  const markWin = (slot) => {
-    if (!fixture || clicked.has(`n_${slot}`)) return;
-    setClicked(p => new Set([...p, `n_${slot}`]));
-    setWinners(p => new Set([...p, slot]));
+  const toggleBackingWin = (slot) => {
+    if (!fixture || !activePairs[slot]) return;
+    setBackingWins(prev => {
+      const next = new Set(prev);
+      if (next.has(slot)) next.delete(slot); else next.add(slot);
+      return next;
+    });
   };
 
-  const markBigWin = (slot) => {
-    if (!fixture || clicked.has(`b_${slot}`)) return;
-    setClicked(p => new Set([...p, `b_${slot}`]));
-    setBigWinners(p => new Set([...p, slot]));
-  };
-
-  const handleJackpot = () => {
-    setClicked(p => new Set([...p, "six"]));
-    setBaseStake(10000);
-    setDeficit(0);
-    setSmallDeficit(0);
-    setShadow(0);
-    saveBase({ base: 10000, deficit: 0, smallDeficit: 0, shadow: 0 });
+  const resetDeactivatedArrays = () => {
+    const activeReset = emptyMap(true);
+    setActivePairs(activeReset);
+    setSmallDeficit(150);
+    saveBase({ activePairs: activeReset, smallDeficit: 150 });
+    alert("All 10 Martingale arrays restored.");
   };
 
   /* ================================================================
-     SETTLE / NEXT LOGIC
+     SETTLE GAME TICK RULES
      ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
-    let newSD      = smallDeficit;
-    let newShadow  = shadow;
-    let newBank    = bank;
-    let newDef     = deficit;
-    let newBase    = baseStake;
-    let newPriv    = { ...privateDef };
-    let newBigDef  = { ...bigDef };
-    let newBroken  = { ...brokenTarget };
-
-    // 1. Settle Big Deficits
-    ALL_PAIRS.forEach(slot => {
-      if (bigWinners.has(slot)) {
-        newBigDef[slot] = 0;
-      }
-    });
-
-    // 2. Settle Sub-Array Pairs
-    let firstWin = true;
-    const shadowPayout = newShadow;
+    let runningSmallDeficitModifier = 0; 
+    let newBank = bank;
+    let newPriv = { ...privateDef };
+    let newActive = { ...activePairs };
+    let newBroken = { ...brokenTarget };
 
     ALL_PAIRS.forEach(slot => {
-      const stakeData = gameStakes[slot] || { primary: 0, backing: 0 };
-      const totalCombinedStakePaid = stakeData.primary + stakeData.backing;
+      if (!activePairs[slot]) return; // Skip previously deactivated lists
 
-      if (winners.has(slot)) {
-        newPriv[slot]   = 0;
+      const stakes = gameStakes[slot] || { primary: 0, backing: 0 };
+      const hasPrimaryWon = primaryWins.has(slot);
+      const hasBackingWon = backingWins.has(slot);
+
+      if (hasPrimaryWon || hasBackingWon) {
+        // ANY WIN removes the array from the processing loop
+        newActive[slot] = false;
+        newPriv[slot] = 0; // Clear accumulated private pool on deactivation
         newBroken[slot] = 0;
 
-        if (firstWin) {
-          newSD    = 0;
-          firstWin = false;
-        } else {
-          newBank  += shadowPayout;
-          newShadow = 0;
-          newSD     = 0;
+        // If primary won but backing lost, push backing stake to small deficit
+        if (hasPrimaryWon && !hasBackingWon) {
+          runningSmallDeficitModifier += stakes.backing;
+        }
+        // If backing won but primary lost, push primary stake to small deficit
+        if (hasBackingWon && !hasPrimaryWon) {
+          runningSmallDeficitModifier += stakes.primary;
         }
       } else {
-        // If loss, total paired stakes accumulate inside the slot's private deficit pool
-        newPriv[slot] = (newPriv[slot] || 0) + totalCombinedStakePaid;
-
-        if (newPriv[slot] >= 1000) {
-          if (newBank > 0) {
-            const reduction = Math.min(newBank, 500);
-            newBank        -= reduction;
-            newPriv[slot]   -= reduction;
-          }
-          newBigDef[slot] = (newBigDef[slot] || 0) + newPriv[slot];
-          newPriv[slot]   = 0;
-        }
+        // If whole sub-array loses, push ALL combined active stakes into its private deficit pool
+        const combinedLossSum = stakes.primary + stakes.backing;
+        newPriv[slot] = (newPriv[slot] || 0) + combinedLossSum;
       }
     });
 
-    // 3. Overflow target validation
-    ALL_PAIRS.forEach(slot => {
-      if ((newBroken[slot] || 0) >= 1000) {
-        newBase += newBroken[slot];
-        newBroken[slot] = 0;
-      }
-    });
+    // Finalize additions to standard target balance loop
+    const balancedSmallDeficit = Math.max(150, smallDeficit + runningSmallDeficitModifier);
 
-    setSmallDeficit(newSD);
-    setShadow(newShadow);
+    setSmallDeficit(balancedSmallDeficit);
     setBank(newBank);
-    setDeficit(newDef);
-    setBaseStake(newBase);
     setPrivateDef(newPriv);
-    setBigDef(newBigDef);
+    setActivePairs(newActive);
     setBrokenTarget(newBroken);
 
+    // Reset interface pointers
     setFixture(null); setInputA(""); setInputB("");
-    setGameStakes(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }]))); 
-    setBigStakes({});
-    setWinners(new Set()); setBigWinners(new Set());
-    setClicked(new Set()); setWinnerStake(0);
+    setGameStakes(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }])));
+    setPrimaryWins(new Set()); setBackingWins(new Set());
 
     saveBase({
-      base: newBase, deficit: newDef,
-      smallDeficit: newSD, shadow: newShadow, bank: newBank,
-      privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
+      smallDeficit: balancedSmallDeficit,
+      bank: newBank,
+      privateDef: newPriv,
+      activePairs: newActive,
+      brokenTarget: newBroken
     });
   };
 
-  const teamA = sanitizeTeam(inputA) || "HME";
-  const teamB = sanitizeTeam(inputB) || "AWY";
-  const hasBigDefs = ALL_PAIRS.some(k => (bigDef[k] || 0) > 0);
+  const activeCount = ALL_PAIRS.filter(k => activePairs[k]).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
-      {/* TOP BAR */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col font-sans">
+      
+      {/* HEADER PANELS */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
         <div>
-          <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Paired Solo Matrix</h1>
-          <div className="text-[9px] text-slate-500 mt-0.5">
-            SD:{smallDeficit} · shadow:{shadow} · bank:{bank}
+          <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Array Matrix Strategy</h1>
+          <div className="text-[10px] text-purple-400 mt-0.5 font-bold">
+            Target Unit: {smallDeficit} CP · Active Arrays: {activeCount} / 10
           </div>
         </div>
-        <div className="flex rounded-lg overflow-hidden border border-white/10">
-          <button onClick={saveToAPI} className="px-4 py-1.5 bg-emerald-600 font-bold text-white text-xs active:bg-emerald-700 transition">💾 API</button>
-          <button onClick={fetchFromAPI} disabled={isReloading} className="px-4 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50 active:bg-slate-700 transition flex items-center justify-center gap-1">
-            <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
-            <span>API</span>
-          </button>
+        <div className="flex gap-1.5">
+          <button onClick={resetDeactivatedArrays} className="px-2.5 py-1 bg-amber-600 font-bold rounded text-[10px] uppercase tracking-wider text-white">Reset Arrays</button>
+          <div className="flex rounded overflow-hidden border border-white/10">
+            <button onClick={saveToAPI} className="px-3 py-1 bg-emerald-600 font-bold text-[10px] text-white">💾 API</button>
+            <button onClick={fetchFromAPI} disabled={isReloading} className="px-3 py-1 bg-slate-800 font-bold text-[10px] text-white flex items-center gap-1">
+              <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={9} />
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col px-3 pb-3 gap-3 overflow-y-auto">
-        {/* ACTION BUTTONS */}
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <button onClick={handleJackpot} disabled={!fixture} className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${clicked.has("six") ? "bg-white text-emerald-600 border-emerald-300" : !fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed" : "bg-yellow-400 text-black border-yellow-600"}`}>
-            <div className="text-[10px] opacity-70 uppercase tracking-widest">6–0 Jackpot</div>
-            <div className="text-xl font-black">{winnerStake || "—"}</div>
-          </button>
-          <button onClick={handleNext} disabled={!fixture} className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${!fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed text-white" : "bg-emerald-600 border-emerald-800 text-white"}`}>
-            <div className="text-[10px] opacity-70 uppercase tracking-widest">Settle Slots</div>
-            <div className="text-xl font-black">NEXT</div>
+        
+        {/* RUN ACTION ENGINE */}
+        <div className="mt-2">
+          <button onClick={handleNext} disabled={!fixture} className={`w-full py-3.5 rounded-xl font-black text-sm transition active:scale-95 border-b-4 ${!fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed text-white" : "bg-emerald-600 border-emerald-800 text-white"}`}>
+            SETTLE ROUND & UPDATE ARRAYS
           </button>
         </div>
 
-        {/* BIG DEFICIT SECTION */}
-        {hasBigDefs && (
-          <div className="bg-red-950/60 rounded-2xl p-2 border border-red-500/20">
-            <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">— Big Deficit Recovery —</div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {ALL_PAIRS.filter(slot => (bigDef[slot] || 0) > 0).map(slot => {
-                const bStake = bigStakes[slot] || 0;
-                const combinedTotal = bStake + (gameStakes[slot]?.primary || 0) + (gameStakes[slot]?.backing || 0);
-                return (
-                  <button key={slot} onClick={() => markBigWin(slot)} disabled={!fixture || clicked.has(`b_${slot}`)} className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center justify-between min-h-[72px] ${bigWinners.has(slot) ? "bg-green-500 text-white border-green-700" : !fixture ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed" : "bg-red-600 text-white border-red-900"}`}>
-                    <div className="text-[8px] opacity-60 font-bold">{PAIR_METADATA[slot].primary.toUpperCase()}</div>
-                    <div className="text-base font-black text-white">{fixture ? combinedTotal : "—"}</div>
-                    <div className="text-[7px] opacity-75 text-red-200">Def: {bigDef[slot]}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* MAIN SUB-ARRAY PAIRED GRID */}
+        {/* TRACKING MODULE ACTIVE PAIRS GRID */}
         <div className="bg-slate-900/60 rounded-2xl p-2 border border-white/5">
-          <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-2">— Paired Martingale Sub-Arrays —</div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-2">— Active Sub-Array Pairing Sets —</div>
+          <div className="grid grid-cols-1 gap-2">
             {ALL_PAIRS.map(slot => {
-              const stakeData = gameStakes[slot] || { primary: 0, backing: 0 };
-              const isWon = winners.has(slot);
+              const isActive = activePairs[slot];
               const meta = PAIR_METADATA[slot];
-              return (
-                <button key={slot} onClick={() => markWin(slot)} disabled={!fixture || clicked.has(`n_${slot}`)} className={`p-2.5 rounded-xl text-left transition active:scale-95 border-b-2 flex flex-col justify-between min-h-[85px] ${isWon ? "bg-green-500 border-green-700 text-white" : !fixture ? "bg-slate-900 border-slate-950 opacity-40" : `${PAIR_COLORS[slot]} text-white`}`}>
-                  <div className="flex justify-between items-center w-full">
-                    <span className="text-xs font-black tracking-wide uppercase bg-black/20 px-2 py-0.5 rounded text-white">{meta.label}</span>
-                    <span className="text-[9px] opacity-80 font-mono">P: {privateDef[slot] || 0}</span>
+              const stakes = gameStakes[slot] || { primary: 0, backing: 0 };
+              const isPWin = primaryWins.has(slot);
+              const isBWin = backingWins.has(slot);
+
+              if (!isActive) {
+                return (
+                  <div key={slot} className="p-2 rounded-xl bg-slate-950/40 border border-dashed border-white/5 flex justify-between items-center opacity-30 grayscale">
+                    <span className="text-xs font-bold text-slate-500 line-through">{meta.label}</span>
+                    <span className="text-[9px] text-red-500 font-black uppercase tracking-widest bg-red-950/40 px-2 py-0.5 rounded">Deactivated (Win)</span>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-1 my-1.5 text-center">
-                    <div className="bg-black/30 rounded p-1">
-                      <div className="text-[8px] opacity-60 font-bold">{meta.primary}</div>
-                      <div className="text-xs font-black text-yellow-300">{fixture ? stakeData.primary : "—"}</div>
-                    </div>
-                    <div className="bg-black/30 rounded p-1">
-                      <div className="text-[8px] opacity-60 font-bold">{meta.backing}</div>
-                      <div className="text-xs font-black text-cyan-300">{fixture ? stakeData.backing : "—"}</div>
-                    </div>
+                );
+              }
+
+              return (
+                <div key={slot} className={`p-2.5 rounded-xl transition border-b-2 text-white flex flex-col gap-2 ${PAIR_COLORS[slot]}`}>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="text-xs font-black uppercase bg-black/20 px-2 py-0.5 rounded">{meta.label}</span>
+                    <span className="text-[10px] font-mono bg-black/40 px-2 py-0.5 rounded text-yellow-300">Deficit Pool: {privateDef[slot] || 0}</span>
                   </div>
 
-                  <div className="text-[8px] text-white/60 font-medium flex justify-between w-full">
-                    <span>Target Pool: {brokenTarget[slot] || 0}</span>
-                    {fixture && <span className="font-bold text-white/90">Total: {stakeData.primary + stakeData.backing}</span>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Primary side selector */}
+                    <button onClick={() => togglePrimaryWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isPWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
+                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.primary}</div>
+                      <div className="text-sm text-white">{fixture ? stakes.primary : "—"}</div>
+                      {isPWin && <span className="text-[8px] block text-green-100 uppercase">HIT</span>}
+                    </button>
+
+                    {/* Backing side selector */}
+                    <button onClick={() => toggleBackingWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isBWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
+                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.backing}</div>
+                      <div className="text-sm text-white">{fixture ? stakes.backing : "—"}</div>
+                      {isBWin && <span className="text-[8px] block text-green-100 uppercase">HIT</span>}
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -427,32 +341,10 @@ const Homepage = () => {
             <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="flex-1 min-w-0 px-3 py-2.5 border border-slate-700 rounded-xl text-center text-sm bg-slate-900/60 text-white placeholder-slate-600 font-bold uppercase" />
           </div>
           <button onClick={handleSubmit} disabled={!!fixture} className={`w-full py-3 font-black text-sm rounded-xl transition active:scale-95 uppercase tracking-widest ${fixture ? "bg-slate-900 text-slate-600 cursor-not-allowed opacity-40" : "bg-slate-100 text-black hover:bg-white"}`}>
-            Calculate Setup Matrix
+            Calculate Live Stakes
           </button>
         </div>
 
-        {/* STATS CONTROL SHEETS */}
-        <div className="bg-slate-900/80 rounded-xl p-3 text-[10px] grid grid-cols-2 gap-x-4 gap-y-1.5 border border-white/5">
-          <div className="flex justify-between"><span className="text-slate-400">Base Pool</span><strong className="text-emerald-400">{baseStake}</strong></div>
-          <div className="flex justify-between"><span className="text-slate-400">General Deficit</span><strong className="text-red-400">{deficit}</strong></div>
-          <div className="flex justify-between"><span className="text-slate-400">SmallDef Total</span><strong className="text-purple-400">{smallDeficit}</strong></div>
-          <div className="flex justify-between"><span className="text-slate-400">Shadow Copy</span><strong className="text-blue-300">{shadow}</strong></div>
-          <div className="flex justify-between col-span-2 border-b border-white/5 pb-1"><span className="text-slate-400">Overflow Bank</span><strong className="text-emerald-300">{bank}</strong></div>
-          
-          <div className="col-span-2">
-            <div className="grid grid-cols-1 gap-1 mt-1">
-              {ALL_PAIRS.map(slot => (
-                <div key={slot} className="flex justify-between items-center text-[9px] bg-white/5 rounded px-2 py-1">
-                  <span className="text-slate-300 font-black w-14">{PAIR_METADATA[slot].label}</span>
-                  <span className="text-purple-300">PrivDef: <strong>{privateDef[slot]}</strong></span>
-                  <span className="text-yellow-400">Target: <strong>{brokenTarget[slot]}</strong></span>
-                  {bigDef[slot] > 0 ? <span className="text-red-400 font-bold">Big: {bigDef[slot]}</span> : <span className="text-slate-600">Big: —</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-          {fixture && <div className="col-span-2 pt-1 border-t border-white/5 text-center font-black text-[9px] text-purple-400 uppercase tracking-widest">{teamA} ⚔️ {teamB}</div>}
-        </div>
       </div>
     </div>
   );
