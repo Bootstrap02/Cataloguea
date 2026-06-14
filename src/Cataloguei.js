@@ -1,633 +1,457 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
-import { FiRefreshCw } from 'react-icons/fi';
+import { FiRefreshCw } from "react-icons/fi";
 
-/* ---------------- UTILS ---------------- */
-const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-
-/* ---------------- API ---------------- */
+const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+const LS_KEY   = "virt-epl-solo-v1";
+
+// 10 Distinct Slot Keys corresponding to our Sub-Arrays
+const ALL_PAIRS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10"];
+
+// Structure definitions mapping the arrays together
+const PAIR_METADATA = {
+  p1:  { label: "1X Slot",   primary: "oneX",    backing: "ft02" },
+  p2:  { label: "2X Slot",   primary: "twoX",    backing: "ft01" },
+  p3:  { label: "X2 Slot",   primary: "x2",      backing: "ft12" },
+  p4:  { label: "TG0 Slot",  primary: "tg0",     backing: "ft22" },
+  p5:  { label: "TG6 Slot",  primary: "tg6",     backing: "ft32" },
+  p6:  { label: "HT12 Slot", primary: "ht12",    backing: "ft42" },
+  p7:  { label: "HT21 Slot", primary: "ht21",    backing: "ft13" },
+  p8:  { label: "HT30 Slot", primary: "ht30",    backing: "ht02" },
+  p9:  { label: "FT40 Slot", primary: "ft40",    backing: "c21" },
+  p10: { label: "FT41 Slot", primary: "ft41",    backing: "awayO25" }
+};
+
+const PAIR_COLORS = {
+  p1: "bg-purple-600", p2: "bg-pink-600", p3: "bg-lime-600",
+  p4: "bg-cyan-600", p5: "bg-teal-600", p6: "bg-blue-600",
+  p7: "bg-emerald-600", p8: "bg-green-700", p9: "bg-indigo-600", p10: "bg-violet-600"
+};
+
+const emptyMap = () => Object.fromEntries(ALL_PAIRS.map(k => [k, 0]));
 
 const Homepage = () => {
   const [inputA, setInputA] = useState("");
   const [inputB, setInputB] = useState("");
+  const [isReloading, setIsReloading] = useState(false);
+  const [fixture,     setFixture]     = useState(null);
 
-  const [fixture, setFixture] = useState(null);
+  /* ── WINNER (6-0) ── */
+  const [baseStake,   setBaseStake]   = useState(10000);
+  const [deficit,     setDeficit]     = useState(0);
+  const [winnerStake, setWinnerStake] = useState(0);
 
-  const [baseStake, setBaseStake] = useState(10000);
-  const baseRef = useRef(10000);
+  /* ── SHARED SMALL DEFICIT ── */
+  const [smallDeficit, setSmallDeficit] = useState(0);
+  const [shadow,       setShadow]       = useState(0);
+  const [bank,         setBank]         = useState(0);
 
-  const [badGamesDeficit, setBadGamesDeficit] = useState(0);
-  const [badGameShadow, setBadGameShadow] = useState(0);
-  const [win, setWin] = useState(false);
+  /* ── PER-PAIR STATES ── */
+  const [privateDef,   setPrivateDef]   = useState(emptyMap());
+  const [bigDef,       setBigDef]       = useState(emptyMap());
+  const [brokenTarget, setBrokenTarget] = useState(emptyMap());
 
-  const [deficitBank, setDeficitBank] = useState(0);
+  /* ── GAME STAKES ── */
+  const [gameStakes, setGameStakes] = useState(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }])));
+  const [bigStakes,  setBigStakes]  = useState({});
 
-  const [specialDeficits, setSpecialDeficits] = useState({
-    oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-  });
+  /* ── WINNERS / CLICKED ── */
+  const [winners,    setWinners]    = useState(new Set()); // Contains Slot IDs ("p1", etc.)
+  const [bigWinners, setBigWinners] = useState(new Set());
+  const [clicked,    setClicked]    = useState(new Set());
 
-  const [pendingStakes, setPendingStakes] = useState({
-    winnerAmount: 0,
-    oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-  });
+  const baseRef = useRef(baseStake);
+  useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
-  // Track which win buttons have been pressed this game
-  const [pressedWins, setPressedWins] = useState(new Set()); // "winner", "oneX", "twoX", ...
-
-  const specialKeys = [
-    "oneX", "twoX", "x2", "zeroGoals", "sixGoals",
-    "ht12", "ht21", "ht30", "ft40", "ft41"
-  ];
-
-  const specialLabels = {
-    oneX: "1X", twoX: "2X", x2: "X2",
-    zeroGoals: "0 GOALS", sixGoals: "6 GOALS",
-    ht12: "HT 1-2", ht21: "HT 2-1", ht30: "HT 3-0",
-    ft40: "FT 4-0", ft41: "FT 4-1",
-  };
-
-  useEffect(() => {
-    baseRef.current = baseStake;
-  }, [baseStake]);
-
-  /* ---------------- LOAD / SAVE ---------------- */
-//   const fetchAll = async () => {
-//     try {
-//       const res = await axios.get(API_BASE);
-//       const data = res.data || {};
-//       console.log(data)
-//       setBaseStake(data.base ?? 10000);
-//       setBadGamesDeficit(data.badGamesDeficit ?? 0);
-//       setBadGameShadow(data.badGameShadow ?? 0);
-//       setDeficitBank(data.deficitBank ?? 0);
-//       setWin(false);
-//       setPressedWins(new Set());
-
-//       setSpecialDeficits({
-//   oneX: data.oneXDeficit ?? 0,
-//   twoX: data.twoXDeficit ?? 0,
-//   x2: data.xTwoDeficit ?? 0,                // ← changed
-//   zeroGoals: data.zeroGoalsDeficit ?? 0,
-//   sixGoals: data.sixGoalsDeficit ?? 0,
-//   ht12: data.htOneTwoDeficit ?? 0,          // ← changed
-//   ht21: data.htTwoOneDeficit ?? 0,          // ← changed
-//   ht30: data.htThreeZeroDeficit ?? 0,       // ← changed
-//   ft40: data.ftFourZeroDeficit ?? 0,        // ← changed
-//   ft41: data.ftFourOneDeficit ?? 0,         // ← changed
-// });
-//     } catch (err) {
-//       console.error("❌ Load failed:", err.message);
-//     }
-//   };
-
-//  const saveAll = async () => {
-//   try {
-//     const payload = {
-//       base: Math.max(10000, baseRef.current),
-//       badGamesDeficit,
-//       badGameShadow,
-//       deficitBank,
-//       oneXDeficit: specialDeficits.oneX,
-//       twoXDeficit: specialDeficits.twoX,
-//       xTwoDeficit: specialDeficits.x2,
-//       zeroGoalsDeficit: specialDeficits.zeroGoals,
-//       sixGoalsDeficit: specialDeficits.sixGoals,
-//       htOneTwoDeficit: specialDeficits.ht12,
-//       htTwoOneDeficit: specialDeficits.ht21,
-//       htThreeZeroDeficit: specialDeficits.ht30,
-//       ftFourZeroDeficit: specialDeficits.ft40,
-//       ftFourOneDeficit: specialDeficits.ft41,
-//     };
-//     console.log("Saving payload:", payload); // ← debug
-//     await axios.put(API_BASE, payload);
-//     console.log("✅ Saved successfully");
-//   } catch (err) {
-//     console.error("❌ Save failed:", err.message);
-//   }
-// };
-/* ---------------- LOAD / SAVE ---------------- */
-const fetchAll = async () => {
-  try {
-    const res = await axios.get(API_BASE);
-    const data = res.data || {};
-    console.log("Raw API response:", data); // ← keep this for debugging
-
-    setBaseStake(data.base ?? 10000);
-    setBadGamesDeficit(data.badGamesDeficit ?? 0);
-    setBadGameShadow(data.badGameShadow ?? 0);
-    setDeficitBank(data.deficitBank ?? 0);
-    setWin(false);
-    setPressedWins(new Set());
-
-    setSpecialDeficits({
-      oneX: data.oneXDeficit ?? 0,
-      twoX: data.twoXDeficit ?? 0,
-      x2: data.xTwoDeficit ?? 0,               // ← use schema name
-      zeroGoals: data.zeroGoalsDeficit ?? 0,
-      sixGoals: data.sixGoalsDeficit ?? 0,
-      ht12: data.htOneTwoDeficit ?? 0,         // ← use schema name
-      ht21: data.htTwoOneDeficit ?? 0,         // ← use schema name
-      ht30: data.htThreeZeroDeficit ?? 0,      // ← use schema name
-      ft40: data.ftFourZeroDeficit ?? 0,       // ← use schema name
-      ft41: data.ftFourOneDeficit ?? 0,        // ← use schema name
-    });
-  } catch (err) {
-    console.error("❌ Load failed:", err.message);
-  }
-};
-
-const saveAll = async () => {
-  try {
-    const payload = {
-      base: Math.max(10000, baseRef.current),
-      badGamesDeficit,
-      badGameShadow,
-      deficitBank,
-      oneXDeficit: specialDeficits.oneX,
-      twoXDeficit: specialDeficits.twoX,
-      xTwoDeficit: specialDeficits.x2,           // ← save as schema name
-      zeroGoalsDeficit: specialDeficits.zeroGoals,
-      sixGoalsDeficit: specialDeficits.sixGoals,
-      htOneTwoDeficit: specialDeficits.ht12,     // ← save as schema name
-      htTwoOneDeficit: specialDeficits.ht21,     // ← save as schema name
-      htThreeZeroDeficit: specialDeficits.ht30,  // ← save as schema name
-      ftFourZeroDeficit: specialDeficits.ft40,   // ← save as schema name
-      ftFourOneDeficit: specialDeficits.ft41,    // ← save as schema name
-    };
-    console.log("Saving payload:", payload); // ← keep for debug
-    await axios.put(API_BASE, payload);
-    console.log("✅ Saved successfully");
-  } catch (err) {
-    console.error("❌ Save failed:", err.message);
-  }
-};
-  useEffect(() => {
-    fetchAll();
+  const applyData = useCallback((d) => {
+    setBaseStake(d.base            ?? 10000);
+    setDeficit(d.deficit           ?? 0);
+    setSmallDeficit(d.smallDeficit ?? 0);
+    setShadow(d.shadow             ?? 0);
+    setBank(d.bank                 ?? 0);
+    setPrivateDef(d.privateDef     || emptyMap());
+    setBigDef(d.bigDef             || emptyMap());
+    setBrokenTarget(d.brokenTarget || emptyMap());
   }, []);
 
-  /* ---------------- LOAD GAME ---------------- */
-  const handleLoadGame = (e) => {
-    e.preventDefault();
-
-    const home = sanitizeTeam(inputA) || "che";
-    const away = sanitizeTeam(inputB) || "che";
-
-    const found = odds.find((o) => o.home === home && o.away === away);
-
-    if (!found) {
-      alert(`No odds for ${home} vs ${away}`);
-      return;
+  const fetchBase = useCallback(() => {
+    try {
+      const s = localStorage.getItem(LS_KEY);
+      if (s) {
+        applyData(JSON.parse(s));
+        console.log("💾 L1: Loaded from Local Storage");
+      }
+    } catch (err) {
+      console.error("❌ L1 Load error:", err.message);
     }
+  }, [applyData]);
 
-    const newBase = baseStake;
-    setFixture(found);
-    setWin(false);
-    setPressedWins(new Set());
-
-    let winnerAmount = Math.round(newBase / (found.winner - 1));
-    winnerAmount = Math.max(winnerAmount, 10);
-
-    const newBad = badGamesDeficit + winnerAmount;
-    setBadGamesDeficit(newBad);
-    setBadGameShadow(newBad);
-
-    const calcStake = (target, odd) => {
-      if (odd <= 1.01) return 0;
-      let stake = Math.round(target / (odd - 1));
-      return Math.max(stake, 10);
+  const saveBase = useCallback((overrides = {}) => {
+    const p = {
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
+      ...overrides,
     };
-
-    const newPending = { winnerAmount };
-    specialKeys.forEach((key) => {
-      const odd = found[key] || 0;
-      const target = (specialDeficits[key] || 0) + newBad;
-      newPending[key] = calcStake(target, odd);
-    });
-
-    setPendingStakes(newPending);
-
-    setSpecialDeficits((prev) => {
-      const updated = { ...prev };
-      specialKeys.forEach((key) => {
-        updated[key] += newPending[key] || 0;
-      });
-      return updated;
-    });
-  };
-
-  /* ---------------- SPECIAL WIN HANDLER ---------------- */
-  const handleWin = (type) => {
-    if (!fixture) return;
-
-    const recovered = specialDeficits[type] || 0;
-    if (recovered <= 0 || pendingStakes[type] === 0) return;
-
-    // Always zero out this special's deficit and stake
-    setSpecialDeficits((prev) => ({
-      ...prev,
-      [type]: 0,
-    }));
-    setPendingStakes((prev) => ({ ...prev, [type]: 0 }));
-
-    // Mark this button as pressed
-    setPressedWins((prev) => new Set([...prev, type]));
-
-    // First win in game
-    if (!win) {
-      setWin(true);
-      setBadGamesDeficit(0);
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(p));
+      console.log("💾 L1: Saved to Local Storage");
+    } catch (err) {
+      console.error("❌ L1 Save error:", err.message);
     }
-    // Subsequent wins
-    else {
-      setDeficitBank((prev) => prev + badGameShadow );
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+
+  const fetchFromAPI = useCallback(async () => {
+    setIsReloading(true);
+    try {
+      const res = await axios.get(API_BASE);
+      if (res.data) {
+        applyData(res.data);
+        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
+        console.log("☁️ L2: Fetched from API Sync");
+      }
+    } catch (err) {
+      console.error("❌ L2 Fetch failed:", err.message);
+      alert("API fetch failed. Reverting to local data.");
+    } finally {
+      setIsReloading(false);
     }
+  }, [applyData]);
 
-  };
+  const saveToAPI = useCallback(async () => {
+    const p = {
+      base: baseRef.current, deficit,
+      smallDeficit, shadow, bank,
+      privateDef, bigDef, brokenTarget,
+    };
+    try {
+      await axios.put(API_BASE, p);
+      console.log("✅ L2: Master Backup Synced to API");
+      alert("State fully backed up to API successfully.");
+    } catch (err) {
+      console.error("❌ L2 Sync failed:", err.message);
+      alert("API backup failed.");
+    }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
-  /* ---------------- 6-0 JACKPOT ---------------- */
-  const handleJackpot = () => {
-    if (!fixture) return;
-    // Reset base stake
-    setBaseStake(10000);
+  useEffect(() => { fetchBase(); }, [fetchBase]);
 
-    setPendingStakes((prev) => ({ ...prev, winnerAmount: 0 }));
+  /* ================================================================
+     HANDLE SETUP CALCULATIONS (PAIRED LOGIC)
+     ================================================================ */
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const home = sanitizeTeam(inputA) || "liv";
+    const away = sanitizeTeam(inputB) || "liv";
+    const found = odds.find(o => o.home === home && o.away === away);
+    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
-    // Mark jackpot button pressed
-    setPressedWins((prev) => new Set([...prev, "winner"]));
+    setFixture(found);
+    setClicked(new Set());
+    setWinners(new Set());
+    setBigWinners(new Set());
 
-    setWin(false);
+    const newBase = baseStake + deficit;
+    setBaseStake(newBase);
+    setDeficit(0);
+    const wStake = Math.max(Math.round(newBase / found.winner), 10);
+    setWinnerStake(wStake);
 
-  };
+    const curSD = smallDeficit + wStake;
+    setSmallDeficit(curSD);
+    setShadow(curSD);
 
-  /* ---------------- NEXT GAME + PROTECTION LOGIC ---------------- */
-
-// const handleNextGame = async () => {
-//   if (!fixture) return;
-
-//   // // Protection logic: reduce high deficits (≥1000) by up to 900 each
-//   // const allDeficits = {
-//   //   winner: badGamesDeficit,
-//   //   ...specialDeficits,
-//   // };
-
-//   // let bankDeduction = 0;
-//   // let baseStakeIncrease = 0;
-
-//   // // First pass: try to use bank to cover reductions
-//   // Object.entries(allDeficits).forEach(([key, def]) => {
-//   //   if (def >= 1000) {
-//   //     const wantedReduction = 900;
-//   //     const canDeductFromBank = Math.min(wantedReduction, deficitBank - bankDeduction);
-
-//   //     if (canDeductFromBank > 0) {
-//   //       bankDeduction += canDeductFromBank;
-
-//   //       // Apply reduction to the asset
-//   //       if (key === "winner") {
-//   //         setBadGamesDeficit((prev) => Math.max(0, prev - canDeductFromBank));
-//   //       } else {
-//   //         setSpecialDeficits((prev) => ({
-//   //           ...prev,
-//   //           [key]: Math.max(0, prev[key] - canDeductFromBank),
-//   //         }));
-//   //       }
-//   //     }
-
-//   //     // If bank couldn't cover full 900 → add remainder to baseStake
-//   //     const remaining = wantedReduction - canDeductFromBank;
-//   //     if (remaining > 0) {
-//   //       baseStakeIncrease += remaining;
-//   //     }
-//   //   }
-//   // });
-
-//   // // Deduct from bank what was used
-//   // if (bankDeduction > 0) {
-//   //   setDeficitBank((prev) => Math.max(0, prev - bankDeduction));
-//   // }
-
-//   // // If we need to increase baseStake (bank was insufficient)
-//   // if (baseStakeIncrease > 0) {
-//   //   setBaseStake((prev) => prev + baseStakeIncrease);
-//   // }
-// if(win){
-
-// }
-//   // Final cleanup
-//   setBadGameShadow(0);
-//   setWin(false);
-//   setPressedWins(new Set());
-
-//   setPendingStakes({
-//     winnerAmount: 0,
-//     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-//     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-//   });
-
-//   setFixture(null);
-//   setInputA("");
-//   setInputB("");
-
-//   await saveAll();
-// };
-const handleNextGame = async () => {
-  if (!fixture) return;
-
-  // Calculate total special deficits
-  const totalSpecialDeficits = specialKeys.reduce((sum, key) => {
-    return sum + (specialDeficits[key] || 0);
-  }, 0);
-
-  const currentBank = deficitBank;
-
-  if (win) {
-    if (currentBank >= totalSpecialDeficits) {
-      // Bank is greater or equal → clear all special deficits, reduce bank
-      setDeficitBank((prev) => Math.max(0, prev - totalSpecialDeficits));
+    /* ── Paired Martingale Math Injection ── */
+    const newStakes = {};
+    ALL_PAIRS.forEach(slot => {
+      const pKey = PAIR_METADATA[slot].primary;
+      const bKey = PAIR_METADATA[slot].backing;
       
-      // Reset all special deficits to 0
-      setSpecialDeficits({
-        oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-      });
-    } 
-    else {
-      // Total deficits > bank → use bank and spread remaining deficit
-      const remainingDeficit = totalSpecialDeficits - currentBank;
-       setSpecialDeficits({
-        oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-        ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-      });
-      setBadGamesDeficit(remainingDeficit)
-      setBadGameShadow(remainingDeficit)
-  //    const perAsset = Math.floor(remainingDeficit / 10);   // divide equally among 10 assets
+      const oddP = found[pKey] || 0;
+      const oddB = found[bKey] || 0;
 
-      // // Check if per asset >= 1000
-      // if (perAsset >= 1000) {
-      //   // Add everything to base (no need to divide)
-      //   setBaseStake((prev) => prev + remainingDeficit);
+      const bt = brokenTarget[slot] || 0;
+      const pd = privateDef[slot]   || 0;
+      const combinedTarget = bt + curSD + pd;
+
+      let stakeP = 0;
+      let stakeB = 0;
+
+      if (oddP > 1.01 && oddB > 1.01) {
+        // Paired formula matrix to return objective targets for both markers simultaneously
+        const denominator = (oddP * oddB) - oddP - oddB;
+        if (denominator > 0) {
+          stakeP = Math.round((combinedTarget * oddB) / denominator);
+          stakeB = Math.round((combinedTarget * oddP) / denominator);
+        } else {
+          // Fallback if odds structure cannot bridge mathematical denominator parity
+          stakeP = Math.round(combinedTarget / (oddP - 1));
+          stakeB = Math.round(combinedTarget / (oddB - 1));
+        }
+      }
+      newStakes[slot] = { primary: Math.max(stakeP, 0), backing: Math.max(stakeB, 0) };
+    });
+    setGameStakes(newStakes);
+
+    /* ── Big Deficit Matrix Settings ── */
+    const newBigStakes = {};
+    const newBrokenFromBig = { ...brokenTarget };
+    
+    ALL_PAIRS.forEach(slot => {
+      if ((bigDef[slot] || 0) === 0) return;
+      const pKey = PAIR_METADATA[slot].primary;
+      const oddP = found[pKey] || 0;
+      
+      if (oddP > 1.01) {
+        const totalBigAllocated = Math.round((bigDef[slot] || 0) / oddP);
+        newBigStakes[slot] = totalBigAllocated;
         
-      //   // Clear all special deficits
-      //   setSpecialDeficits({
-      //     oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-      //     ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-      //   });
-      // } 
-      // else {
-      //   // Spread remaining deficit equally
-      //   const newSpecialDeficits = {
-      //     oneX: perAsset, twoX: perAsset, x2: perAsset,
-      //     zeroGoals: perAsset, sixGoals: perAsset,
-      //     ht12: perAsset, ht21: perAsset, ht30: perAsset,
-      //     ft40: perAsset, ft41: perAsset,
-      //   };
+        const share = Math.floor(totalBigAllocated / 10);
+        if (share > 0) {
+          ALL_PAIRS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
+        }
+      }
+    });
+    setBigStakes(newBigStakes);
+    setBrokenTarget(newBrokenFromBig);
+  };
 
-      //   setSpecialDeficits(newSpecialDeficits);
-      // }
+  const markWin = (slot) => {
+    if (!fixture || clicked.has(`n_${slot}`)) return;
+    setClicked(p => new Set([...p, `n_${slot}`]));
+    setWinners(p => new Set([...p, slot]));
+  };
 
-      // Bank becomes 0
-      setDeficitBank(0);
-    }
-  }
+  const markBigWin = (slot) => {
+    if (!fixture || clicked.has(`b_${slot}`)) return;
+    setClicked(p => new Set([...p, `b_${slot}`]));
+    setBigWinners(p => new Set([...p, slot]));
+  };
 
-  // Final cleanup
-  setBadGameShadow(0);
-  setWin(false);
-  setPressedWins(new Set());
+  const handleJackpot = () => {
+    setClicked(p => new Set([...p, "six"]));
+    setBaseStake(10000);
+    setDeficit(0);
+    setSmallDeficit(0);
+    setShadow(0);
+    saveBase({ base: 10000, deficit: 0, smallDeficit: 0, shadow: 0 });
+  };
 
-  setPendingStakes({
-    winnerAmount: 0,
-    oneX: 0, twoX: 0, x2: 0, zeroGoals: 0, sixGoals: 0,
-    ht12: 0, ht21: 0, ht30: 0, ft40: 0, ft41: 0,
-  });
+  /* ================================================================
+     SETTLE / NEXT LOGIC
+     ================================================================ */
+  const handleNext = () => {
+    if (!fixture) return;
 
-  setFixture(null);
-  setInputA("");
-  setInputB("");
+    let newSD      = smallDeficit;
+    let newShadow  = shadow;
+    let newBank    = bank;
+    let newDef     = deficit;
+    let newBase    = baseStake;
+    let newPriv    = { ...privateDef };
+    let newBigDef  = { ...bigDef };
+    let newBroken  = { ...brokenTarget };
 
-  await saveAll();
-};  
-const isButtonPressed = (key) => pressedWins.has(key);
-  const isGameLoaded = !!fixture;
+    // 1. Settle Big Deficits
+    ALL_PAIRS.forEach(slot => {
+      if (bigWinners.has(slot)) {
+        newBigDef[slot] = 0;
+      }
+    });
+
+    // 2. Settle Sub-Array Pairs
+    let firstWin = true;
+    const shadowPayout = newShadow;
+
+    ALL_PAIRS.forEach(slot => {
+      const stakeData = gameStakes[slot] || { primary: 0, backing: 0 };
+      const totalCombinedStakePaid = stakeData.primary + stakeData.backing;
+
+      if (winners.has(slot)) {
+        newPriv[slot]   = 0;
+        newBroken[slot] = 0;
+
+        if (firstWin) {
+          newSD    = 0;
+          firstWin = false;
+        } else {
+          newBank  += shadowPayout;
+          newShadow = 0;
+          newSD     = 0;
+        }
+      } else {
+        // If loss, total paired stakes accumulate inside the slot's private deficit pool
+        newPriv[slot] = (newPriv[slot] || 0) + totalCombinedStakePaid;
+
+        if (newPriv[slot] >= 1000) {
+          if (newBank > 0) {
+            const reduction = Math.min(newBank, 500);
+            newBank        -= reduction;
+            newPriv[slot]   -= reduction;
+          }
+          newBigDef[slot] = (newBigDef[slot] || 0) + newPriv[slot];
+          newPriv[slot]   = 0;
+        }
+      }
+    });
+
+    // 3. Overflow target validation
+    ALL_PAIRS.forEach(slot => {
+      if ((newBroken[slot] || 0) >= 1000) {
+        newBase += newBroken[slot];
+        newBroken[slot] = 0;
+      }
+    });
+
+    setSmallDeficit(newSD);
+    setShadow(newShadow);
+    setBank(newBank);
+    setDeficit(newDef);
+    setBaseStake(newBase);
+    setPrivateDef(newPriv);
+    setBigDef(newBigDef);
+    setBrokenTarget(newBroken);
+
+    setFixture(null); setInputA(""); setInputB("");
+    setGameStakes(Object.fromEntries(ALL_PAIRS.map(k => [k, { primary: 0, backing: 0 }]))); 
+    setBigStakes({});
+    setWinners(new Set()); setBigWinners(new Set());
+    setClicked(new Set()); setWinnerStake(0);
+
+    saveBase({
+      base: newBase, deficit: newDef,
+      smallDeficit: newSD, shadow: newShadow, bank: newBank,
+      privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
+    });
+  };
+
+  const teamA = sanitizeTeam(inputA) || "HME";
+  const teamB = sanitizeTeam(inputB) || "AWY";
+  const hasBigDefs = ALL_PAIRS.some(k => (bigDef[k] || 0) > 0);
 
   return (
-    <div>
-      {/* Desktop version */}
-      <div className="max-lg:hidden min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-4 py-10">
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-6 flex-wrap">
-            <h1 className="text-4xl md:text-5xl font-extrabold text-red-500 tracking-tight">
-              Virtual Strategy
-            </h1>
-            <button
-              onClick={fetchAll}
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-semibold text-lg rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95 border border-red-500/30 disabled:opacity-50"
-            >
-              <FiRefreshCw className="w-5 h-5" />
-              Reload Data
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white flex flex-col">
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
+        <div>
+          <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Paired Solo Matrix</h1>
+          <div className="text-[9px] text-slate-500 mt-0.5">
+            SD:{smallDeficit} · shadow:{shadow} · bank:{bank}
           </div>
-          <p className="text-red-400 mt-2">
-            {fixture ? "MATCH LOADED — 6-0 + SPECIALS" : "Ready"}
-          </p>
         </div>
-
-        <div className="max-w-6xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-8">
-
-          <div className="mb-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              <button
-                onClick={handleJackpot}
-                disabled={!fixture || isButtonPressed("winner")}
-                className={`py-6 rounded-2xl text-black font-extrabold transition ${
-                  isButtonPressed("winner") ? "bg-yellow-500" : "bg-yellow-400 hover:bg-yellow-300"
-                } ${!fixture || isButtonPressed("winner") ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                6–0<br />({pendingStakes.winnerAmount || "–"})
-              </button>
-
-              {specialKeys.map((key) => (
-                <button
-                  key={key}
-                  onClick={() => handleWin(key)}
-                  disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
-                  className={`py-6 rounded-2xl text-white font-extrabold transition ${
-                    isButtonPressed(key) ? "bg-yellow-500" : "bg-blue-600 hover:bg-blue-500"
-                  } ${!fixture || pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {specialLabels[key]}<br />({pendingStakes[key] || "–"})
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-8">
-            <div className="flex items-center gap-4">
-              <input
-                value={inputA}
-                onChange={(e) => setInputA(e.target.value)}
-                placeholder="home"
-                className="w-32 px-6 py-3 border-2 border-red-600 rounded-2xl text-center text-lg"
-              />
-              <span className="font-black text-3xl text-red-500">VS</span>
-              <input
-                value={inputB}
-                onChange={(e) => setInputB(e.target.value)}
-                placeholder="away"
-                className="w-32 px-6 py-3 border-2 border-red-600 rounded-2xl text-center text-lg"
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={handleLoadGame}
-                disabled={isGameLoaded}
-                className={`px-10 py-4 text-white font-extrabold text-xl rounded-2xl transition shadow-lg ${
-                  isGameLoaded
-                    ? "bg-gray-600 opacity-50 cursor-not-allowed"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                LOAD GAME
-              </button>
-              <button
-                onClick={handleNextGame}
-                className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xl rounded-2xl transition shadow-lg"
-              >
-                NEXT GAME
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center font-mono text-sm bg-black/10 p-6 rounded-2xl">
-            <div>Base: <strong className="text-green-600">{baseStake}</strong></div>
-            <div>6-0 Hist: <strong className="text-yellow-600">{badGamesDeficit}</strong></div>
-            <div>Shadow: <strong className="text-orange-600">{badGameShadow}</strong></div>
-            <div>Bank: <strong className="text-cyan-600">{deficitBank}</strong></div>
-            <div>Win: <strong>{win ? "Yes" : "No"}</strong></div>
-            <div>1X: <strong>{specialDeficits.oneX}</strong></div>
-            <div>2X: <strong>{specialDeficits.twoX}</strong></div>
-            <div>X2: <strong>{specialDeficits.x2}</strong></div>
-            <div>0G: <strong>{specialDeficits.zeroGoals}</strong></div>
-            <div>6G: <strong>{specialDeficits.sixGoals}</strong></div>
-            <div>HT12: <strong>{specialDeficits.ht12}</strong></div>
-            <div>HT21: <strong>{specialDeficits.ht21}</strong></div>
-            <div>HT30: <strong>{specialDeficits.ht30}</strong></div>
-            <div>FT40: <strong>{specialDeficits.ft40}</strong></div>
-            <div>FT41: <strong>{specialDeficits.ft41}</strong></div>
-          </div>
+        <div className="flex rounded-lg overflow-hidden border border-white/10">
+          <button onClick={saveToAPI} className="px-4 py-1.5 bg-emerald-600 font-bold text-white text-xs active:bg-emerald-700 transition">💾 API</button>
+          <button onClick={fetchFromAPI} disabled={isReloading} className="px-4 py-1.5 bg-slate-800 font-bold text-white text-xs disabled:opacity-50 active:bg-slate-700 transition flex items-center justify-center gap-1">
+            <FiRefreshCw className={isReloading ? "animate-spin" : ""} size={11} />
+            <span>API</span>
+          </button>
         </div>
       </div>
 
-      {/* Mobile version – similar changes applied */}
-      <div className="hidden max-lg:block min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white px-3 py-4 flex flex-col overflow-x-hidden">
-        {/* Header */}
-        <div className="text-center mb-3">
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-extrabold text-red-500">Virtual Strategy</h1>
-            <button
-              onClick={fetchAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium text-xs rounded-xl shadow transition active:scale-95 border border-red-500/30 disabled:opacity-50"
-            >
-              Reload
-            </button>
-          </div>
-          <p className="text-red-400 text-xs mt-1">
-            {fixture ? "LOADED — 6-0 + SPECIALS" : "Ready"}
-          </p>
+      <div className="flex-1 flex flex-col px-3 pb-3 gap-3 overflow-y-auto">
+        {/* ACTION BUTTONS */}
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <button onClick={handleJackpot} disabled={!fixture} className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${clicked.has("six") ? "bg-white text-emerald-600 border-emerald-300" : !fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed" : "bg-yellow-400 text-black border-yellow-600"}`}>
+            <div className="text-[10px] opacity-70 uppercase tracking-widest">6–0 Jackpot</div>
+            <div className="text-xl font-black">{winnerStake || "—"}</div>
+          </button>
+          <button onClick={handleNext} disabled={!fixture} className={`py-4 rounded-2xl font-black text-sm transition active:scale-95 border-b-4 ${!fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed text-white" : "bg-emerald-600 border-emerald-800 text-white"}`}>
+            <div className="text-[10px] opacity-70 uppercase tracking-widest">Settle Slots</div>
+            <div className="text-xl font-black">NEXT</div>
+          </button>
         </div>
 
-        {/* Outcomes */}
-        <div className="mb-4 flex-grow min-h-0">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={handleJackpot}
-              disabled={!fixture || isButtonPressed("winner")}
-              className={`py-3 px-2 rounded-xl text-black font-bold text-xs transition active:scale-95 ${
-                isButtonPressed("winner") ? "bg-yellow-500" : "bg-yellow-500 hover:bg-yellow-400"
-              } ${!fixture || isButtonPressed("winner") ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              6–0<br />
-              <span className="text-[10px]">({pendingStakes.winnerAmount || "–"})</span>
-            </button>
-
-            {specialKeys.map((key) => (
-              <button
-                key={key}
-                onClick={() => handleWin(key)}
-                disabled={!fixture || pendingStakes[key] === 0 || isButtonPressed(key)}
-                className={`py-3 px-2 rounded-xl text-white font-bold text-xs transition active:scale-95 ${
-                  isButtonPressed(key) ? "bg-yellow-500" : "bg-blue-700 hover:bg-blue-600"
-                } ${!fixture || pendingStakes[key] === 0 || isButtonPressed(key) ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {specialLabels[key]}<br />
-                <span className="text-[10px]">({pendingStakes[key] || "–"})</span>
-              </button>
-            ))}
+        {/* BIG DEFICIT SECTION */}
+        {hasBigDefs && (
+          <div className="bg-red-950/60 rounded-2xl p-2 border border-red-500/20">
+            <div className="text-[8px] text-red-400 text-center tracking-widest uppercase mb-1">— Big Deficit Recovery —</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {ALL_PAIRS.filter(slot => (bigDef[slot] || 0) > 0).map(slot => {
+                const bStake = bigStakes[slot] || 0;
+                const combinedTotal = bStake + (gameStakes[slot]?.primary || 0) + (gameStakes[slot]?.backing || 0);
+                return (
+                  <button key={slot} onClick={() => markBigWin(slot)} disabled={!fixture || clicked.has(`b_${slot}`)} className={`py-3 rounded-xl font-black text-center transition active:scale-95 border-b-2 flex flex-col items-center justify-between min-h-[72px] ${bigWinners.has(slot) ? "bg-green-500 text-white border-green-700" : !fixture ? "bg-red-900/40 border-red-950 opacity-40 cursor-not-allowed" : "bg-red-600 text-white border-red-900"}`}>
+                    <div className="text-[8px] opacity-60 font-bold">{PAIR_METADATA[slot].primary.toUpperCase()}</div>
+                    <div className="text-base font-black text-white">{fixture ? combinedTotal : "—"}</div>
+                    <div className="text-[7px] opacity-75 text-red-200">Def: {bigDef[slot]}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Input + Actions */}
-        <div className="mb-4 space-y-3">
-          <div className="flex items-center justify-center gap-2 max-w-full">
-            <input
-              value={inputA}
-              onChange={(e) => setInputA(e.target.value)}
-              placeholder="Home"
-              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
-            />
-            <span className="font-black text-lg text-red-500 shrink-0">VS</span>
-            <input
-              value={inputB}
-              onChange={(e) => setInputB(e.target.value)}
-              placeholder="Away"
-              className="flex-1 min-w-0 px-2.5 py-2 border border-red-600 rounded-xl text-center text-sm bg-transparent text-white placeholder-red-400 focus:outline-none focus:border-red-400"
-            />
-          </div>
+        {/* MAIN SUB-ARRAY PAIRED GRID */}
+        <div className="bg-slate-900/60 rounded-2xl p-2 border border-white/5">
+          <div className="text-[8px] text-slate-500 text-center tracking-widest uppercase mb-2">— Paired Martingale Sub-Arrays —</div>
+          <div className="grid grid-cols-2 gap-2">
+            {ALL_PAIRS.map(slot => {
+              const stakeData = gameStakes[slot] || { primary: 0, backing: 0 };
+              const isWon = winners.has(slot);
+              const meta = PAIR_METADATA[slot];
+              return (
+                <button key={slot} onClick={() => markWin(slot)} disabled={!fixture || clicked.has(`n_${slot}`)} className={`p-2.5 rounded-xl text-left transition active:scale-95 border-b-2 flex flex-col justify-between min-h-[85px] ${isWon ? "bg-green-500 border-green-700 text-white" : !fixture ? "bg-slate-900 border-slate-950 opacity-40" : `${PAIR_COLORS[slot]} text-white`}`}>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="text-xs font-black tracking-wide uppercase bg-black/20 px-2 py-0.5 rounded text-white">{meta.label}</span>
+                    <span className="text-[9px] opacity-80 font-mono">P: {privateDef[slot] || 0}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-1 my-1.5 text-center">
+                    <div className="bg-black/30 rounded p-1">
+                      <div className="text-[8px] opacity-60 font-bold">{meta.primary}</div>
+                      <div className="text-xs font-black text-yellow-300">{fixture ? stakeData.primary : "—"}</div>
+                    </div>
+                    <div className="bg-black/30 rounded p-1">
+                      <div className="text-[8px] opacity-60 font-bold">{meta.backing}</div>
+                      <div className="text-xs font-black text-cyan-300">{fixture ? stakeData.backing : "—"}</div>
+                    </div>
+                  </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleLoadGame}
-              disabled={isGameLoaded}
-              className={`flex-1 py-3 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm ${
-                isGameLoaded ? "bg-gray-600 opacity-50 cursor-not-allowed" : "bg-red-700 hover:bg-red-600"
-              }`}
-            >
-              LOAD
-            </button>
-            <button
-              onClick={handleNextGame}
-              className="flex-1 py-3 bg-green-700 hover:bg-green-600 text-white font-bold text-sm rounded-xl transition active:scale-95 shadow-sm"
-            >
-              NEXT
-            </button>
+                  <div className="text-[8px] text-white/60 font-medium flex justify-between w-full">
+                    <span>Target Pool: {brokenTarget[slot] || 0}</span>
+                    {fixture && <span className="font-bold text-white/90">Total: {stakeData.primary + stakeData.backing}</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex-grow min-h-0 overflow-auto bg-black/20 rounded-xl p-3 text-xs grid grid-cols-3 gap-2">
-          <div>Base: <strong className="text-green-400">{baseStake}</strong></div>
-          <div>6-0: <strong className="text-yellow-400">{badGamesDeficit}</strong></div>
-          <div>Shdw: <strong className="text-orange-400">{badGameShadow}</strong></div>
-          <div>Bank: <strong className="text-cyan-400">{deficitBank}</strong></div>
-          <div>Win: <strong>{win ? "Yes" : "No"}</strong></div>
-
-          <div className="col-span-3 grid grid-cols-5 gap-1 text-[10px] text-center">
-            <div>1X: {specialDeficits.oneX}</div>
-            <div>2X: {specialDeficits.twoX}</div>
-            <div>X2: {specialDeficits.x2}</div>
-            <div>0G: {specialDeficits.zeroGoals}</div>
-            <div>6G: {specialDeficits.sixGoals}</div>
-            <div>HT12: {specialDeficits.ht12}</div>
-            <div>HT21: {specialDeficits.ht21}</div>
-            <div>HT30: {specialDeficits.ht30}</div>
-            <div>FT40: {specialDeficits.ft40}</div>
-            <div>FT41: {specialDeficits.ft41}</div>
+        {/* INPUT PROCESSORS */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input value={inputA} onChange={e => setInputA(e.target.value)} placeholder="Home" className="flex-1 min-w-0 px-3 py-2.5 border border-slate-700 rounded-xl text-center text-sm bg-slate-900/60 text-white placeholder-slate-600 font-bold uppercase" />
+            <span className="font-black text-sm text-slate-600 shrink-0">VS</span>
+            <input value={inputB} onChange={e => setInputB(e.target.value)} placeholder="Away" className="flex-1 min-w-0 px-3 py-2.5 border border-slate-700 rounded-xl text-center text-sm bg-slate-900/60 text-white placeholder-slate-600 font-bold uppercase" />
           </div>
+          <button onClick={handleSubmit} disabled={!!fixture} className={`w-full py-3 font-black text-sm rounded-xl transition active:scale-95 uppercase tracking-widest ${fixture ? "bg-slate-900 text-slate-600 cursor-not-allowed opacity-40" : "bg-slate-100 text-black hover:bg-white"}`}>
+            Calculate Setup Matrix
+          </button>
+        </div>
+
+        {/* STATS CONTROL SHEETS */}
+        <div className="bg-slate-900/80 rounded-xl p-3 text-[10px] grid grid-cols-2 gap-x-4 gap-y-1.5 border border-white/5">
+          <div className="flex justify-between"><span className="text-slate-400">Base Pool</span><strong className="text-emerald-400">{baseStake}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-400">General Deficit</span><strong className="text-red-400">{deficit}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-400">SmallDef Total</span><strong className="text-purple-400">{smallDeficit}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-400">Shadow Copy</span><strong className="text-blue-300">{shadow}</strong></div>
+          <div className="flex justify-between col-span-2 border-b border-white/5 pb-1"><span className="text-slate-400">Overflow Bank</span><strong className="text-emerald-300">{bank}</strong></div>
+          
+          <div className="col-span-2">
+            <div className="grid grid-cols-1 gap-1 mt-1">
+              {ALL_PAIRS.map(slot => (
+                <div key={slot} className="flex justify-between items-center text-[9px] bg-white/5 rounded px-2 py-1">
+                  <span className="text-slate-300 font-black w-14">{PAIR_METADATA[slot].label}</span>
+                  <span className="text-purple-300">PrivDef: <strong>{privateDef[slot]}</strong></span>
+                  <span className="text-yellow-400">Target: <strong>{brokenTarget[slot]}</strong></span>
+                  {bigDef[slot] > 0 ? <span className="text-red-400 font-bold">Big: {bigDef[slot]}</span> : <span className="text-slate-600">Big: —</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {fixture && <div className="col-span-2 pt-1 border-t border-white/5 text-center font-black text-[9px] text-purple-400 uppercase tracking-widest">{teamA} ⚔️ {teamB}</div>}
         </div>
       </div>
     </div>
