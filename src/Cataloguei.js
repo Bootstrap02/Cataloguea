@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -36,7 +37,8 @@ const Homepage = () => {
   const [isReloading, setIsReloading] = useState(false);
   const [fixture,     setFixture]     = useState(null);
 
-  /* ── CONSTANT STRATEGY CONFIGURATIONS ── */
+  /* ── STRATEGY & WEEK COUNTER STATES ── */
+  const [week,         setWeek]         = useState(1);
   const [smallDeficit, setSmallDeficit] = useState(150);
   const [bank,         setBank]         = useState(0);
 
@@ -53,6 +55,7 @@ const Homepage = () => {
   const [backingWins, setBackingWins] = useState(new Set());
 
   const applyData = useCallback((d) => {
+    setWeek(d.week                 ?? 1);
     setSmallDeficit(d.smallDeficit ?? 150);
     setBank(d.bank                 ?? 0);
     setPrivateDef(d.privateDef     || emptyMap(0));
@@ -74,14 +77,14 @@ const Homepage = () => {
 
   const saveBase = useCallback((overrides = {}) => {
     const p = {
-      smallDeficit, bank, privateDef, brokenTarget, activePairs, ...overrides
+      week, smallDeficit, bank, privateDef, brokenTarget, activePairs, ...overrides
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(p));
     } catch (err) {
       console.error("❌ Storage update failure:", err.message);
     }
-  }, [smallDeficit, bank, privateDef, brokenTarget, activePairs]);
+  }, [week, smallDeficit, bank, privateDef, brokenTarget, activePairs]);
 
   const fetchFromAPI = useCallback(async () => {
     setIsReloading(true);
@@ -99,14 +102,14 @@ const Homepage = () => {
   }, [applyData]);
 
   const saveToAPI = useCallback(async () => {
-    const p = { smallDeficit, bank, privateDef, brokenTarget, activePairs };
+    const p = { week, smallDeficit, bank, privateDef, brokenTarget, activePairs };
     try {
       await axios.put(API_BASE, p);
       alert("Cloud state matching complete.");
     } catch (err) {
       console.error("❌ API remote state push failed:", err.message);
     }
-  }, [smallDeficit, bank, privateDef, brokenTarget, activePairs]);
+  }, [week, smallDeficit, bank, privateDef, brokenTarget, activePairs]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
@@ -156,7 +159,6 @@ const Homepage = () => {
     setGameStakes(newStakes);
   };
 
-  /* ── TARGETED VALUE CAPTURES ── */
   const togglePrimaryWin = (slot) => {
     if (!fixture || !activePairs[slot]) return;
     setPrimaryWins(prev => {
@@ -179,8 +181,9 @@ const Homepage = () => {
     const activeReset = emptyMap(true);
     setActivePairs(activeReset);
     setSmallDeficit(150);
-    saveBase({ activePairs: activeReset, smallDeficit: 150 });
-    alert("All 10 Martingale arrays restored.");
+    setWeek(1);
+    saveBase({ activePairs: activeReset, smallDeficit: 150, week: 1 });
+    alert("System fully reset to Week 1 with all 10 arrays active.");
   };
 
   /* ================================================================
@@ -207,20 +210,41 @@ const Homepage = () => {
         newPriv[slot] = 0; 
         newBroken[slot] = 0;
 
+        // Rule Update: If front (primary) wins but backing loses, move backing stake to small deficit
         if (hasPrimaryWon && !hasBackingWon) {
           runningSmallDeficitModifier += stakes.backing;
         }
-        if (hasBackingWon && !hasPrimaryWon) {
-          runningSmallDeficitModifier += stakes.primary;
-        }
+        // If backing wins, private deficit is zeroed out, nothing added to small deficit
       } else {
         const combinedLossSum = stakes.primary + stakes.backing;
         newPriv[slot] = (newPriv[slot] || 0) + combinedLossSum;
       }
     });
 
-    const balancedSmallDeficit = Math.max(150, smallDeficit + runningSmallDeficitModifier);
+    let nextWeek = week + 1;
+    let balancedSmallDeficit = smallDeficit + runningSmallDeficitModifier;
 
+    // Week 38 Cycle Expiry Trigger Logic
+    if (week >= 38) {
+      console.log("🏁 Week 38 Concluded: Commencing remaining active private pool sweep.");
+      
+      // Collect private deficits from any array that is still active
+      ALL_PAIRS.forEach(slot => {
+        if (newActive[slot]) {
+          balancedSmallDeficit += (newPriv[slot] || 0);
+          newPriv[slot] = 0;
+          newBroken[slot] = 0;
+        }
+      });
+
+      // Full reset parameters for next seasonal cycle loop
+      nextWeek = 1;
+      newActive = emptyMap(true);
+    }
+
+    balancedSmallDeficit = Math.max(150, balancedSmallDeficit);
+
+    setWeek(nextWeek);
     setSmallDeficit(balancedSmallDeficit);
     setBank(newBank);
     setPrivateDef(newPriv);
@@ -232,6 +256,7 @@ const Homepage = () => {
     setPrimaryWins(new Set()); setBackingWins(new Set());
 
     saveBase({
+      week: nextWeek,
       smallDeficit: balancedSmallDeficit,
       bank: newBank,
       privateDef: newPriv,
@@ -251,12 +276,14 @@ const Homepage = () => {
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
         <div>
           <h1 className="text-sm font-black text-slate-300 tracking-wider uppercase">⚡ Array Matrix Strategy</h1>
-          <div className="text-[10px] text-purple-400 mt-0.5 font-bold">
-            Target Unit: {smallDeficit} CP · Active Arrays: {activeCount} / 10
+          <div className="text-[10px] text-purple-400 mt-0.5 font-bold flex gap-2">
+            <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">WEEK {week} / 38</span>
+            <span>Target Unit: {smallDeficit} CP</span>
+            <span>Active: {activeCount} / 10</span>
           </div>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={resetDeactivatedArrays} className="px-2.5 py-1 bg-amber-600 font-bold rounded text-[10px] uppercase tracking-wider text-white">Reset Arrays</button>
+          <button onClick={resetDeactivatedArrays} className="px-2.5 py-1 bg-amber-600 font-bold rounded text-[10px] uppercase tracking-wider text-white">Reset Matrix</button>
           <div className="flex rounded overflow-hidden border border-white/10">
             <button onClick={saveToAPI} className="px-3 py-1 bg-emerald-600 font-bold text-[10px] text-white">💾 API</button>
             <button onClick={fetchFromAPI} disabled={isReloading} className="px-3 py-1 bg-slate-800 font-bold text-[10px] text-white flex items-center gap-1">
@@ -271,7 +298,7 @@ const Homepage = () => {
         {/* RUN ACTION ENGINE */}
         <div className="mt-2">
           <button onClick={handleNext} disabled={!fixture} className={`w-full py-3.5 rounded-xl font-black text-sm transition active:scale-95 border-b-4 ${!fixture ? "bg-slate-900 border-slate-950 opacity-30 cursor-not-allowed text-white" : "bg-emerald-600 border-emerald-800 text-white"}`}>
-            SETTLE ROUND & UPDATE ARRAYS
+            SETTLE WEEK {week} & UPDATE
           </button>
         </div>
 
@@ -290,7 +317,7 @@ const Homepage = () => {
                 return (
                   <div key={slot} className="p-2 rounded-xl bg-slate-950/40 border border-dashed border-white/5 flex justify-between items-center opacity-30 grayscale">
                     <span className="text-xs font-bold text-slate-500 line-through">{meta.label}</span>
-                    <span className="text-[9px] text-red-500 font-black uppercase tracking-widest bg-red-950/40 px-2 py-0.5 rounded">Deactivated (Win)</span>
+                    <span className="text-[9px] text-red-500 font-black uppercase tracking-widest bg-red-950/40 px-2 py-0.5 rounded">Deactivated</span>
                   </div>
                 );
               }
@@ -304,13 +331,13 @@ const Homepage = () => {
 
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => togglePrimaryWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isPWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
-                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.primary}</div>
+                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.primary} (Front)</div>
                       <div className="text-sm text-white">{fixture ? stakes.primary : "—"}</div>
                       {isPWin && <span className="text-[8px] block text-green-100 uppercase">HIT</span>}
                     </button>
 
                     <button onClick={() => toggleBackingWin(slot)} disabled={!fixture} className={`p-2 rounded-lg transition font-black text-center border ${isBWin ? "bg-green-500 border-white text-white" : "bg-black/20 border-transparent hover:bg-black/30"}`}>
-                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.backing}</div>
+                      <div className="text-[9px] uppercase tracking-wider text-white/70">{meta.backing} (Back)</div>
                       <div className="text-sm text-white">{fixture ? stakes.backing : "—"}</div>
                       {isBWin && <span className="text-[8px] block text-green-100 uppercase">HIT</span>}
                     </button>
