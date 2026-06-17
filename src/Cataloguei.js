@@ -15,12 +15,11 @@ const ARRAY_1_LABELS = {
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2"
 };
 
-// Array 2: Big Array (Targets bigDeficit) - includes winner as first element
-const ARRAY_2_KEYS = ["winner", "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne"];
+// Array 2: Big Array (Targets bigDeficit) - 6-0 is now LAST
+const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
 const ARRAY_2_LABELS = {
-  winner: "6–0",
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
-  fiveZero: "5–0", fiveOne: "5–1"
+  fiveZero: "5–0", fiveOne: "5–1", winner: "6–0"
 };
 
 // Normal Games Layout Sequence
@@ -126,11 +125,11 @@ const Homepage = () => {
     const calculatedStakes = emptyStakesMap();
 
     if (isSmall) {
-      // 1. Calculate Winner stake and pile directly into smallDeficit
+      // 1. Calculate Winner stake (6-0 jackpot) - shown separately at top
       const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // Store winner stake separately for display
+      // Store winner stake separately for display at top
       calculatedStakes["winner"] = winnerJackpotStake;
 
       // 2. Compute Array 1 (Martingale targeting smallDeficit)
@@ -146,13 +145,11 @@ const Homepage = () => {
       // Push Array 1 stakes immediately into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
-      // 3. Compute Array 2 (Martingale targeting bigDeficit) - INCLUDES winner
+      // 3. Compute Array 2 (Martingale targeting bigDeficit) - 6-0 is last
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          // For winner key, we still calculate the stake but it's the same as winnerJackpotStake
-          // This represents the 6-0 stake in the big array
           calculatedStakes[key] = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
           array2Sum += calculatedStakes[key];
         }
@@ -168,24 +165,20 @@ const Homepage = () => {
 
     } else {
       // --- FIXED REGULAR ODD SYSTEM ---
-      // 1. Calculate Winner stake (jackpot)
       const winnerStake = Math.max(Math.round(baseStake / found.winner), 10);
       calculatedStakes["winner"] = winnerStake;
 
-      // 2. Build sequential HDA ladder using the winner stake as the running total
       const oddsMap = {
         home: found.win,
         draw: found.draw,
         away: found.lose
       };
 
-      // Get the sequence from the found fixture's code, default to HDA
       const codeSequence = found.code || "HDA";
       const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
 
       let runningTotal = winnerStake;
 
-      // Process each step in the correct sequence
       sequence.forEach((key) => {
         const odd = oddsMap[key] || 0;
         if (odd > 1.01) {
@@ -195,7 +188,6 @@ const Homepage = () => {
         }
       });
 
-      // Ensure no extra stakes bleed through
       HDA_KEYS.forEach(key => {
         if (!calculatedStakes[key]) calculatedStakes[key] = 0;
       });
@@ -217,12 +209,8 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
-        // --- ARRAY 1 WINNER HANDLING ---
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          // Clear smallDeficit
           nextSmallDeficit = 0;
-
-          // Deduct ALL Array 1 assets (including the winner) from bigDeficit
           let deductionSum = 0;
           ARRAY_1_KEYS.forEach((key) => {
             deductionSum += gameStakes[key] || 0;
@@ -230,33 +218,21 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // --- ARRAY 2 WINNER HANDLING ---
-          
           if (winnerKey === "winner") {
-            // 6-0 winner wins - clear smallDeficit AND bigDeficit
             nextSmallDeficit = 0;
             nextBigDeficit = 0;
-            
-            // Add the winner's stake to baseStake
             nextBaseStake = baseStake + (gameStakes["winner"] || 0);
-            
-            // Deduct ALL Array 2 assets from finalDeficit
             let deductionSum = 0;
             ARRAY_2_KEYS.forEach((key) => {
               deductionSum += gameStakes[key] || 0;
             });
             nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-            
           } else {
-            // Other Array 2 asset wins (4-0, 4-1, 4-2, 5-0, 5-1)
-            // Deduct ALL Array 2 assets (including the winner) from finalDeficit
             let deductionSum = 0;
             ARRAY_2_KEYS.forEach((key) => {
               deductionSum += gameStakes[key] || 0;
             });
             nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-            
-            // Clear bigDeficit
             nextBigDeficit = 0;
           }
         }
@@ -264,14 +240,12 @@ const Homepage = () => {
         console.log("No winner selected - stakes retained in deficits.");
       }
     } else {
-      // --- NORMAL ODDS GAME SETTLEMENT ---
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
         } else {
           const codeSequence = fixture.code || "HDA";
           const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
-          
           const winnerIndex = sequence.indexOf(winnerKey);
           if (winnerIndex !== -1) {
             const lossSum = sequence.slice(winnerIndex + 1)
@@ -314,41 +288,6 @@ const Homepage = () => {
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
-  // Helper to get combined 6-0 amount for small odds
-  const getCombinedSixZero = () => {
-    if (!isSmallOddsGame) return gameStakes["winner"] || 0;
-    // In small odds, the winner stake goes to smallDeficit
-    // The 6-0 stake in Array 2 targets bigDeficit
-    // We need to display the SUM of both
-    const winnerStake = gameStakes["winner"] || 0;
-    const array2WinnerStake = gameStakes["winner"] || 0; // Same value, but conceptually separate
-    // Actually in small odds, the winner key in array 2 is the same stake
-    // But to show the combined total, we add the winner stake (from smallDeficit) 
-    // plus any additional amount that would be in array 2 for 6-0
-    // Since the winner stake is already calculated, we show it
-    // The array 2 calculation for winner uses the same odds but targeting bigDeficit
-    // So the combined total is: winnerStake (from smallDeficit) + winnerStake (from bigDeficit)
-    // Actually they are the same stake amount, so we show 2x the winner stake
-    // OR we could show winnerStake + the amount from array 2 calculation
-    // Since they are calculated the same way, we show winnerStake * 2 to represent both pools
-    // But wait - the winner stake is already in smallDeficit, and the array 2 winner stake is also the same amount targeting bigDeficit
-    // So the combined displayed amount should be winnerStake + winnerStake = winnerStake * 2
-    // However, the user wants to see both amounts combined in one button
-    // Let me think again - the user wants: winnerStake (from smallDeficit) + the 6-0 stake from Array 2
-    // Since they are calculated the same way, we show winnerStake * 2
-    // But if the user wants to see the individual breakdown, we show the sum
-    const winnerStakeValue = gameStakes["winner"] || 0;
-    // For small odds, the array 2 winner stake is calculated from bigDeficit
-    // But since we stored it in gameStakes["winner"], we can use that
-    // However, the winner stake in array 2 is actually the same calculation as the winner stake
-    // So the combined total is simply 2 * winnerStakeValue
-    // But the user said: "display or render 151 plus 42 inside a60 button"
-    // So they want to see: winnerStake + (the 6-0 stake from Array 2)
-    // Since both are the same value (they use the same odds but different targets),
-    // we show 2 * winnerStakeValue
-    return winnerStakeValue * 2;
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
       
@@ -384,6 +323,24 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
+              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP */}
+              <div>
+                <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                  ⚡ 6-0 Jackpot Line (Starter)
+                </div>
+                <button 
+                  onClick={() => setWinnerKey("winner")} 
+                  className={`w-full py-4 rounded-xl font-bold text-sm transition flex flex-col items-center justify-center ${
+                    winnerKey === "winner" 
+                      ? "bg-white text-green-600 ring-4 ring-green-500" 
+                      : "bg-yellow-600/30 border-2 border-yellow-500 text-white hover:bg-yellow-600/50"
+                  }`}
+                >
+                  <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Winner Stake</span>
+                  <span className="text-xl font-black mt-1 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+                </button>
+              </div>
+
               {/* ARRAY 1 VIEW CONTAINER */}
               <div>
                 <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
@@ -402,7 +359,7 @@ const Homepage = () => {
                 </div>
               </div>
 
-              {/* ARRAY 2 VIEW CONTAINER - includes 6-0 winner button with combined amount */}
+              {/* ARRAY 2 VIEW CONTAINER - 6-0 is LAST */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ✦ Array 2 Matrix (Targets Big Deficit)
@@ -411,13 +368,6 @@ const Homepage = () => {
                   {ARRAY_2_KEYS.map((key) => {
                     const isActive = winnerKey === key;
                     const isWinner = key === "winner";
-                    let displayAmount = gameStakes[key] || 0;
-                    
-                    // For 6-0 in small odds, show combined total
-                    if (isWinner && isSmallOddsGame) {
-                      displayAmount = getCombinedSixZero();
-                    }
-                    
                     return (
                       <button 
                         key={key} 
@@ -426,7 +376,7 @@ const Homepage = () => {
                           isActive 
                             ? "bg-white text-green-600 ring-4 ring-green-500" 
                             : isWinner 
-                              ? "bg-yellow-600/40 border border-yellow-600 text-white hover:bg-yellow-700/40" 
+                              ? "bg-yellow-600/20 border border-yellow-600/50 text-white hover:bg-yellow-600/30" 
                               : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"
                         }`}
                       >
@@ -434,13 +384,8 @@ const Homepage = () => {
                           {ARRAY_2_LABELS[key]}
                         </span>
                         <span className={`text-sm font-extrabold mt-0.5 ${isWinner ? "text-yellow-400" : ""}`}>
-                          {displayAmount}
+                          {gameStakes[key] || "0"}
                         </span>
-                        {isWinner && isSmallOddsGame && (
-                          <span className="text-[7px] text-yellow-500/70 mt-0.5">
-                            ({gameStakes["winner"] || 0} + {gameStakes["winner"] || 0})
-                          </span>
-                        )}
                       </button>
                     );
                   })}
@@ -454,13 +399,11 @@ const Homepage = () => {
                 ✦ Standard Match Matrix
               </div>
               <div className="flex flex-col gap-2">
-                {/* Independent Jackpot Line Block */}
                 <button onClick={() => setWinnerKey("winner")} className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"}`}>
                   <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
                   <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
                 </button>
 
-                {/* Clear Clean HDA Horizontal Stack */}
                 <div className="grid grid-cols-3 gap-2">
                   {HDA_KEYS.map((key) => {
                     const isActive = winnerKey === key;
