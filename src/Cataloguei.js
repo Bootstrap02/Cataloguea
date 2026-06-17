@@ -34,7 +34,7 @@ const CODE_MAP = {
 };
 
 const emptyStakesMap = () => {
-  const obj = { winner: 0 };
+  const obj = { winner: 0, array2Winner: 0 };
   [...ARRAY_1_KEYS, ...ARRAY_2_KEYS, ...HDA_KEYS].forEach(k => { obj[k] = 0; });
   return obj;
 };
@@ -124,13 +124,13 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // The absolute rule: winner jackpot stake is ALWAYS baseStake / winner odds
+    // 1. Core Master Winner jackpot stake (always targets baseStake / odds)
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // 1. Add that exact winner stake into smallDeficit variable snapshot
+      // Small Deficit update takes the Master jackpot stake
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
       // 2. Compute Array 1 (Martingale targeting smallDeficit)
@@ -143,26 +143,27 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 1 stakes into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
       // 3. Compute Array 2 (Martingale targeting bigDeficit) 
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
-        // CRITICAL FIX: Skip 'winner' key here so the Martingale math doesn't overwrite your clean base stake calculation
-        if (key === "winner") return;
-        
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
-          array2Sum += calculatedStakes[key];
+          const computedStake = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
+          
+          if (key === "winner") {
+            // Save this to a dedicated key so it targets bigDeficit and doesn't overwrite your primary master stake
+            calculatedStakes["array2Winner"] = computedStake;
+          } else {
+            calculatedStakes[key] = computedStake;
+          }
+          array2Sum += computedStake;
         }
       });
 
-      // Push Array 2 stakes into finalDeficit
       const updatedFinalDeficit = finalDeficit + array2Sum;
 
-      // Commit accurate state triggers
       setSmallDeficit(updatedSmallDeficit);
       setBigDeficit(updatedBigDeficit);
       setFinalDeficit(updatedFinalDeficit);
@@ -194,7 +195,6 @@ const Homepage = () => {
       });
     }
 
-    // Pass the finished snapshot cleanly straight to UI tracking state
     setGameStakes(calculatedStakes);
   };
 
@@ -219,10 +219,14 @@ const Homepage = () => {
           });
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
-        } else if (ARRAY_2_KEYS.includes(winnerKey)) {
+        } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
           let deductionSum = 0;
           ARRAY_2_KEYS.forEach((key) => {
-            deductionSum += gameStakes[key] || 0;
+            if (key === "winner") {
+              deductionSum += gameStakes["array2Winner"] || 0;
+            } else {
+              deductionSum += gameStakes[key] || 0;
+            }
           });
           nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
           nextBigDeficit = 0;
@@ -314,10 +318,10 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
-              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP */}
+              {/* MASTER JACKPOT LINE (Targets Base Stake) */}
               <div>
                 <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                  ⚡ 6-0 Jackpot (Targets Small Deficit)
+                  ⚡ 6-0 Jackpot Line (Targets Base Stake)
                 </div>
                 <button 
                   onClick={() => setWinnerKey("winner")} 
@@ -327,7 +331,7 @@ const Homepage = () => {
                       : "bg-yellow-600/30 border-2 border-yellow-500 text-white hover:bg-yellow-600/50"
                   }`}
                 >
-                  <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Winner Stake</span>
+                  <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Master Winner Stake</span>
                   <span className="text-xl font-black mt-1 text-yellow-400">{gameStakes["winner"] || "0"}</span>
                 </button>
               </div>
@@ -357,25 +361,26 @@ const Homepage = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {ARRAY_2_KEYS.map((key) => {
-                    const isActive = winnerKey === key;
-                    const isWinner = key === "winner";
+                    const isWinnerKey = key === "winner";
+                    const isActive = isWinnerKey ? winnerKey === "array2Winner" : winnerKey === key;
+                    
                     return (
                       <button 
                         key={key} 
-                        onClick={() => setWinnerKey(key)} 
+                        onClick={() => setWinnerKey(isWinnerKey ? "array2Winner" : key)} 
                         className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${
                           isActive 
                             ? "bg-white text-green-600 ring-4 ring-green-500" 
-                            : isWinner 
-                              ? "bg-yellow-600/20 border border-yellow-600/50 text-white hover:bg-yellow-600/30" 
+                            : isWinnerKey 
+                              ? "bg-purple-900/40 border border-yellow-500/60 text-white hover:bg-purple-900/60" 
                               : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"
                         }`}
                       >
-                        <span className={`text-[10px] font-black ${isWinner ? "text-yellow-300" : "text-purple-300"}`}>
+                        <span className={`text-[10px] font-black ${isWinnerKey ? "text-yellow-300" : "text-purple-300"}`}>
                           {ARRAY_2_LABELS[key]}
                         </span>
-                        <span className={`text-sm font-extrabold mt-0.5 ${isWinner ? "text-yellow-400" : ""}`}>
-                          {gameStakes[key] || "0"}
+                        <span className={`text-sm font-extrabold mt-0.5 ${isWinnerKey ? "text-yellow-400" : ""}`}>
+                          {isWinnerKey ? (gameStakes["array2Winner"] || "0") : (gameStakes[key] || "0")}
                         </span>
                       </button>
                     );
