@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { odds, smallOdds } from "./Scores";
@@ -223,7 +222,6 @@ const Homepage = () => {
           nextSmallDeficit = 0;
 
           // Deduct ALL Array 1 assets (including the winner) from bigDeficit
-          // This means the entire Array 1 pool is wiped from bigDeficit
           let deductionSum = 0;
           ARRAY_1_KEYS.forEach((key) => {
             deductionSum += gameStakes[key] || 0;
@@ -315,6 +313,18 @@ const Homepage = () => {
   const teamA = sanitizeTeam(inputA) || "HME";
   const teamB = sanitizeTeam(inputB) || "AWY";
 
+  // Helper to get combined 6-0 amount for small odds
+  const getCombinedSixZero = () => {
+    if (!isSmallOddsGame) return gameStakes["winner"] || 0;
+    // In small odds, 6-0 combines winner stake + its array 2 stake
+    // But in array 2, winner stake is the same as the jackpot
+    // The total displayed should be the winner stake (which is already in smallDeficit)
+    // plus any additional stake from array 2 targeting bigDeficit
+    // Since winner is in array 2 but doesn't get a separate stake calculation,
+    // we just show the winner stake
+    return gameStakes["winner"] || 0;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
       
@@ -368,7 +378,7 @@ const Homepage = () => {
                 </div>
               </div>
 
-              {/* ARRAY 2 VIEW CONTAINER - includes 6-0 winner button */}
+              {/* ARRAY 2 VIEW CONTAINER - includes 6-0 winner button with combined amount */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ✦ Array 2 Matrix (Targets Big Deficit)
@@ -377,6 +387,10 @@ const Homepage = () => {
                   {ARRAY_2_KEYS.map((key) => {
                     const isActive = winnerKey === key;
                     const isWinner = key === "winner";
+                    const displayAmount = isWinner && isSmallOddsGame 
+                      ? getCombinedSixZero() 
+                      : gameStakes[key] || 0;
+                    
                     return (
                       <button 
                         key={key} 
@@ -393,7 +407,7 @@ const Homepage = () => {
                           {ARRAY_2_LABELS[key]}
                         </span>
                         <span className={`text-sm font-extrabold mt-0.5 ${isWinner ? "text-yellow-400" : ""}`}>
-                          {gameStakes[key] || "0"}
+                          {displayAmount}
                         </span>
                       </button>
                     );
