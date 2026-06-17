@@ -26,6 +26,13 @@ const ARRAY_2_LABELS = {
 const HDA_KEYS = ["home", "draw", "away"];
 const HDA_LABELS = { home: "Home (H)", draw: "Draw (D)", away: "Away (A)" };
 
+// Code mapping for HDA sequences
+const CODE_MAP = {
+  "HDA": ["home", "draw", "away"],
+  "ADH": ["away", "draw", "home"],
+  "DHA": ["draw", "home", "away"]
+};
+
 const emptyStakesMap = () => {
   const obj = { winner: 0 };
   [...ARRAY_1_KEYS, ...ARRAY_2_KEYS, ...HDA_KEYS].forEach(k => { obj[k] = 0; });
@@ -155,15 +162,36 @@ const Homepage = () => {
 
     } else {
       // --- FIXED REGULAR ODD SYSTEM ---
-      // 1. Independent Winner placement calculation
-      calculatedStakes["winner"] = Math.max(Math.round(baseStake / found.winner), 10);
+      // 1. Calculate Winner stake (jackpot)
+      const winnerStake = Math.max(Math.round(baseStake / found.winner), 10);
+      calculatedStakes["winner"] = winnerStake;
 
-      // 2. Clear isolated map loop for Home, Draw, Away matching
-      HDA_KEYS.forEach((key) => {
-        const odd = found[key] || 0;
+      // 2. Build sequential HDA ladder using the winner stake as the running total
+      const oddsMap = {
+        home: found.win,
+        draw: found.draw,
+        away: found.lose
+      };
+
+      // Get the sequence from the found fixture's code, default to HDA
+      const codeSequence = found.code || "HDA";
+      const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
+
+      let runningTotal = winnerStake;
+
+      // Process each step in the correct sequence
+      sequence.forEach((key) => {
+        const odd = oddsMap[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round(baseStake / (odd - 1)), 10);
+          const stake = Math.max(Math.round(runningTotal / (odd - 1)), 10);
+          calculatedStakes[key] = stake;
+          runningTotal += stake;
         }
+      });
+
+      // Ensure no extra stakes bleed through
+      HDA_KEYS.forEach(key => {
+        if (!calculatedStakes[key]) calculatedStakes[key] = 0;
       });
     }
 
@@ -211,9 +239,32 @@ const Homepage = () => {
       }
     } else {
       // --- NORMAL ODDS GAME SETTLEMENT ---
-      if (winnerKey && winnerKey !== "winner") {
-        nextBaseStake = 10000; // Reset anchor on classic HDA win
+      if (winnerKey) {
+        // If a result was selected (any key was clicked), resolve accordingly
+        if (winnerKey === "winner") {
+          // 6-0 winner was clicked - reset base to 10000
+          nextBaseStake = 10000;
+        } else {
+          // HDA result was clicked - check if it was the winning step
+          // For a winner, the losing stakes are the ones AFTER the winner in the sequence
+          const codeSequence = fixture.code || "HDA";
+          const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
+          
+          const winnerIndex = sequence.indexOf(winnerKey);
+          if (winnerIndex !== -1) {
+            // Sum up stakes AFTER the winner (these are the losses)
+            const lossSum = sequence.slice(winnerIndex + 1)
+              .reduce((sum, key) => sum + (gameStakes[key] || 0), 0);
+            
+            // The deficit from the losing stakes gets added to baseStake
+            nextBaseStake = baseStake + lossSum;
+          } else {
+            // Fallback
+            nextBaseStake = 10000;
+          }
+        }
       } else {
+        // No result selected - add all HDA stakes to baseStake
         const totalNormalStakes = HDA_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
         nextBaseStake = baseStake + totalNormalStakes;
       }
