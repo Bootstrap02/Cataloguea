@@ -8,27 +8,27 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-// Array 1: Targets smallDeficit
+// Array 1: Small Array (Targets smallDeficit)
 const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo"];
 const ARRAY_1_LABELS = {
   oneZero: "1–0", twoZero: "2–0", twoOne: "2–1",
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2"
 };
 
-// Array 2: Targets bigDeficit + finalDeficit
+// Array 2: Big Array (Targets bigDeficit)
 const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
 const ARRAY_2_LABELS = {
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
   fiveZero: "5–0", fiveOne: "5–1", winner: "6–0"
 };
 
-// Normal Games: Winner (6-0) loaded first, followed by HDA format
-const NORMAL_KEYS = ["winner", "home", "draw", "away"];
-const NORMAL_LABELS = { winner: "6–0 Winner", home: "Home (H)", draw: "Draw (D)", away: "Away (A)" };
+// Normal Games Layout Sequence
+const HDA_KEYS = ["home", "draw", "away"];
+const HDA_LABELS = { home: "Home (H)", draw: "Draw (D)", away: "Away (A)" };
 
 const emptyStakesMap = () => {
-  const obj = {};
-  [...ARRAY_1_KEYS, ...ARRAY_2_KEYS, ...NORMAL_KEYS].forEach(k => { obj[k] = 0; });
+  const obj = { winner: 0 };
+  [...ARRAY_1_KEYS, ...ARRAY_2_KEYS, ...HDA_KEYS].forEach(k => { obj[k] = 0; });
   return obj;
 };
 
@@ -118,11 +118,11 @@ const Homepage = () => {
     const calculatedStakes = emptyStakesMap();
 
     if (isSmall) {
-      // 1. Winner stake calculation (No minus one) pushed directly into smallDeficit
+      // 1. Calculate Winner stake and pile directly into smallDeficit
       const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
 
-      // 2. Compute Array 1 (Formula: smallDeficit / (odds - 1))
+      // 2. Compute Array 1 (Martingale targeting smallDeficit)
       let array1Sum = 0;
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -132,34 +132,34 @@ const Homepage = () => {
         }
       });
 
-      // PUSH IMMEDIATELY INTO BIG DEFICIT
+      // Push Array 1 stakes immediately into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
-      // 3. Compute Array 2 (Formula: (bigDeficit + finalDeficit) / (odds - 1))
+      // 3. Compute Array 2 (Martingale targeting bigDeficit)
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round((updatedBigDeficit + finalDeficit) / (odd - 1)), 10);
+          calculatedStakes[key] = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
           array2Sum += calculatedStakes[key];
         }
       });
 
-      // PUSH IMMEDIATELY INTO FINAL DEFICIT
+      // Push Array 2 stakes immediately into finalDeficit
       const updatedFinalDeficit = finalDeficit + array2Sum;
 
-      // Commit early additions directly to active state pools
+      // Update calculations immediately into current states
       setSmallDeficit(updatedSmallDeficit);
       setBigDeficit(updatedBigDeficit);
       setFinalDeficit(updatedFinalDeficit);
 
     } else {
-      // --- NORMAL ODDS GAME FLOW ---
-      // 1. Calculate Winner (6-0) first without minus 1 rule
+      // --- FIXED REGULAR ODD SYSTEM ---
+      // 1. Independent Winner placement calculation
       calculatedStakes["winner"] = Math.max(Math.round(baseStake / found.winner), 10);
 
-      // 2. Calculate HDA going after it with standard Martingale format
-      ["home", "draw", "away"].forEach((key) => {
+      // 2. Clear isolated map loop for Home, Draw, Away matching
+      HDA_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
           calculatedStakes[key] = Math.max(Math.round(baseStake / (odd - 1)), 10);
@@ -183,12 +183,11 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
-        // --- ARRAYS SETTLEMENT RULES ---
+        // --- ARRAY SELECTIONS HANDLING ---
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          // Rule A: Small Deficit resets to 0 instantly
           nextSmallDeficit = 0;
 
-          // Rule B: Subtract the total assets BEFORE this winner out of bigDeficit
+          // Deduct assets before the winner from bigDeficit
           const targetIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
           for (let i = 0; i < targetIndex; i++) {
@@ -197,41 +196,34 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // Rule A: Subtract total assets BEFORE this winner out of finalDeficit
+          // Deduct assets before the winner from finalDeficit
           const targetIndex = ARRAY_2_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
           for (let i = 0; i < targetIndex; i++) {
             deductionSum += gameStakes[ARRAY_2_KEYS[i]] || 0;
           }
           nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-
-          // Rule B: Big Deficit clears down to 0
+          
           nextBigDeficit = 0;
         }
       } else {
-        // --- TOTAL LOSS ---
-        // Do nothing! The calculations were already pushed inside handleSubmit.
-        console.log("No win registered. Stakes safely retained inside deficit pools.");
+        console.log("Stakes already retained inside deficits during calculation phase.");
       }
     } else {
-      // --- NORMAL GAMES SETTLEMENT ---
+      // --- NORMAL ODDS GAME SETTLEMENT ---
       if (winnerKey && winnerKey !== "winner") {
-        // Regular HDA win resets sequence
-        nextBaseStake = 10000;
+        nextBaseStake = 10000; // Reset anchor on classic HDA win
       } else {
-        // Losses stack using combined normal game positions
-        const totalNormalStakes = ["home", "draw", "away"].reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
+        const totalNormalStakes = HDA_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
         nextBaseStake = baseStake + totalNormalStakes;
       }
     }
 
-    // Push states forward
     setSmallDeficit(nextSmallDeficit);
     setBigDeficit(nextBigDeficit);
     setFinalDeficit(nextFinalDeficit);
     setBaseStake(nextBaseStake);
 
-    // Save completely to database
     saveBase({
       baseStake: nextBaseStake,
       smallDeficit: nextSmallDeficit,
@@ -292,7 +284,7 @@ const Homepage = () => {
               {/* ARRAY 1 VIEW CONTAINER */}
               <div>
                 <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                  ✦ Array 1 Matrix (Pushed to Big Deficit)
+                  ✦ Array 1 Matrix (Targets Small Deficit)
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {ARRAY_1_KEYS.map((key) => {
@@ -310,7 +302,7 @@ const Homepage = () => {
               {/* ARRAY 2 VIEW CONTAINER */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                  ✦ Array 2 Matrix (Pushed to Final Deficit)
+                  ✦ Array 2 Matrix (Targets Big Deficit)
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {ARRAY_2_KEYS.map((key) => {
@@ -326,27 +318,36 @@ const Homepage = () => {
               </div>
             </>
           ) : (
-            /* NORMAL ODDS SELECTION FIELDS */
+            /* FIXED NORMAL ODDS INTERFACE */
             <div>
               <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ✦ Standard Match Matrix (Winner + HDA Sequential Order)
+                ✦ Standard Match Matrix
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {NORMAL_KEYS.map((key) => {
-                  const isActive = winnerKey === key;
-                  return (
-                    <button key={key} onClick={() => setWinnerKey(key)} className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
-                      <span className="text-[11px] text-blue-300 font-black uppercase">{NORMAL_LABELS[key]}</span>
-                      <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-2">
+                {/* Independent Jackpot Line Block */}
+                <button onClick={() => setWinnerKey("winner")} className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"}`}>
+                  <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
+                  <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+                </button>
+
+                {/* Clear Clean HDA Horizontal Stack */}
+                <div className="grid grid-cols-3 gap-2">
+                  {HDA_KEYS.map((key) => {
+                    const isActive = winnerKey === key;
+                    return (
+                      <button key={key} onClick={() => setWinnerKey(key)} className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
+                        <span className="text-[11px] text-blue-300 font-black uppercase">{HDA_LABELS[key]}</span>
+                        <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )
         ) : null}
 
-        {/* INPUT INTERACTION CONTROL COMPONENT */}
+        {/* CONTROLS */}
         <div className="space-y-3 mt-2">
           <div className="flex items-center gap-3">
             <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home" className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500" />
@@ -359,7 +360,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* METRICS DISPATCH TERMINAL BLOCK */}
+        {/* METRICS PANELS */}
         <div className="bg-black/40 border border-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2 font-mono">
           <div className="flex justify-between"><span className="text-gray-400">Base Pool</span><strong className="text-green-400">{baseStake}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Small Def</span><strong className="text-cyan-400">{smallDeficit}</strong></div>
