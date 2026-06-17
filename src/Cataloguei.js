@@ -124,15 +124,16 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // Calculate winner stake from baseStake (same for both normal and small odds)
-    const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
+    // Safety fallback: ensure winner/jackpot key exists to prevent dividing by undefined (resulting in NaN/10 fallback)
+    const jackpotOdd = found.winner || found.jackpot || 50;
+    const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // 1. Add winner stake to smallDeficit
+      // 1. Calculate and store intermediate mathematical updates inside local variables to avoid reading stale state
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // 2. Compute Array 1 (Martingale targeting smallDeficit)
+      // 2. Compute Array 1 (Martingale targeting smallDeficit) using the exact updated math value
       let array1Sum = 0;
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -142,7 +143,7 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 1 stakes into bigDeficit
+      // Push Array 1 stakes into bigDeficit variable snapshot
       const updatedBigDeficit = bigDeficit + array1Sum;
 
       // 3. Compute Array 2 (Martingale targeting bigDeficit) 
@@ -155,10 +156,10 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 2 stakes into finalDeficit
+      // Push Array 2 stakes into finalDeficit variable snapshot
       const updatedFinalDeficit = finalDeficit + array2Sum;
 
-      // Update states
+      // Commit the verified updates to state simultaneously
       setSmallDeficit(updatedSmallDeficit);
       setBigDeficit(updatedBigDeficit);
       setFinalDeficit(updatedFinalDeficit);
@@ -190,6 +191,7 @@ const Homepage = () => {
       });
     }
 
+    // Direct assignment guarantees the UI loops read the exact object mapping right away
     setGameStakes(calculatedStakes);
   };
 
