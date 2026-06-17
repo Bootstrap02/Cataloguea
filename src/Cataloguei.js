@@ -124,16 +124,15 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // 1. Core Master Winner jackpot stake (always targets baseStake / odds)
+    // Core master winner jackpot stake (always targets baseStake / odds)
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // Small Deficit update takes the Master jackpot stake
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // 2. Compute Array 1 (Martingale targeting smallDeficit)
+      // Compute Array 1 (Martingale targeting smallDeficit)
       let array1Sum = 0;
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -145,7 +144,7 @@ const Homepage = () => {
 
       const updatedBigDeficit = bigDeficit + array1Sum;
 
-      // 3. Compute Array 2 (Martingale targeting bigDeficit) 
+      // Compute Array 2 (Martingale targeting bigDeficit) 
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -153,7 +152,6 @@ const Homepage = () => {
           const computedStake = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
           
           if (key === "winner") {
-            // Save this to a dedicated key so it targets bigDeficit and doesn't overwrite your primary master stake
             calculatedStakes["array2Winner"] = computedStake;
           } else {
             calculatedStakes[key] = computedStake;
@@ -211,30 +209,46 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
+        // CASE 1: Small Array Key Wins
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          nextSmallDeficit = 0;
+          nextSmallDeficit = 0; 
+          
+          // Find index of the winner to capture it and all preceding options
+          const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
-          ARRAY_1_KEYS.forEach((key) => {
+          
+          for (let i = 0; i <= winnerIndex; i++) {
+            const key = ARRAY_1_KEYS[i];
             deductionSum += gameStakes[key] || 0;
-          });
+          }
+          
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
+        // CASE 2: Big Array Key Wins (including the big asset version of 6-0)
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
+          nextBigDeficit = 0; 
+          
+          // Map selection key back to index space inside configuration matrix
+          const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
+          const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
           let deductionSum = 0;
-          ARRAY_2_KEYS.forEach((key) => {
+          
+          for (let i = 0; i <= winnerIndex; i++) {
+            const key = ARRAY_2_KEYS[i];
             if (key === "winner") {
               deductionSum += gameStakes["array2Winner"] || 0;
             } else {
               deductionSum += gameStakes[key] || 0;
             }
-          });
+          }
+          
           nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-          nextBigDeficit = 0;
         }
       } else {
         console.log("No winner selected - stakes retained in deficits.");
       }
     } else {
+      // --- REGULAR ODD SYSTEM SETTLEMENT ---
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
