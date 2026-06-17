@@ -124,14 +124,14 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
+    // Calculate winner stake from baseStake (same for both normal and small odds)
+    const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
+    calculatedStakes["winner"] = winnerJackpotStake;
+
     if (isSmall) {
-      // 1. Calculate Winner stake (6-0 jackpot) - THIS GOES TO SMALL DEFICIT
-      const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
+      // 1. Add winner stake to smallDeficit
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // Store winner stake for the top button
-      calculatedStakes["winner"] = winnerJackpotStake;
-
       // 2. Compute Array 1 (Martingale targeting smallDeficit)
       let array1Sum = 0;
       ARRAY_1_KEYS.forEach((key) => {
@@ -146,7 +146,6 @@ const Homepage = () => {
       const updatedBigDeficit = bigDeficit + array1Sum;
 
       // 3. Compute Array 2 (Martingale targeting bigDeficit) 
-      // The 6-0 here is a SEPARATE asset targeting bigDeficit
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -166,9 +165,6 @@ const Homepage = () => {
 
     } else {
       // --- REGULAR ODD SYSTEM ---
-      const winnerStake = Math.max(Math.round(baseStake / found.winner), 10);
-      calculatedStakes["winner"] = winnerStake;
-
       const oddsMap = {
         home: found.win,
         draw: found.draw,
@@ -178,7 +174,7 @@ const Homepage = () => {
       const codeSequence = found.code || "HDA";
       const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
 
-      let runningTotal = winnerStake;
+      let runningTotal = winnerJackpotStake;
 
       sequence.forEach((key) => {
         const odd = oddsMap[key] || 0;
@@ -219,7 +215,7 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // Array 2 win - this includes the 6-0 in the big array
+          // Array 2 win - includes 6-0 targeting bigDeficit
           let deductionSum = 0;
           ARRAY_2_KEYS.forEach((key) => {
             deductionSum += gameStakes[key] || 0;
@@ -314,7 +310,7 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
-              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP - This is the jackpot that goes to smallDeficit */}
+              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP - Shows the full winner stake from baseStake */}
               <div>
                 <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ⚡ 6-0 Jackpot (Targets Small Deficit)
