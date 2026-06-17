@@ -124,16 +124,16 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // Safety fallback: ensure winner/jackpot key exists to prevent dividing by undefined (resulting in NaN/10 fallback)
+    // The absolute rule: winner jackpot stake is ALWAYS baseStake / winner odds
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // 1. Calculate and store intermediate mathematical updates inside local variables to avoid reading stale state
+      // 1. Add that exact winner stake into smallDeficit variable snapshot
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // 2. Compute Array 1 (Martingale targeting smallDeficit) using the exact updated math value
+      // 2. Compute Array 1 (Martingale targeting smallDeficit)
       let array1Sum = 0;
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -143,12 +143,15 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 1 stakes into bigDeficit variable snapshot
+      // Push Array 1 stakes into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
       // 3. Compute Array 2 (Martingale targeting bigDeficit) 
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
+        // CRITICAL FIX: Skip 'winner' key here so the Martingale math doesn't overwrite your clean base stake calculation
+        if (key === "winner") return;
+        
         const odd = found[key] || 0;
         if (odd > 1.01) {
           calculatedStakes[key] = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
@@ -156,10 +159,10 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 2 stakes into finalDeficit variable snapshot
+      // Push Array 2 stakes into finalDeficit
       const updatedFinalDeficit = finalDeficit + array2Sum;
 
-      // Commit the verified updates to state simultaneously
+      // Commit accurate state triggers
       setSmallDeficit(updatedSmallDeficit);
       setBigDeficit(updatedBigDeficit);
       setFinalDeficit(updatedFinalDeficit);
@@ -191,7 +194,7 @@ const Homepage = () => {
       });
     }
 
-    // Direct assignment guarantees the UI loops read the exact object mapping right away
+    // Pass the finished snapshot cleanly straight to UI tracking state
     setGameStakes(calculatedStakes);
   };
 
@@ -217,7 +220,6 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // Array 2 win - includes 6-0 targeting bigDeficit
           let deductionSum = 0;
           ARRAY_2_KEYS.forEach((key) => {
             deductionSum += gameStakes[key] || 0;
@@ -312,7 +314,7 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
-              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP - Shows the full winner stake from baseStake */}
+              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP */}
               <div>
                 <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ⚡ 6-0 Jackpot (Targets Small Deficit)
@@ -348,7 +350,7 @@ const Homepage = () => {
                 </div>
               </div>
 
-              {/* ARRAY 2 VIEW CONTAINER - 6-0 is LAST and targets Big Deficit */}
+              {/* ARRAY 2 VIEW CONTAINER */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ✦ Array 2 Matrix (Targets Big Deficit)
