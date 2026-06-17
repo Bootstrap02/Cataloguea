@@ -15,7 +15,7 @@ const ARRAY_1_LABELS = {
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2"
 };
 
-// Array 2: Big Array (Targets bigDeficit) - 6-0 is now LAST
+// Array 2: Big Array (Targets bigDeficit) - 6-0 is LAST
 const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
 const ARRAY_2_LABELS = {
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
@@ -125,11 +125,11 @@ const Homepage = () => {
     const calculatedStakes = emptyStakesMap();
 
     if (isSmall) {
-      // 1. Calculate Winner stake (6-0 jackpot) - shown separately at top
+      // 1. Calculate Winner stake (6-0 jackpot) - THIS GOES TO SMALL DEFICIT
       const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       
-      // Store winner stake separately for display at top
+      // Store winner stake for the top button
       calculatedStakes["winner"] = winnerJackpotStake;
 
       // 2. Compute Array 1 (Martingale targeting smallDeficit)
@@ -142,10 +142,11 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 1 stakes immediately into bigDeficit
+      // Push Array 1 stakes into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
-      // 3. Compute Array 2 (Martingale targeting bigDeficit) - 6-0 is last
+      // 3. Compute Array 2 (Martingale targeting bigDeficit) 
+      // The 6-0 here is a SEPARATE asset targeting bigDeficit
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -155,16 +156,16 @@ const Homepage = () => {
         }
       });
 
-      // Push Array 2 stakes immediately into finalDeficit
+      // Push Array 2 stakes into finalDeficit
       const updatedFinalDeficit = finalDeficit + array2Sum;
 
-      // Update calculations immediately into current states
+      // Update states
       setSmallDeficit(updatedSmallDeficit);
       setBigDeficit(updatedBigDeficit);
       setFinalDeficit(updatedFinalDeficit);
 
     } else {
-      // --- FIXED REGULAR ODD SYSTEM ---
+      // --- REGULAR ODD SYSTEM ---
       const winnerStake = Math.max(Math.round(baseStake / found.winner), 10);
       calculatedStakes["winner"] = winnerStake;
 
@@ -218,23 +219,13 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          if (winnerKey === "winner") {
-            nextSmallDeficit = 0;
-            nextBigDeficit = 0;
-            nextBaseStake = baseStake + (gameStakes["winner"] || 0);
-            let deductionSum = 0;
-            ARRAY_2_KEYS.forEach((key) => {
-              deductionSum += gameStakes[key] || 0;
-            });
-            nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-          } else {
-            let deductionSum = 0;
-            ARRAY_2_KEYS.forEach((key) => {
-              deductionSum += gameStakes[key] || 0;
-            });
-            nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-            nextBigDeficit = 0;
-          }
+          // Array 2 win - this includes the 6-0 in the big array
+          let deductionSum = 0;
+          ARRAY_2_KEYS.forEach((key) => {
+            deductionSum += gameStakes[key] || 0;
+          });
+          nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
+          nextBigDeficit = 0;
         }
       } else {
         console.log("No winner selected - stakes retained in deficits.");
@@ -323,10 +314,10 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
-              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP */}
+              {/* SEPARATE 6-0 WINNER BUTTON AT THE TOP - This is the jackpot that goes to smallDeficit */}
               <div>
                 <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                  ⚡ 6-0 Jackpot Line (Starter)
+                  ⚡ 6-0 Jackpot (Targets Small Deficit)
                 </div>
                 <button 
                   onClick={() => setWinnerKey("winner")} 
@@ -359,7 +350,7 @@ const Homepage = () => {
                 </div>
               </div>
 
-              {/* ARRAY 2 VIEW CONTAINER - 6-0 is LAST */}
+              {/* ARRAY 2 VIEW CONTAINER - 6-0 is LAST and targets Big Deficit */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ✦ Array 2 Matrix (Targets Big Deficit)
@@ -393,7 +384,7 @@ const Homepage = () => {
               </div>
             </>
           ) : (
-            /* FIXED NORMAL ODDS INTERFACE */
+            /* NORMAL ODDS INTERFACE */
             <div>
               <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                 ✦ Standard Match Matrix
