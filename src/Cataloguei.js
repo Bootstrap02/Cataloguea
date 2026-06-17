@@ -15,11 +15,12 @@ const ARRAY_1_LABELS = {
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2"
 };
 
-// Array 2: Big Array (Targets bigDeficit)
-const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
+// Array 2: Big Array (Targets bigDeficit) - includes winner as first element
+const ARRAY_2_KEYS = ["winner", "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne"];
 const ARRAY_2_LABELS = {
+  winner: "6–0",
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
-  fiveZero: "5–0", fiveOne: "5–1", winner: "6–0"
+  fiveZero: "5–0", fiveOne: "5–1"
 };
 
 // Normal Games Layout Sequence
@@ -128,6 +129,9 @@ const Homepage = () => {
       // 1. Calculate Winner stake and pile directly into smallDeficit
       const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
+      
+      // Store winner stake separately for display
+      calculatedStakes["winner"] = winnerJackpotStake;
 
       // 2. Compute Array 1 (Martingale targeting smallDeficit)
       let array1Sum = 0;
@@ -142,9 +146,11 @@ const Homepage = () => {
       // Push Array 1 stakes immediately into bigDeficit
       const updatedBigDeficit = bigDeficit + array1Sum;
 
-      // 3. Compute Array 2 (Martingale targeting bigDeficit)
+      // 3. Compute Array 2 (Martingale targeting bigDeficit) - includes winner
       let array2Sum = 0;
       ARRAY_2_KEYS.forEach((key) => {
+        // Skip winner as it's already calculated and in smallDeficit
+        if (key === "winner") return;
         const odd = found[key] || 0;
         if (odd > 1.01) {
           calculatedStakes[key] = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
@@ -211,60 +217,72 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
-        // --- ARRAY SELECTIONS HANDLING ---
+        // --- ARRAY 1 WINNER HANDLING ---
         if (ARRAY_1_KEYS.includes(winnerKey)) {
+          // Clear smallDeficit
           nextSmallDeficit = 0;
 
-          // Deduct assets before the winner from bigDeficit
-          const targetIndex = ARRAY_1_KEYS.indexOf(winnerKey);
+          // Deduct ALL Array 1 assets (including the winner) from bigDeficit
+          // This means the entire Array 1 pool is wiped from bigDeficit
           let deductionSum = 0;
-          for (let i = 0; i < targetIndex; i++) {
-            deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
-          }
+          ARRAY_1_KEYS.forEach((key) => {
+            deductionSum += gameStakes[key] || 0;
+          });
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
         } else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // Deduct assets before the winner from finalDeficit
-          const targetIndex = ARRAY_2_KEYS.indexOf(winnerKey);
-          let deductionSum = 0;
-          for (let i = 0; i < targetIndex; i++) {
-            deductionSum += gameStakes[ARRAY_2_KEYS[i]] || 0;
-          }
-          nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
+          // --- ARRAY 2 WINNER HANDLING ---
           
-          nextBigDeficit = 0;
+          if (winnerKey === "winner") {
+            // 6-0 winner wins - clear smallDeficit AND bigDeficit
+            nextSmallDeficit = 0;
+            nextBigDeficit = 0;
+            
+            // Add the winner's stake to baseStake
+            nextBaseStake = baseStake + (gameStakes["winner"] || 0);
+            
+            // Deduct ALL Array 2 assets from finalDeficit
+            let deductionSum = 0;
+            ARRAY_2_KEYS.forEach((key) => {
+              deductionSum += gameStakes[key] || 0;
+            });
+            nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
+            
+          } else {
+            // Other Array 2 asset wins (4-0, 4-1, 4-2, 5-0, 5-1)
+            // Deduct ALL Array 2 assets (including the winner) from finalDeficit
+            let deductionSum = 0;
+            ARRAY_2_KEYS.forEach((key) => {
+              deductionSum += gameStakes[key] || 0;
+            });
+            nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
+            
+            // Clear bigDeficit
+            nextBigDeficit = 0;
+          }
         }
       } else {
-        console.log("Stakes already retained inside deficits during calculation phase.");
+        console.log("No winner selected - stakes retained in deficits.");
       }
     } else {
       // --- NORMAL ODDS GAME SETTLEMENT ---
       if (winnerKey) {
-        // If a result was selected (any key was clicked), resolve accordingly
         if (winnerKey === "winner") {
-          // 6-0 winner was clicked - reset base to 10000
           nextBaseStake = 10000;
         } else {
-          // HDA result was clicked - check if it was the winning step
-          // For a winner, the losing stakes are the ones AFTER the winner in the sequence
           const codeSequence = fixture.code || "HDA";
           const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
           
           const winnerIndex = sequence.indexOf(winnerKey);
           if (winnerIndex !== -1) {
-            // Sum up stakes AFTER the winner (these are the losses)
             const lossSum = sequence.slice(winnerIndex + 1)
               .reduce((sum, key) => sum + (gameStakes[key] || 0), 0);
-            
-            // The deficit from the losing stakes gets added to baseStake
             nextBaseStake = baseStake + lossSum;
           } else {
-            // Fallback
             nextBaseStake = 10000;
           }
         }
       } else {
-        // No result selected - add all HDA stakes to baseStake
         const totalNormalStakes = HDA_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
         nextBaseStake = baseStake + totalNormalStakes;
       }
@@ -350,7 +368,7 @@ const Homepage = () => {
                 </div>
               </div>
 
-              {/* ARRAY 2 VIEW CONTAINER */}
+              {/* ARRAY 2 VIEW CONTAINER - includes 6-0 winner button */}
               <div>
                 <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ✦ Array 2 Matrix (Targets Big Deficit)
@@ -358,10 +376,25 @@ const Homepage = () => {
                 <div className="grid grid-cols-3 gap-2">
                   {ARRAY_2_KEYS.map((key) => {
                     const isActive = winnerKey === key;
+                    const isWinner = key === "winner";
                     return (
-                      <button key={key} onClick={() => setWinnerKey(key)} className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"}`}>
-                        <span className="text-[10px] text-purple-300 font-black">{ARRAY_2_LABELS[key]}</span>
-                        <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                      <button 
+                        key={key} 
+                        onClick={() => setWinnerKey(key)} 
+                        className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${
+                          isActive 
+                            ? "bg-white text-green-600 ring-4 ring-green-500" 
+                            : isWinner 
+                              ? "bg-yellow-600/40 border border-yellow-600 text-white hover:bg-yellow-700/40" 
+                              : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"
+                        }`}
+                      >
+                        <span className={`text-[10px] font-black ${isWinner ? "text-yellow-300" : "text-purple-300"}`}>
+                          {ARRAY_2_LABELS[key]}
+                        </span>
+                        <span className={`text-sm font-extrabold mt-0.5 ${isWinner ? "text-yellow-400" : ""}`}>
+                          {gameStakes[key] || "0"}
+                        </span>
                       </button>
                     );
                   })}
