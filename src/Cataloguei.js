@@ -8,23 +8,26 @@ import { FiRefreshCw } from "react-icons/fi";
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
-// Array 1 Sequence: Targets smallDeficit
+// Array 1 Sequence: Targets smallDeficit (Martingale Setup)
 const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo"];
 const ARRAY_1_LABELS = {
   oneZero: "1–0", twoZero: "2–0", twoOne: "2–1",
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2"
 };
 
-// Array 2 Sequence: Targets bigDeficit + finalDeficit
-const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
+// Array 2 Sequence: Targets bigDeficit + finalDeficit (5-0 and 5-1 completely eliminated)
+const ARRAY_2_KEYS = ["fourZero", "fourOne", "fourTwo", "winner"];
 const ARRAY_2_LABELS = {
-  fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
-  fiveZero: "5–0", fiveOne: "5–1", winner: "6–0"
+  fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2", winner: "6–0"
 };
+
+// Normal Game Keys (HDA Logic Restored)
+const NORMAL_KEYS = ["home", "draw", "away"];
+const NORMAL_LABELS = { home: "Home (H)", draw: "Draw (D)", away: "Away (A)" };
 
 const emptyStakesMap = () => {
   const obj = {};
-  [...ARRAY_1_KEYS, ...ARRAY_2_KEYS].forEach(k => { obj[k] = 0; });
+  [...ARRAY_1_KEYS, ...ARRAY_2_KEYS, ...NORMAL_KEYS].forEach(k => { obj[k] = 0; });
   return obj;
 };
 
@@ -38,7 +41,7 @@ const Homepage = () => {
   const [fixture, setFixture] = useState(null);
   const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
-  /* ---------- THE FOUR-DEFICIT SYSTEM ---------- */
+  /* ---------- DEFICIT METRICS ---------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [smallDeficit, setSmallDeficit] = useState(0);
   const [bigDeficit, setBigDeficit] = useState(0);
@@ -66,7 +69,7 @@ const Homepage = () => {
         setFinalDeficit(res.data.finalDeficit || 0);
       }
     } catch (err) {
-      console.error("❌ Sync read failure, using fallback metrics:", err.message);
+      console.error("❌ Sync read failure:", err.message);
     } finally {
       setIsReloading(false);
     }
@@ -80,7 +83,7 @@ const Homepage = () => {
         bigDeficit: overrides.bigDeficit ?? bigDeficit,
         finalDeficit: overrides.finalDeficit ?? finalDeficit,
       });
-      console.log("✅ Deficit matrices saved successfully");
+      console.log("✅ State synced successfully");
     } catch (err) {
       console.error("❌ Sync save failure:", err.message);
     }
@@ -115,13 +118,12 @@ const Homepage = () => {
     const calculatedStakes = emptyStakesMap();
 
     if (isSmall) {
-      // 1. Calculate base 6-0 stake instantly and push to smallDeficit immediately
+      // 1. Base 6-0 calculated instantly and pushed directly into smallDeficit
       const winnerJackpotStake = Math.max(Math.round(baseStake / found.winner), 10);
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
-      
       setSmallDeficit(updatedSmallDeficit);
 
-      // 2. Compute Array 1 Sequence targeting our fresh smallDeficit
+      // 2. Compute Array 1 (Martingale targeting the updated smallDeficit)
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
@@ -129,7 +131,7 @@ const Homepage = () => {
         }
       });
 
-      // 3. Compute Array 2 Sequence targeting combined bigDeficit + finalDeficit
+      // 3. Compute Array 2 Sequence (Targeting combined big + final deficit)
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
@@ -137,16 +139,20 @@ const Homepage = () => {
         }
       });
     } else {
-      // Standard linear match sequence fallback assignment logic
-      const fallbackWinnerStake = Math.max(Math.round(baseStake / found.winner), 10);
-      calculatedStakes["winner"] = fallbackWinnerStake;
+      // --- RESTORED NORMAL ODD HDA LOGIC ---
+      NORMAL_KEYS.forEach((key) => {
+        const odd = found[key] || 0;
+        if (odd > 1.01) {
+          calculatedStakes[key] = Math.max(Math.round(baseStake / (odd - 1)), 10);
+        }
+      });
     }
 
     setGameStakes(calculatedStakes);
   };
 
   /* ================================================================
-     SETTLEMENT & WIN SUBTRACTION ENGINE
+     SETTLEMENT ENGINE
      ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
@@ -158,12 +164,11 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
-        // --- WINNER SELECTION PROCESSING ---
+        // --- SMALL ODDS WIN SELECTION ---
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          // Rule 1: Reset smallDeficit to 0
-          nextSmallDeficit = 0;
+          nextSmallDeficit = 0; // Reset small array tracking
 
-          // Rule 2: Deduct stakes from positions BEFORE the winner out of bigDeficit
+          // Deduct the previous positions in array 1 from bigDeficit
           const targetIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
           for (let i = 0; i < targetIndex; i++) {
@@ -172,45 +177,45 @@ const Homepage = () => {
           nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
         } 
         else if (ARRAY_2_KEYS.includes(winnerKey)) {
-          // Rule 1: Deduct stakes from positions BEFORE the winner out of finalDeficit
+          // Deduct preceding positions in array 2 from finalDeficit
           const targetIndex = ARRAY_2_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
           for (let i = 0; i < targetIndex; i++) {
             deductionSum += gameStakes[ARRAY_2_KEYS[i]] || 0;
           }
           nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
-
-          // Rule 2: Reset bigDeficit to 0
-          nextBigDeficit = 0;
+          nextBigDeficit = 0; // Big array reset state
         }
       } else {
-        // --- TOTAL LOSS PROCESSING (PILE RESIDUES) ---
-        // Sum total Array 1 stakes and add to Big Deficit
+        // --- TOTAL LOSS PROCESSING ---
+        // Push Array 1 stakes directly into Big Deficit (Martingale execution)
         ARRAY_1_KEYS.forEach((key) => {
           nextBigDeficit += gameStakes[key] || 0;
         });
 
-        // Sum total Array 2 stakes and add to Final Deficit
+        // Push Array 2 stakes directly into Final Deficit
         ARRAY_2_KEYS.forEach((key) => {
           nextFinalDeficit += gameStakes[key] || 0;
         });
       }
     } else {
-      // Normal execution context loop outside matrix mapping rules
-      if (winnerKey === "winner") {
-        nextBaseStake = 10000;
+      // --- RESTORED REGULAR MATCH TRACKING SYSTEM ---
+      if (winnerKey && NORMAL_KEYS.includes(winnerKey)) {
+        nextBaseStake = 10000; // Reset back to base pool anchor
       } else {
-        nextBaseStake = baseStake + (gameStakes["winner"] || 0);
+        // Linear loss stacking rule for normal games
+        const totalNormalStakes = NORMAL_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
+        nextBaseStake = baseStake + totalNormalStakes;
       }
     }
 
-    // Push calculations back to runtime hook states
+    // Update state blocks
     setSmallDeficit(nextSmallDeficit);
     setBigDeficit(nextBigDeficit);
     setFinalDeficit(nextFinalDeficit);
     setBaseStake(nextBaseStake);
 
-    // Commit completely to storage
+    // Save update metrics out to backend database
     saveBase({
       baseStake: nextBaseStake,
       smallDeficit: nextSmallDeficit,
@@ -238,13 +243,11 @@ const Homepage = () => {
       
       {/* HEADER SECTION */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
-        <h1 className="text-base font-extrabold text-red-400 tracking-tight leading-tight">
+        <h1 className="text-base font-extrabold text-red-400 tracking-tight">
           Virtual EPL
-          {isSmallOddsGame && fixture && (
-            <span className="ml-2 text-[10px] bg-emerald-500 text-black px-2 py-0.5 rounded-full font-bold align-middle">
-              STRATEGY LOGIC V2
-            </span>
-          )}
+          <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold align-middle ${isSmallOddsGame ? "bg-emerald-500 text-black" : "bg-blue-500 text-white"}`}>
+            {isSmallOddsGame ? "SMALL ODDS MODE" : "REGULAR HDA MODE"}
+          </span>
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
           <button onClick={() => saveBase()} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
@@ -260,65 +263,73 @@ const Homepage = () => {
       {/* BODY INTERFACE */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-4 overflow-y-auto">
         
-        {/* ACTION ROW BAR */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center p-3 font-mono text-center">
-            <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide">6-0 Match Stake</div>
-              <div className="text-lg font-black text-yellow-400">{gameStakes["winner"] || "–"}</div>
-            </div>
-          </div>
-          <button onClick={handleNext} disabled={!fixture} className={`py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white" : "bg-green-700 hover:bg-green-600 text-white"}`}>
+        {/* NEXT MATCH RUNTIME TRIGGER */}
+        <div className="w-full">
+          <button onClick={handleNext} disabled={!fixture} className={`w-full py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white" : "bg-green-700 hover:bg-green-600 text-white"}`}>
             <div className="text-base font-black">NEXT MATCH</div>
             <div className="text-[9px] opacity-70 font-normal">Settle Matrix & Deduct Deficits</div>
           </button>
         </div>
 
-        {isSmallOddsGame && fixture ? (
-          <>
-            {/* ARRAY 1 ASSETS BLOCK */}
-            <div>
-              <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ✦ Array 1 Matrix (Targets Small Def)
+        {fixture ? (
+          isSmallOddsGame ? (
+            <>
+              {/* ARRAY 1 BLOCK (MARTINGALE TARGETING SMALL DEF) */}
+              <div>
+                <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                  ✦ Array 1 Matrix (Targets Small Def - Martingale)
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {ARRAY_1_KEYS.map((key) => {
+                    const isActive = winnerKey === key;
+                    return (
+                      <button key={key} onClick={() => setWinnerKey(key)} className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"}`}>
+                        <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
+                        <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {ARRAY_1_KEYS.map((key) => {
-                  const isActive = winnerKey === key;
-                  return (
-                    <button key={key} onClick={() => setWinnerKey(key)} className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"}`}>
-                      <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
-                      <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* ARRAY 2 ASSETS BLOCK */}
+              {/* ARRAY 2 BLOCK (TARGETING BIG + FINAL DEF) */}
+              <div>
+                <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                  ✦ Array 2 Matrix (Targets Big + Final Def)
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {ARRAY_2_KEYS.map((key) => {
+                    const isActive = winnerKey === key;
+                    return (
+                      <button key={key} onClick={() => setWinnerKey(key)} className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"}`}>
+                        <span className="text-[10px] text-purple-300 font-black">{ARRAY_2_LABELS[key]}</span>
+                        <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* --- RESTORED REGULAR ODDS DISPLAY (HDA INTERFACE) --- */
             <div>
-              <div className="text-[9px] text-purple-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ✦ Array 2 Matrix (Targets Big + Final Def)
+              <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                ✦ Standard Match Matrix (HDA Mode)
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {ARRAY_2_KEYS.map((key) => {
+                {NORMAL_KEYS.map((key) => {
                   const isActive = winnerKey === key;
                   return (
-                    <button key={key} onClick={() => setWinnerKey(key)} className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-purple-950/60 border border-purple-800 text-white hover:bg-purple-900/60"}`}>
-                      <span className="text-[10px] text-purple-300 font-black">{ARRAY_2_LABELS[key]}</span>
-                      <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                    <button key={key} onClick={() => setWinnerKey(key)} className={`py-5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
+                      <span className="text-[11px] text-blue-300 font-black uppercase">{NORMAL_LABELS[key]}</span>
+                      <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
-          </>
-        ) : (
-          fixture && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 rounded-2xl p-6 text-center text-xs">
-              ⚠️ Regular match sequence configuration active.
             </div>
           )
-        )}
+        ) : null}
 
         {/* CONTROLS BLOCK FOR USER INPUTS */}
         <div className="space-y-3 mt-2">
