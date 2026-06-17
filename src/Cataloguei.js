@@ -142,7 +142,7 @@ const Homepage = () => {
         }
       });
 
-      const updatedBigDeficit = bigDeficit + array1Sum;
+      const updatedBigDeficit = bigDeficit + array1Sum +finalDeficit;
 
       // Compute Array 2 (Martingale targeting bigDeficit) 
       let array2Sum = 0;
