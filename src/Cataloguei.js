@@ -130,55 +130,39 @@ const Homepage = () => {
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
-      
-      // Compute Array 1 (Martingale targeting smallDeficit)
-      let array1Sum = 0;
+      // 1. Array 1 targets the current smallDeficit + the master jackpot line risk
+      const targetSmallDeficit = smallDeficit + winnerJackpotStake;
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round(updatedSmallDeficit / (odd - 1)), 10);
-          array1Sum += calculatedStakes[key];
+          calculatedStakes[key] = Math.max(Math.round(targetSmallDeficit / (odd - 1)), 10);
         }
       });
 
-      const updatedBigDeficit = bigDeficit + array1Sum +finalDeficit;
-
-      // Compute Array 2 (Martingale targeting bigDeficit) 
-      let array2Sum = 0;
+      // 2. Array 2 targets the current bigDeficit + current finalDeficit
+      const targetBigDeficit = bigDeficit + finalDeficit;
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          const computedStake = Math.max(Math.round(updatedBigDeficit / (odd - 1)), 10);
-          
+          const computedStake = Math.max(Math.round(targetBigDeficit / (odd - 1)), 10);
           if (key === "winner") {
             calculatedStakes["array2Winner"] = computedStake;
           } else {
             calculatedStakes[key] = computedStake;
           }
-          array2Sum += computedStake;
         }
       });
 
-      const updatedFinalDeficit = finalDeficit + array2Sum;
-
-      setSmallDeficit(updatedSmallDeficit);
-      setBigDeficit(updatedBigDeficit);
-      setFinalDeficit(updatedFinalDeficit);
+      // CRITICAL FIX: DO NOT update state variables here. 
+      // Deficits are only updated at the end of the round inside handleNext.
 
     } else {
       // --- REGULAR ODD SYSTEM ---
-      const oddsMap = {
-        home: found.win,
-        draw: found.draw,
-        away: found.lose
-      };
-
+      const oddsMap = { home: found.win, draw: found.draw, away: found.lose };
       const codeSequence = found.code || "HDA";
       const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
 
       let runningTotal = winnerJackpotStake;
-
       sequence.forEach((key) => {
         const odd = oddsMap[key] || 0;
         if (odd > 1.01) {
@@ -208,44 +192,54 @@ const Homepage = () => {
     let nextBaseStake = baseStake;
 
     if (isSmallOddsGame) {
+      // Sum up what was spent in this current round
+      const array1Sum = ARRAY_1_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
+      const array2Sum = ARRAY_2_KEYS.reduce((sum, k) => {
+        return sum + (k === "winner" ? (gameStakes["array2Winner"] || 0) : (gameStakes[k] || 0));
+      }, 0);
+      const jackpotRisk = gameStakes["winner"] || 0;
+
       if (winnerKey) {
-        // CASE 1: Small Array Key Wins
+        // --- CASE A: A WIN OCCURRED ---
+        
         if (ARRAY_1_KEYS.includes(winnerKey)) {
+          // 1. Small Array wins naturally -> Clear small deficit to 0
           nextSmallDeficit = 0; 
-          
-          // Find index of the winner to capture it and all preceding options
+
+          // 2. Deduct winning asset and everything before it from Big Deficit
           const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
-          
           for (let i = 0; i <= winnerIndex; i++) {
-            const key = ARRAY_1_KEYS[i];
-            deductionSum += gameStakes[key] || 0;
+            deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
-          
-          nextBigDeficit = Math.max(0, nextBigDeficit - deductionSum);
 
-        // CASE 2: Big Array Key Wins (including the big asset version of 6-0)
+          // Apply loss additions of unrecovered lines, then subtract the recovered win scoop
+          nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
+          nextFinalDeficit = finalDeficit + array2Sum;
+
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
+          // 1. Big Array wins naturally -> Clear big deficit to 0
           nextBigDeficit = 0; 
-          
-          // Map selection key back to index space inside configuration matrix
+
+          // 2. Deduct winning asset and everything before it from Final Deficit
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
           const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
           let deductionSum = 0;
-          
           for (let i = 0; i <= winnerIndex; i++) {
             const key = ARRAY_2_KEYS[i];
-            if (key === "winner") {
-              deductionSum += gameStakes["array2Winner"] || 0;
-            } else {
-              deductionSum += gameStakes[key] || 0;
-            }
+            deductionSum += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
-          
-          nextFinalDeficit = Math.max(0, nextFinalDeficit - deductionSum);
+
+          // Small Deficit absorbs its unmitigated round losses
+          nextSmallDeficit = smallDeficit + jackpotRisk;
+          nextFinalDeficit = Math.max(0, finalDeficit + array2Sum - deductionSum);
         }
       } else {
-        console.log("No winner selected - stakes retained in deficits.");
+        // --- CASE B: TOTAL LOSS (NO WINNER SELECTED) ---
+        // Accumulate stakes entirely into their matching deficit pools
+        nextSmallDeficit = smallDeficit + jackpotRisk;
+        nextBigDeficit = bigDeficit + array1Sum;
+        nextFinalDeficit = finalDeficit + array2Sum;
       }
     } else {
       // --- REGULAR ODD SYSTEM SETTLEMENT ---
@@ -270,6 +264,7 @@ const Homepage = () => {
       }
     }
 
+    // Commit cleared, added, or subtracted balances to local and db states
     setSmallDeficit(nextSmallDeficit);
     setBigDeficit(nextBigDeficit);
     setFinalDeficit(nextFinalDeficit);
