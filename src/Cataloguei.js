@@ -153,9 +153,6 @@ const Homepage = () => {
         }
       });
 
-      // CRITICAL FIX: DO NOT update state variables here. 
-      // Deficits are only updated at the end of the round inside handleNext.
-
     } else {
       // --- REGULAR ODD SYSTEM ---
       const oddsMap = { home: found.win, draw: found.draw, away: found.lose };
@@ -221,18 +218,22 @@ const Homepage = () => {
           // 1. Big Array wins naturally -> Clear big deficit to 0
           nextBigDeficit = 0; 
 
-          // 2. Deduct winning asset and everything before it from Final Deficit
+          // 2. Small Deficit absorbs its unmitigated round losses
+          nextSmallDeficit = smallDeficit + jackpotRisk;
+
+          // 3. TARGET LOGIC FOR FINAL DEFICIT:
+          // Find the winning index in Array 2 configuration
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
           const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
-          let deductionSum = 0;
-          for (let i = 0; i <= winnerIndex; i++) {
+          
+          // Final deficit shifts cleanly into the unplayed remaining matrix assets
+          let unplayedStakesSum = 0;
+          for (let i = winnerIndex + 1; i < ARRAY_2_KEYS.length; i++) {
             const key = ARRAY_2_KEYS[i];
-            deductionSum += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
+            unplayedStakesSum += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
-
-          // Small Deficit absorbs its unmitigated round losses
-          nextSmallDeficit = smallDeficit + jackpotRisk;
-          nextFinalDeficit = Math.max(0, finalDeficit + array2Sum - deductionSum);
+          
+          nextFinalDeficit = unplayedStakesSum;
         }
       } else {
         // --- CASE B: TOTAL LOSS (NO WINNER SELECTED) ---
