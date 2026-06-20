@@ -193,6 +193,9 @@ const Homepage = () => {
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
+  /* ================================================================
+     POST-GAME SETTLEMENT ENGINE
+     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -219,7 +222,7 @@ const Homepage = () => {
             deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
 
-          // Fixed duplicated reassignments causing math leaks
+          // Subtract deductionSum cleanly from current loaded bigDeficit
           nextBigDeficit = Math.max(0, bigDeficit - deductionSum);
           nextFinalDeficit = finalDeficit + array2Sum;
 
@@ -240,10 +243,11 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          nextFinalDeficit = finalDeficit + behindTotal;
+          // FIXED: Overwrite completely with the new behindTotal instead of adding to previous state
+          nextFinalDeficit = behindTotal;
         }
       } else {
-        // TOTAL LOSS
+        // TOTAL LOSS — Accumulate the unhit Array 2 stakes into Final Deficit
         nextSmallDeficit = smallDeficit;
         nextBigDeficit = bigDeficit;
         nextFinalDeficit = finalDeficit + array2Sum;
@@ -285,7 +289,8 @@ const Homepage = () => {
 
     clearForNext();
   };
-
+  
+  
   const clearForNext = () => {
     setInputA("");
     setInputB("");
