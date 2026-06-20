@@ -103,6 +103,7 @@ const Homepage = () => {
   /* ================================================================
      SUBMIT / PRE-GAME CONVEYOR ENGINE
      ================================================================ */
+  
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -131,16 +132,24 @@ const Homepage = () => {
 
     if (isSmall) {
       // 1. Array 1 targets the current smallDeficit + the master jackpot line risk
-      const targetSmallDeficit = smallDeficit + winnerJackpotStake;
+      const currentActiveSmallDeficit = smallDeficit + winnerJackpotStake;
+      
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round(targetSmallDeficit / (odd - 1)), 10);
+          calculatedStakes[key] = Math.max(Math.round(currentActiveSmallDeficit / (odd - 1)), 10);
         }
       });
 
-      // 2. Array 2 targets the current bigDeficit + current finalDeficit
-      const targetBigDeficit = bigDeficit + finalDeficit;
+      // 2. Calculate the total risk of the small array stakes right now
+      const totalSmallArrayStakesSum = ARRAY_1_KEYS.reduce((sum, key) => {
+        return sum + (calculatedStakes[key] || 0);
+      }, 0);
+
+      // 3. Array 2 targets bigDeficit + total small array stakes + finalDeficit
+      const currentActiveBigDeficit = bigDeficit + totalSmallArrayStakesSum;
+      const targetBigDeficit = currentActiveBigDeficit + finalDeficit; 
+      
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
