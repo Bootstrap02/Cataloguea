@@ -196,6 +196,9 @@ const Homepage = () => {
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
+  /* ================================================================
+     POST-GAME SETTLEMENT ENGINE
+     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -208,7 +211,6 @@ const Homepage = () => {
       const array2Sum = ARRAY_2_KEYS.reduce((sum, k) => {
         return sum + (k === "winner" ? (gameStakes["array2Winner"] || 0) : (gameStakes[k] || 0));
       }, 0);
-      const jackpotRisk = gameStakes["winner"] || 0;
 
       if (winnerKey) {
         if (ARRAY_1_KEYS.includes(winnerKey)) {
@@ -230,7 +232,7 @@ const Homepage = () => {
           // Big Array wins -> Clear big deficit to 0
           nextBigDeficit = 0;
 
-          // Master jackpot line lost this round -> small deficit absorbs it
+          // FIXED: Small deficit remains completely isolated and unchanged
           nextSmallDeficit = smallDeficit;
 
           // "Behind total" = stakes AFTER the winning index in Array 2
@@ -243,7 +245,7 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          // FIXED: Overwrite completely with the new behindTotal instead of adding to previous state
+          // Overwrite completely with the new behindTotal
           nextFinalDeficit = behindTotal;
         }
       } else {
