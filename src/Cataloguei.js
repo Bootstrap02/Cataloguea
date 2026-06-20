@@ -231,7 +231,7 @@ const Homepage = () => {
           nextBigDeficit = 0;
 
           // Master jackpot line lost this round -> small deficit absorbs it
-          nextSmallDeficit = smallDeficit + jackpotRisk;
+          nextSmallDeficit = smallDeficit;
 
           // "Behind total" = stakes AFTER the winning index in Array 2
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
