@@ -104,6 +104,7 @@ const Homepage = () => {
      SUBMIT / PRE-GAME CONVEYOR ENGINE
      ================================================================ */
   
+  
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -125,30 +126,35 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // Core master winner jackpot stake (always targets baseStake / odds)
+    // Core master winner jackpot stake
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // 1. Array 1 targets the current smallDeficit + the master jackpot line risk
-      const currentActiveSmallDeficit = smallDeficit + winnerJackpotStake;
+      // 1. Instantly update smallDeficit state with the winner stake amount
+      const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
+      setSmallDeficit(updatedSmallDeficit); // <--- Instantly pushes to state
       
+      // Calculate Array 1 stakes using the newly updated small deficit value
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
-          calculatedStakes[key] = Math.max(Math.round(currentActiveSmallDeficit / (odd - 1)), 10);
+          calculatedStakes[key] = Math.max(Math.round(updatedSmallDeficit / (odd - 1)), 10);
         }
       });
 
-      // 2. Calculate the total risk of the small array stakes right now
+      // 2. Sum up the calculated Array 1 stakes
       const totalSmallArrayStakesSum = ARRAY_1_KEYS.reduce((sum, key) => {
         return sum + (calculatedStakes[key] || 0);
       }, 0);
 
-      // 3. Array 2 targets bigDeficit + total small array stakes + finalDeficit
-      const currentActiveBigDeficit = bigDeficit + totalSmallArrayStakesSum;
-      const targetBigDeficit = currentActiveBigDeficit + finalDeficit; 
+      // 3. Instantly update bigDeficit state with the total small array stakes sum
+      const updatedBigDeficit = bigDeficit + totalSmallArrayStakesSum;
+      setBigDeficit(updatedBigDeficit); // <--- Instantly pushes to state
+
+      // Calculate Array 2 stakes using the newly updated big deficit value + final deficit
+      const targetBigDeficit = updatedBigDeficit + finalDeficit; 
       
       ARRAY_2_KEYS.forEach((key) => {
         const odd = found[key] || 0;
@@ -164,11 +170,11 @@ const Homepage = () => {
 
     } else {
       // --- REGULAR ODD SYSTEM ---
+      let runningTotal = winnerJackpotStake;
       const oddsMap = { home: found.win, draw: found.draw, away: found.lose };
       const codeSequence = found.code || "HDA";
       const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
 
-      let runningTotal = winnerJackpotStake;
       sequence.forEach((key) => {
         const odd = oddsMap[key] || 0;
         if (odd > 1.01) {
@@ -183,10 +189,9 @@ const Homepage = () => {
       });
     }
 
+    // Save all calculated stakes into the game view state
     setGameStakes(calculatedStakes);
-  };
-  
-
+};
       
   
   /* ================================================================
