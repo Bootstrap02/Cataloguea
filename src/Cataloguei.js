@@ -197,6 +197,10 @@ const Homepage = () => {
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
+  
+  /* ================================================================
+     POST-GAME SETTLEMENT ENGINE
+     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -217,28 +221,30 @@ const Homepage = () => {
           // Small Array wins -> Clear small deficit to 0
           nextSmallDeficit = 0;
 
+          // Compute stakes up to and including the winner index
+          const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
+          let deductionSum = 0;
+          for (let i = 0; i <= winnerIndex; i++) {
+            deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
+          }
+
+          /* CRITICAL CORRECTION FOR BIG DEFICIT:
+            Since array1Sum was ALREADY added to bigDeficit during handleSubmit on load,
+            we subtract the deductionSum from the current running bigDeficit state directly.
+          */
+          nextBigDeficit = Math.max(0, bigDeficit - deductionSum);
           
-          // "Before total" = stakes UP TO AND INCLUDING the winner
-const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
-let deductionSum = 0;
-
-for (let i = 0; i <= winnerIndex; i++) { // Changed < to <=
-  deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
-}
-
-nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
-
-          nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
+          // Final deficit properly accumulates the unhit array 2 stakes proportionally
           nextFinalDeficit = finalDeficit + array2Sum;
 
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
           // Big Array wins -> Clear big deficit to 0
           nextBigDeficit = 0;
 
-          // Master jackpot line lost this round (a different score occurred) -> small deficit absorbs it
+          // Master jackpot line lost this round -> small deficit absorbs it
           nextSmallDeficit = smallDeficit + jackpotRisk;
 
-          // "Behind total" = stakes AFTER the winner, PUSHED INTO (added to) final deficit
+          // "Behind total" = stakes AFTER the winning index in Array 2
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
           const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
 
@@ -248,13 +254,17 @@ nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          nextFinalDeficit =  behindTotal;
+          /*
+            CRITICAL CORRECTION FOR FINAL DEFICIT:
+            Must accumulate proportionally by adding behindTotal to the EXISTING finalDeficit balance
+          */
+          nextFinalDeficit = finalDeficit + behindTotal;
         }
       } else {
-        // TOTAL LOSS — unchanged
-        nextSmallDeficit = smallDeficit + jackpotRisk;
-        nextBigDeficit = bigDeficit + array1Sum;
-        nextFinalDeficit = finalDeficit + array2Sum;
+        // TOTAL LOSS — Do not add risks again because handleSubmit already pushed them on load!
+        nextSmallDeficit = smallDeficit;
+        nextBigDeficit = bigDeficit;
+        nextFinalDeficit = finalDeficit;
       }
     } else {
       // REGULAR ODDS SETTLEMENT — unchanged
@@ -293,7 +303,6 @@ nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
 
     clearForNext();
   };
-  
 
   const clearForNext = () => {
     setInputA("");
