@@ -202,7 +202,6 @@ const Homepage = () => {
     let nextBaseStake = baseStake;
 
     if (isSmallOddsGame) {
-      const array1Sum = ARRAY_1_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
       const array2Sum = ARRAY_2_KEYS.reduce((sum, k) => {
         return sum + (k === "winner" ? (gameStakes["array2Winner"] || 0) : (gameStakes[k] || 0));
       }, 0);
@@ -220,10 +219,8 @@ const Homepage = () => {
             deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
 
-          // FIX: Subtract deductionSum cleanly from current loaded bigDeficit (102 - 63 = 39)
+          // Fixed duplicated reassignments causing math leaks
           nextBigDeficit = Math.max(0, bigDeficit - deductionSum);
-          
-          // Accumulate the unhit Array 2 stakes into Final Deficit balance properly
           nextFinalDeficit = finalDeficit + array2Sum;
 
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
@@ -243,17 +240,16 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          // Accumulate behindTotal to existing balance proportionally
           nextFinalDeficit = finalDeficit + behindTotal;
         }
       } else {
-        // TOTAL LOSS — Retain the states since handleSubmit already accurately added them on load!
+        // TOTAL LOSS
         nextSmallDeficit = smallDeficit;
         nextBigDeficit = bigDeficit;
         nextFinalDeficit = finalDeficit;
       }
     } else {
-      // REGULAR ODDS SETTLEMENT — unchanged
+      // REGULAR ODDS SETTLEMENT
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
