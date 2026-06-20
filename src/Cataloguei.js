@@ -189,7 +189,6 @@ const Homepage = () => {
     let nextBaseStake = baseStake;
 
     if (isSmallOddsGame) {
-      // Sum up what was spent in this current round
       const array1Sum = ARRAY_1_KEYS.reduce((sum, k) => sum + (gameStakes[k] || 0), 0);
       const array2Sum = ARRAY_2_KEYS.reduce((sum, k) => {
         return sum + (k === "winner" ? (gameStakes["array2Winner"] || 0) : (gameStakes[k] || 0));
@@ -197,53 +196,47 @@ const Homepage = () => {
       const jackpotRisk = gameStakes["winner"] || 0;
 
       if (winnerKey) {
-        // --- CASE A: A WIN OCCURRED ---
-        
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          // 1. Small Array wins naturally -> Clear small deficit to 0
-          nextSmallDeficit = 0; 
+          // Small Array wins -> Clear small deficit to 0
+          nextSmallDeficit = 0;
 
-          // 2. Deduct winning asset and everything before it from Big Deficit
+          // "Before total" = stakes STRICTLY BEFORE the winner (winner's own stake excluded)
           const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
-          for (let i = 0; i <= winnerIndex; i++) {
+          for (let i = 0; i < winnerIndex; i++) {
             deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
 
-          // Apply loss additions of unrecovered lines, then subtract the recovered win scoop
           nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
           nextFinalDeficit = finalDeficit + array2Sum;
 
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
-          // 1. Big Array wins naturally -> Clear big deficit to 0
-          nextBigDeficit = 0; 
+          // Big Array wins -> Clear big deficit to 0
+          nextBigDeficit = 0;
 
-          // 2. Small Deficit absorbs its unmitigated round losses
+          // Master jackpot line lost this round (a different score occurred) -> small deficit absorbs it
           nextSmallDeficit = smallDeficit + jackpotRisk;
 
-          // 3. TARGET LOGIC FOR FINAL DEFICIT:
-          // Find the winning index in Array 2 configuration
+          // "Behind total" = stakes AFTER the winner, PUSHED INTO (added to) final deficit
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
           const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
-          
-          // Final deficit shifts cleanly into the unplayed remaining matrix assets
-          let unplayedStakesSum = 0;
+
+          let behindTotal = 0;
           for (let i = winnerIndex + 1; i < ARRAY_2_KEYS.length; i++) {
             const key = ARRAY_2_KEYS[i];
-            unplayedStakesSum += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
+            behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
-          
-          nextFinalDeficit = unplayedStakesSum;
+
+          nextFinalDeficit = finalDeficit + behindTotal;
         }
       } else {
-        // --- CASE B: TOTAL LOSS (NO WINNER SELECTED) ---
-        // Accumulate stakes entirely into their matching deficit pools
+        // TOTAL LOSS — unchanged
         nextSmallDeficit = smallDeficit + jackpotRisk;
         nextBigDeficit = bigDeficit + array1Sum;
         nextFinalDeficit = finalDeficit + array2Sum;
       }
     } else {
-      // --- REGULAR ODD SYSTEM SETTLEMENT ---
+      // REGULAR ODDS SETTLEMENT — unchanged
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
@@ -265,7 +258,6 @@ const Homepage = () => {
       }
     }
 
-    // Commit cleared, added, or subtracted balances to local and db states
     setSmallDeficit(nextSmallDeficit);
     setBigDeficit(nextBigDeficit);
     setFinalDeficit(nextFinalDeficit);
@@ -280,6 +272,7 @@ const Homepage = () => {
 
     clearForNext();
   };
+  
 
   const clearForNext = () => {
     setInputA("");
