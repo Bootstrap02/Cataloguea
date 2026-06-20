@@ -103,8 +103,6 @@ const Homepage = () => {
   /* ================================================================
      SUBMIT / PRE-GAME CONVEYOR ENGINE
      ================================================================ */
-  
-  
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -134,7 +132,7 @@ const Homepage = () => {
     if (isSmall) {
       // 1. Instantly update smallDeficit state with the winner stake amount
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
-      setSmallDeficit(updatedSmallDeficit); // <--- Instantly pushes to state
+      setSmallDeficit(updatedSmallDeficit);
       
       // Calculate Array 1 stakes using the newly updated small deficit value
       ARRAY_1_KEYS.forEach((key) => {
@@ -151,7 +149,7 @@ const Homepage = () => {
 
       // 3. Instantly update bigDeficit state with the total small array stakes sum
       const updatedBigDeficit = bigDeficit + totalSmallArrayStakesSum;
-      setBigDeficit(updatedBigDeficit); // <--- Instantly pushes to state
+      setBigDeficit(updatedBigDeficit);
 
       // Calculate Array 2 stakes using the newly updated big deficit value + final deficit
       const targetBigDeficit = updatedBigDeficit + finalDeficit; 
@@ -189,15 +187,9 @@ const Homepage = () => {
       });
     }
 
-    // Save all calculated stakes into the game view state
     setGameStakes(calculatedStakes);
-};
+  };
       
-  
-  /* ================================================================
-     POST-GAME SETTLEMENT ENGINE
-     ================================================================ */
-  
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
@@ -228,13 +220,10 @@ const Homepage = () => {
             deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
 
-          /* CRITICAL CORRECTION FOR BIG DEFICIT:
-            Since array1Sum was ALREADY added to bigDeficit during handleSubmit on load,
-            we subtract the deductionSum from the current running bigDeficit state directly.
-          */
+          // FIX: Subtract deductionSum cleanly from current loaded bigDeficit (102 - 63 = 39)
           nextBigDeficit = Math.max(0, bigDeficit - deductionSum);
           
-          // Final deficit properly accumulates the unhit array 2 stakes proportionally
+          // Accumulate the unhit Array 2 stakes into Final Deficit balance properly
           nextFinalDeficit = finalDeficit + array2Sum;
 
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
@@ -254,14 +243,11 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          /*
-            CRITICAL CORRECTION FOR FINAL DEFICIT:
-            Must accumulate proportionally by adding behindTotal to the EXISTING finalDeficit balance
-          */
+          // Accumulate behindTotal to existing balance proportionally
           nextFinalDeficit = finalDeficit + behindTotal;
         }
       } else {
-        // TOTAL LOSS — Do not add risks again because handleSubmit already pushed them on load!
+        // TOTAL LOSS — Retain the states since handleSubmit already accurately added them on load!
         nextSmallDeficit = smallDeficit;
         nextBigDeficit = bigDeficit;
         nextFinalDeficit = finalDeficit;
