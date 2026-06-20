@@ -227,7 +227,7 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          nextFinalDeficit = finalDeficit + behindTotal;
+          nextFinalDeficit =  behindTotal;
         }
       } else {
         // TOTAL LOSS — unchanged
