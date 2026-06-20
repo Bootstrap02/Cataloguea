@@ -200,12 +200,16 @@ const Homepage = () => {
           // Small Array wins -> Clear small deficit to 0
           nextSmallDeficit = 0;
 
-          // "Before total" = stakes STRICTLY BEFORE the winner (winner's own stake excluded)
-          const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
-          let deductionSum = 0;
-          for (let i = 0; i < winnerIndex; i++) {
-            deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
-          }
+          
+          // "Before total" = stakes UP TO AND INCLUDING the winner
+const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
+let deductionSum = 0;
+
+for (let i = 0; i <= winnerIndex; i++) { // Changed < to <=
+  deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
+}
+
+nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
 
           nextBigDeficit = Math.max(0, bigDeficit + array1Sum - deductionSum);
           nextFinalDeficit = finalDeficit + array2Sum;
