@@ -246,7 +246,7 @@ const Homepage = () => {
         // TOTAL LOSS
         nextSmallDeficit = smallDeficit;
         nextBigDeficit = bigDeficit;
-        nextFinalDeficit = finalDeficit;
+        nextFinalDeficit = finalDeficit + array2Sum;
       }
     } else {
       // REGULAR ODDS SETTLEMENT
