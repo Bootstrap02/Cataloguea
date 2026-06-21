@@ -65,37 +65,41 @@ const Homepage = () => {
   /* ================================================================
      DATABASE SYNC
      ================================================================ */
-  const fetchBase = async () => {
-    setIsReloading(true);
+/* ================================================================
+     LOCAL STORAGE SYNC
+     ================================================================ */
+  const fetchBase = () => {
     try {
-      const res = await axios.get(API_BASE);
-      if (res.data) {
-        setBaseStake(res.data.base || 10000);
-        setSmallDeficit(res.data.smallDeficit || 0);
-        setBigDeficit(res.data.bigDeficit || 0);
-        setFinalDeficit(res.data.finalDeficit || 0);
+      const localData = localStorage.getItem("virtual_epl_data");
+      if (localData) {
+        const data = JSON.parse(localData);
+        setBaseStake(data.base ?? 10000);
+        setSmallDeficit(data.smallDeficit ?? 0);
+        setBigDeficit(data.bigDeficit ?? 0);
+        setFinalDeficit(data.finalDeficit ?? 0);
+        console.log("✅ State loaded from LocalStorage");
       }
     } catch (err) {
-      console.error("❌ Sync read failure:", err.message);
-    } finally {
-      setIsReloading(false);
+      console.error("❌ LocalStorage read failure:", err.message);
     }
   };
 
-  const saveBase = async (overrides = {}) => {
+  const saveBase = (overrides = {}) => {
     try {
-      await axios.put(API_BASE, {
+      const dataToSave = {
         base: overrides.baseStake ?? baseRef.current,
         smallDeficit: overrides.smallDeficit ?? smallDeficit,
         bigDeficit: overrides.bigDeficit ?? bigDeficit,
         finalDeficit: overrides.finalDeficit ?? finalDeficit,
-      });
-      console.log("✅ Deficit states successfully synchronized");
+      };
+      localStorage.setItem("virtual_epl_data", JSON.stringify(dataToSave));
+      console.log("✅ State saved to LocalStorage");
     } catch (err) {
-      console.error("❌ Sync save failure:", err.message);
+      console.error("❌ LocalStorage save failure:", err.message);
     }
   };
 
+  
   useEffect(() => {
     fetchBase();
   }, []);
