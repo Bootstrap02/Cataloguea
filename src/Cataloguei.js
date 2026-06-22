@@ -1,12 +1,9 @@
-
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
 import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
 
 /* ---------------- CONSTANTS & KEYS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
 
 // Array 1: Small Array (Targets smallDeficit)
 const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo"];
@@ -63,12 +60,10 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     DATABASE SYNC
-     ================================================================ */
-/* ================================================================
-     LOCAL STORAGE SYNC
+     LOCAL STORAGE SYNC (100% Client-Side Only)
      ================================================================ */
   const fetchBase = () => {
+    setIsReloading(true);
     try {
       const localData = localStorage.getItem("virtual_epl_data");
       if (localData) {
@@ -81,6 +76,8 @@ const Homepage = () => {
       }
     } catch (err) {
       console.error("❌ LocalStorage read failure:", err.message);
+    } finally {
+      setTimeout(() => setIsReloading(false), 400);
     }
   };
 
@@ -93,13 +90,12 @@ const Homepage = () => {
         finalDeficit: overrides.finalDeficit ?? finalDeficit,
       };
       localStorage.setItem("virtual_epl_data", JSON.stringify(dataToSave));
-      console.log("✅ State saved to LocalStorage");
+      console.log("✅ State saved to LocalStorage:", dataToSave);
     } catch (err) {
       console.error("❌ LocalStorage save failure:", err.message);
     }
   };
 
-  
   useEffect(() => {
     fetchBase();
   }, []);
@@ -170,6 +166,14 @@ const Homepage = () => {
         }
       });
 
+      // Save calculated configuration mutations straight into storage pool
+      saveBase({
+        baseStake: baseStake,
+        smallDeficit: updatedSmallDeficit,
+        bigDeficit: updatedBigDeficit,
+        finalDeficit: finalDeficit
+      });
+
     } else {
       // --- REGULAR ODD SYSTEM ---
       let runningTotal = winnerJackpotStake;
@@ -197,12 +201,6 @@ const Homepage = () => {
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
-  /* ================================================================
-     POST-GAME SETTLEMENT ENGINE
-     ================================================================ */
-  /* ================================================================
-     POST-GAME SETTLEMENT ENGINE
-     ================================================================ */
   const handleNext = () => {
     if (!fixture) return;
 
@@ -218,28 +216,21 @@ const Homepage = () => {
 
       if (winnerKey) {
         if (ARRAY_1_KEYS.includes(winnerKey)) {
-          // Small Array wins -> Clear small deficit to 0
           nextSmallDeficit = 0;
 
-          // Compute stakes up to and including the winner index
           const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
           let deductionSum = 0;
           for (let i = 0; i <= winnerIndex; i++) {
             deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
           }
 
-          // Subtract deductionSum cleanly from current loaded bigDeficit
           nextBigDeficit = Math.max(0, bigDeficit - deductionSum);
           nextFinalDeficit = finalDeficit + array2Sum;
 
         } else if (ARRAY_2_KEYS.includes(winnerKey) || winnerKey === "array2Winner") {
-          // Big Array wins -> Clear big deficit to 0
           nextBigDeficit = 0;
-
-          // FIXED: Small deficit remains completely isolated and unchanged
           nextSmallDeficit = smallDeficit;
 
-          // "Behind total" = stakes AFTER the winning index in Array 2
           const targetKey = winnerKey === "array2Winner" ? "winner" : winnerKey;
           const winnerIndex = ARRAY_2_KEYS.indexOf(targetKey);
 
@@ -249,17 +240,14 @@ const Homepage = () => {
             behindTotal += (key === "winner") ? (gameStakes["array2Winner"] || 0) : (gameStakes[key] || 0);
           }
 
-          // Overwrite completely with the new behindTotal
           nextFinalDeficit = behindTotal;
         }
       } else {
-        // TOTAL LOSS — Accumulate the unhit Array 2 stakes into Final Deficit
         nextSmallDeficit = smallDeficit;
         nextBigDeficit = bigDeficit;
         nextFinalDeficit = finalDeficit + array2Sum;
       }
     } else {
-      // REGULAR ODDS SETTLEMENT
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
@@ -286,6 +274,7 @@ const Homepage = () => {
     setFinalDeficit(nextFinalDeficit);
     setBaseStake(nextBaseStake);
 
+    // Save final settled snapshot directly to the client storage pool
     saveBase({
       baseStake: nextBaseStake,
       smallDeficit: nextSmallDeficit,
@@ -295,7 +284,6 @@ const Homepage = () => {
 
     clearForNext();
   };
-  
   
   const clearForNext = () => {
     setInputA("");
@@ -344,7 +332,7 @@ const Homepage = () => {
         {fixture ? (
           isSmallOddsGame ? (
             <>
-              {/* MASTER JACKPOT LINE (Targets Base Stake) */}
+              {/* MASTER JACKPOT LINE */}
               <div>
                 <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
                   ⚡ 6-0 Jackpot Line (Targets Base Stake)
