@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { odds, smallOdds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
@@ -5,21 +6,19 @@ import { FiRefreshCw } from "react-icons/fi";
 /* ---------------- CONSTANTS & KEYS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 
-// ONE UNIFIED ARRAY (Small + former Big assets merged)
-// Targets smallDeficit (with finalDeficit added in calculation)
-const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo", "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne", "winner"];
+// Unified Array (formerly Small + Big) — does NOT include the master jackpot "winner"
+const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo", "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne"];
 const ARRAY_1_LABELS = {
   oneZero: "1–0", twoZero: "2–0", twoOne: "2–1",
   threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2", 
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
-  fiveZero: "5–0", fiveOne: "5–1", winner: "6–0"
+  fiveZero: "5–0", fiveOne: "5–1"
 };
 
 // Normal Games Layout Sequence
 const HDA_KEYS = ["home", "draw", "away"];
 const HDA_LABELS = { home: "Home (H)", draw: "Draw (D)", away: "Away (A)" };
 
-// Code mapping for HDA sequences
 const CODE_MAP = {
   "HDA": ["home", "draw", "away"],
   "ADH": ["away", "draw", "home"],
@@ -27,7 +26,7 @@ const CODE_MAP = {
 };
 
 const emptyStakesMap = () => {
-  const obj = { winner: 0 };
+  const obj = { winner: 0 }; // master jackpot winner
   [...ARRAY_1_KEYS, ...HDA_KEYS].forEach(k => { obj[k] = 0; });
   return obj;
 };
@@ -42,7 +41,7 @@ const Homepage = () => {
   const [fixture, setFixture] = useState(null);
   const [isSmallOddsGame, setIsSmallOddsGame] = useState(false);
 
-  /* ---------- THE STATES (bigDeficit removed) ---------- */
+  /* ---------- STATES ---------- */
   const [baseStake, setBaseStake] = useState(10000);
   const [smallDeficit, setSmallDeficit] = useState(0);
   const [finalDeficit, setFinalDeficit] = useState(0);
@@ -55,7 +54,7 @@ const Homepage = () => {
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
-     LOCAL STORAGE SYNC (100% Client-Side Only)
+     LOCAL STORAGE SYNC
      ================================================================ */
   const fetchBase = () => {
     setIsReloading(true);
@@ -66,7 +65,6 @@ const Homepage = () => {
         setBaseStake(data.base ?? 10000);
         setSmallDeficit(data.smallDeficit ?? 0);
         setFinalDeficit(data.finalDeficit ?? 0);
-        console.log("✅ State loaded from LocalStorage");
       }
     } catch (err) {
       console.error("❌ LocalStorage read failure:", err.message);
@@ -83,15 +81,12 @@ const Homepage = () => {
         finalDeficit: overrides.finalDeficit ?? finalDeficit,
       };
       localStorage.setItem("virtual_epl_data", JSON.stringify(dataToSave));
-      console.log("✅ State saved to LocalStorage:", dataToSave);
     } catch (err) {
       console.error("❌ LocalStorage save failure:", err.message);
     }
   };
 
-  useEffect(() => {
-    fetchBase();
-  }, []);
+  useEffect(() => { fetchBase(); }, []);
 
   /* ================================================================
      SUBMIT / PRE-GAME CONVEYOR ENGINE
@@ -117,19 +112,18 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // Core master winner jackpot stake
+    // === MASTER JACKPOT WINNER STAKE (6-0 Jackpot Line - targets Base) ===
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
 
     if (isSmall) {
-      // 1. Instantly update smallDeficit state with the winner stake amount
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       setSmallDeficit(updatedSmallDeficit);
-      
-      // Calculate ALL Array 1 stakes (unified) using smallDeficit + finalDeficit
+
+      // Calculate unified array stakes using (smallDeficit + finalDeficit)
       const targetForCalc = updatedSmallDeficit + finalDeficit;
-      
+
       ARRAY_1_KEYS.forEach((key) => {
         const odd = found[key] || 0;
         if (odd > 1.01) {
@@ -137,19 +131,12 @@ const Homepage = () => {
         }
       });
 
-      // Save calculated configuration mutations straight into storage pool
-      saveBase({
-        baseStake: baseStake,
-        smallDeficit: updatedSmallDeficit,
-        finalDeficit: finalDeficit
-      });
-
+      saveBase({ baseStake: baseStake, smallDeficit: updatedSmallDeficit, finalDeficit });
     } else {
-      // --- REGULAR ODD SYSTEM (unchanged) ---
+      // Regular mode (unchanged)
       let runningTotal = winnerJackpotStake;
       const oddsMap = { home: found.win, draw: found.draw, away: found.lose };
-      const codeSequence = found.code || "HDA";
-      const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
+      const sequence = CODE_MAP[found.code || "HDA"] || ["home", "draw", "away"];
 
       sequence.forEach((key) => {
         const odd = oddsMap[key] || 0;
@@ -159,15 +146,11 @@ const Homepage = () => {
           runningTotal += stake;
         }
       });
-
-      HDA_KEYS.forEach(key => {
-        if (!calculatedStakes[key]) calculatedStakes[key] = 0;
-      });
     }
 
     setGameStakes(calculatedStakes);
   };
-      
+
   /* ================================================================
      POST-GAME SETTLEMENT ENGINE
      ================================================================ */
@@ -180,37 +163,36 @@ const Homepage = () => {
 
     if (isSmallOddsGame) {
       if (winnerKey) {
-        // Win in the unified array
-        nextSmallDeficit = 0;
+        if (winnerKey === "winner") {
+          // Master jackpot win → reset base
+          nextBaseStake = 10000;
+          nextSmallDeficit = 0;
+          nextFinalDeficit = finalDeficit; // or handle remaining if needed
+        } else {
+          // Win in the scoreline array
+          nextSmallDeficit = 0;
 
-        const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
-        let deductionSum = 0;
-        for (let i = 0; i <= winnerIndex; i++) {
-          deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
+          const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
+          let deductionSum = 0;
+          for (let i = 0; i <= winnerIndex; i++) {
+            deductionSum += gameStakes[ARRAY_1_KEYS[i]] || 0;
+          }
+
+          const totalArrayStakes = ARRAY_1_KEYS.reduce((sum, key) => sum + (gameStakes[key] || 0), 0);
+          nextFinalDeficit = Math.max(0, totalArrayStakes - deductionSum);
         }
-
-        // Push the "after total" (remaining stakes) to final deficit
-        const totalStakesThisGame = ARRAY_1_KEYS.reduce((sum, key) => {
-          return sum + (gameStakes[key] || 0);
-        }, 0);
-
-        nextFinalDeficit = Math.max(0, totalStakesThisGame - deductionSum);
       } else {
-        // No win → accumulate all stakes into final deficit
-        const totalArrayStakes = ARRAY_1_KEYS.reduce((sum, key) => {
-          return sum + (gameStakes[key] || 0);
-        }, 0);
+        // No win → accumulate all array stakes into final deficit
+        const totalArrayStakes = ARRAY_1_KEYS.reduce((sum, key) => sum + (gameStakes[key] || 0), 0);
         nextFinalDeficit = finalDeficit + totalArrayStakes;
-        nextSmallDeficit = smallDeficit; // keep small deficit as-is
       }
     } else {
-      // Regular mode (unchanged)
+      // Regular HDA mode (unchanged)
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
         } else {
-          const codeSequence = fixture.code || "HDA";
-          const sequence = CODE_MAP[codeSequence] || ["home", "draw", "away"];
+          const sequence = CODE_MAP[fixture.code || "HDA"] || ["home", "draw", "away"];
           const winnerIndex = sequence.indexOf(winnerKey);
           if (winnerIndex !== -1) {
             const lossSum = sequence.slice(winnerIndex + 1)
@@ -230,7 +212,6 @@ const Homepage = () => {
     setFinalDeficit(nextFinalDeficit);
     setBaseStake(nextBaseStake);
 
-    // Save final settled snapshot
     saveBase({
       baseStake: nextBaseStake,
       smallDeficit: nextSmallDeficit,
@@ -239,7 +220,7 @@ const Homepage = () => {
 
     clearForNext();
   };
-  
+
   const clearForNext = () => {
     setInputA("");
     setInputB("");
@@ -254,8 +235,7 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-950 via-black to-red-900 text-white flex flex-col">
-      
-      {/* HEADER CONTROLS */}
+      {/* HEADER */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
         <h1 className="text-base font-extrabold text-red-400 tracking-tight">
           Virtual EPL
@@ -264,9 +244,7 @@ const Homepage = () => {
           </span>
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={() => saveBase()} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
-            💾 Save
-          </button>
+          <button onClick={() => saveBase()} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">💾 Save</button>
           <button onClick={fetchBase} disabled={isReloading} className="flex items-center gap-1.5 px-4 py-2 bg-red-600 font-bold text-white text-xs hover:bg-red-700 transition disabled:opacity-50">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
             {isReloading ? "…" : "Reload"}
@@ -274,74 +252,79 @@ const Homepage = () => {
         </div>
       </div>
 
-      {/* WORKSPACE INTERFACE */}
+      {/* WORKSPACE */}
       <div className="flex-1 flex flex-col justify-center px-4 pb-6 gap-4 overflow-y-auto">
-        
         <div className="w-full">
-          <button onClick={handleNext} disabled={!fixture} className={`w-full py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-40 cursor-not-allowed text-white" : "bg-green-700 hover:bg-green-600 text-white"}`}>
+          <button onClick={handleNext} disabled={!fixture} className={`w-full py-4 rounded-2xl font-extrabold text-sm transition active:scale-95 shadow ${!fixture ? "bg-gray-700 opacity-40 cursor-not-allowed" : "bg-green-700 hover:bg-green-600"}`}>
             <div className="text-base font-black">NEXT MATCH</div>
             <div className="text-[9px] opacity-70 font-normal">Settle Matrix & Sync Pools</div>
           </button>
         </div>
 
-        {fixture ? (
-          isSmallOddsGame ? (
-            <>
-              {/* MASTER JACKPOT LINE + UNIFIED ARRAY */}
-              <div>
-                <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                  ⚡ Unified Scoreline Matrix (Targets Small Deficit + Final Deficit)
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {ARRAY_1_KEYS.map((key) => {
-                    const isActive = winnerKey === key;
-                    return (
-                      <button 
-                        key={key} 
-                        onClick={() => setWinnerKey(key)} 
-                        className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${
-                          isActive 
-                            ? "bg-white text-green-600 ring-4 ring-green-500" 
-                            : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"
-                        }`}
-                      >
-                        <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
-                        <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          ) : (
-            /* NORMAL ODDS INTERFACE (unchanged) */
+        {fixture && isSmallOddsGame && (
+          <>
+            {/* MASTER JACKPOT LINE */}
             <div>
-              <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ✦ Standard Match Matrix
+              <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                ⚡ 6-0 Jackpot Line (Targets Base Stake)
               </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={() => setWinnerKey("winner")} className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"}`}>
-                  <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
-                  <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
-                </button>
+              <button 
+                onClick={() => setWinnerKey("winner")} 
+                className={`w-full py-4 rounded-xl font-bold text-sm transition flex flex-col items-center justify-center ${
+                  winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-yellow-600/30 border-2 border-yellow-500 text-white hover:bg-yellow-600/50"
+                }`}
+              >
+                <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Master Winner Stake</span>
+                <span className="text-xl font-black mt-1 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+              </button>
+            </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  {HDA_KEYS.map((key) => {
-                    const isActive = winnerKey === key;
-                    return (
-                      <button key={key} onClick={() => setWinnerKey(key)} className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
-                        <span className="text-[11px] text-blue-300 font-black uppercase">{HDA_LABELS[key]}</span>
-                        <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* UNIFIED ARRAY MATRIX */}
+            <div>
+              <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                ✦ Unified Scoreline Matrix (Targets Small + Final Deficit)
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {ARRAY_1_KEYS.map((key) => {
+                  const isActive = winnerKey === key;
+                  return (
+                    <button 
+                      key={key} 
+                      onClick={() => setWinnerKey(key)} 
+                      className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"}`}
+                    >
+                      <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
+                      <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )
-        ) : null}
+          </>
+        )}
 
-        {/* CONTROLS */}
+        {fixture && !isSmallOddsGame && (
+          /* NORMAL MODE UI - unchanged */
+          <div>
+            <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">✦ Standard Match Matrix</div>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => setWinnerKey("winner")} className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"}`}>
+                <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
+                <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+              </button>
+              <div className="grid grid-cols-3 gap-2">
+                {HDA_KEYS.map((key) => (
+                  <button key={key} onClick={() => setWinnerKey(key)} className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${winnerKey === key ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
+                    <span className="text-[11px] text-blue-300 font-black uppercase">{HDA_LABELS[key]}</span>
+                    <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* INPUTS & BUTTON */}
         <div className="space-y-3 mt-2">
           <div className="flex items-center gap-3">
             <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home" className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500" />
@@ -354,7 +337,7 @@ const Homepage = () => {
           </button>
         </div>
 
-        {/* METRICS PANELS */}
+        {/* METRICS */}
         <div className="bg-black/40 border border-white/5 rounded-2xl p-4 text-xs grid grid-cols-2 gap-x-6 gap-y-2 font-mono">
           <div className="flex justify-between"><span className="text-gray-400">Base Pool</span><strong className="text-green-400">{baseStake}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Small Def</span><strong className="text-cyan-400">{smallDeficit}</strong></div>
@@ -368,7 +351,6 @@ const Homepage = () => {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
