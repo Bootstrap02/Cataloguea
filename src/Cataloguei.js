@@ -6,11 +6,15 @@ import { FiRefreshCw } from "react-icons/fi";
 /* ---------------- CONSTANTS & KEYS ---------------- */
 const sanitizeTeam = (value) => value.toLowerCase().replace(/[^a-z]/g, "");
 
-// Unified Array (formerly Small + Big) — does NOT include the master jackpot "winner"
-const ARRAY_1_KEYS = ["oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo", "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne"];
+// Unified Array (scorelines 1-0 to 5-1) — master winner is separate
+const ARRAY_1_KEYS = [
+  "oneZero", "twoZero", "twoOne", "threeZero", "threeOne", "threeTwo",
+  "fourZero", "fourOne", "fourTwo", "fiveZero", "fiveOne"
+];
+
 const ARRAY_1_LABELS = {
   oneZero: "1–0", twoZero: "2–0", twoOne: "2–1",
-  threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2", 
+  threeZero: "3–0", threeOne: "3–1", threeTwo: "3–2",
   fourZero: "4–0", fourOne: "4–1", fourTwo: "4–2",
   fiveZero: "5–0", fiveOne: "5–1"
 };
@@ -26,8 +30,8 @@ const CODE_MAP = {
 };
 
 const emptyStakesMap = () => {
-  const obj = { winner: 0 }; // master jackpot winner
-  [...ARRAY_1_KEYS, ...HDA_KEYS].forEach(k => { obj[k] = 0; });
+  const obj = { winner: 0 };
+  [...ARRAY_1_KEYS, ...HDA_KEYS].forEach((k) => { obj[k] = 0; });
   return obj;
 };
 
@@ -112,7 +116,7 @@ const Homepage = () => {
 
     const calculatedStakes = emptyStakesMap();
 
-    // === MASTER JACKPOT WINNER STAKE (6-0 Jackpot Line - targets Base) ===
+    // Master 6-0 Jackpot Winner Stake (targets Base Stake)
     const jackpotOdd = found.winner || found.jackpot || 50;
     const winnerJackpotStake = Math.max(Math.round(baseStake / jackpotOdd), 10);
     calculatedStakes["winner"] = winnerJackpotStake;
@@ -121,7 +125,7 @@ const Homepage = () => {
       const updatedSmallDeficit = smallDeficit + winnerJackpotStake;
       setSmallDeficit(updatedSmallDeficit);
 
-      // Calculate unified array stakes using (smallDeficit + finalDeficit)
+      // Unified array calculation: smallDeficit + finalDeficit
       const targetForCalc = updatedSmallDeficit + finalDeficit;
 
       ARRAY_1_KEYS.forEach((key) => {
@@ -131,9 +135,13 @@ const Homepage = () => {
         }
       });
 
-      saveBase({ baseStake: baseStake, smallDeficit: updatedSmallDeficit, finalDeficit });
+      saveBase({
+        baseStake: baseStake,
+        smallDeficit: updatedSmallDeficit,
+        finalDeficit: finalDeficit
+      });
     } else {
-      // Regular mode (unchanged)
+      // Regular mode
       let runningTotal = winnerJackpotStake;
       const oddsMap = { home: found.win, draw: found.draw, away: found.lose };
       const sequence = CODE_MAP[found.code || "HDA"] || ["home", "draw", "away"];
@@ -164,12 +172,10 @@ const Homepage = () => {
     if (isSmallOddsGame) {
       if (winnerKey) {
         if (winnerKey === "winner") {
-          // Master jackpot win → reset base
           nextBaseStake = 10000;
           nextSmallDeficit = 0;
-          nextFinalDeficit = finalDeficit; // or handle remaining if needed
         } else {
-          // Win in the scoreline array
+          // Win in scoreline array
           nextSmallDeficit = 0;
 
           const winnerIndex = ARRAY_1_KEYS.indexOf(winnerKey);
@@ -182,12 +188,12 @@ const Homepage = () => {
           nextFinalDeficit = Math.max(0, totalArrayStakes - deductionSum);
         }
       } else {
-        // No win → accumulate all array stakes into final deficit
+        // No win
         const totalArrayStakes = ARRAY_1_KEYS.reduce((sum, key) => sum + (gameStakes[key] || 0), 0);
         nextFinalDeficit = finalDeficit + totalArrayStakes;
       }
     } else {
-      // Regular HDA mode (unchanged)
+      // Regular HDA mode
       if (winnerKey) {
         if (winnerKey === "winner") {
           nextBaseStake = 10000;
@@ -244,7 +250,9 @@ const Homepage = () => {
           </span>
         </h1>
         <div className="flex rounded-full overflow-hidden shadow">
-          <button onClick={() => saveBase()} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">💾 Save</button>
+          <button onClick={() => saveBase()} className="px-4 py-2 bg-green-600 font-bold text-white text-xs hover:bg-green-700 transition">
+            💾 Save
+          </button>
           <button onClick={fetchBase} disabled={isReloading} className="flex items-center gap-1.5 px-4 py-2 bg-red-600 font-bold text-white text-xs hover:bg-red-700 transition disabled:opacity-50">
             <FiRefreshCw className={isReloading ? "animate-spin" : ""} />
             {isReloading ? "…" : "Reload"}
@@ -261,78 +269,115 @@ const Homepage = () => {
           </button>
         </div>
 
-        {fixture && isSmallOddsGame && (
-          <>
-            {/* MASTER JACKPOT LINE */}
+        {fixture ? (
+          isSmallOddsGame ? (
+            <>
+              {/* MASTER JACKPOT LINE */}
+              <div>
+                <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                  6-0 Jackpot Line (Targets Base Stake)
+                </div>
+                <button
+                  onClick={() => setWinnerKey("winner")}
+                  className={`w-full py-4 rounded-xl font-bold text-sm transition flex flex-col items-center justify-center ${
+                    winnerKey === "winner"
+                      ? "bg-white text-green-600 ring-4 ring-green-500"
+                      : "bg-yellow-600/30 border-2 border-yellow-500 text-white hover:bg-yellow-600/50"
+                  }`}
+                >
+                  <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Master Winner Stake</span>
+                  <span className="text-xl font-black mt-1 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+                </button>
+              </div>
+
+              {/* UNIFIED SCORELINE MATRIX */}
+              <div>
+                <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                  Unified Scoreline Matrix (Targets Small + Final Deficit)
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {ARRAY_1_KEYS.map((key) => {
+                    const isActive = winnerKey === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setWinnerKey(key)}
+                        className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${
+                          isActive
+                            ? "bg-white text-green-600 ring-4 ring-green-500"
+                            : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"
+                        }`}
+                      >
+                        <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
+                        <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* REGULAR MODE */
             <div>
-              <div className="text-[9px] text-yellow-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ⚡ 6-0 Jackpot Line (Targets Base Stake)
+              <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
+                Standard Match Matrix
               </div>
-              <button 
-                onClick={() => setWinnerKey("winner")} 
-                className={`w-full py-4 rounded-xl font-bold text-sm transition flex flex-col items-center justify-center ${
-                  winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-yellow-600/30 border-2 border-yellow-500 text-white hover:bg-yellow-600/50"
-                }`}
-              >
-                <span className="text-[12px] text-yellow-300 font-black uppercase">6–0 Master Winner Stake</span>
-                <span className="text-xl font-black mt-1 text-yellow-400">{gameStakes["winner"] || "0"}</span>
-              </button>
-            </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setWinnerKey("winner")}
+                  className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${
+                    winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"
+                  }`}
+                >
+                  <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
+                  <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
+                </button>
 
-            {/* UNIFIED ARRAY MATRIX */}
-            <div>
-              <div className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase mb-1.5 ml-1">
-                ✦ Unified Scoreline Matrix (Targets Small + Final Deficit)
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {ARRAY_1_KEYS.map((key) => {
-                  const isActive = winnerKey === key;
-                  return (
-                    <button 
-                      key={key} 
-                      onClick={() => setWinnerKey(key)} 
-                      className={`py-3.5 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-cyan-950/60 border border-cyan-800 text-white hover:bg-cyan-900/60"}`}
-                    >
-                      <span className="text-[10px] text-cyan-300 font-black">{ARRAY_1_LABELS[key]}</span>
-                      <span className="text-sm font-extrabold mt-0.5">{gameStakes[key] || "0"}</span>
-                    </button>
-                  );
-                })}
+                <div className="grid grid-cols-3 gap-2">
+                  {HDA_KEYS.map((key) => {
+                    const isActive = winnerKey === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setWinnerKey(key)}
+                        className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${
+                          isActive ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"
+                        }`}
+                      >
+                        <span className="text-[11px] text-blue-300 font-black uppercase">{HDA_LABELS[key]}</span>
+                        <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </>
-        )}
+          )
+        ) : null}
 
-        {fixture && !isSmallOddsGame && (
-          /* NORMAL MODE UI - unchanged */
-          <div>
-            <div className="text-[9px] text-blue-400 font-bold tracking-wider uppercase mb-1.5 ml-1">✦ Standard Match Matrix</div>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => setWinnerKey("winner")} className={`w-full py-4 rounded-xl font-bold text-xs transition flex flex-col items-center justify-center ${winnerKey === "winner" ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-red-950/40 border border-red-800 text-white"}`}>
-                <span className="text-[11px] text-red-400 font-black uppercase">6–0 Jackpot Line</span>
-                <span className="text-lg font-black mt-0.5 text-yellow-400">{gameStakes["winner"] || "0"}</span>
-              </button>
-              <div className="grid grid-cols-3 gap-2">
-                {HDA_KEYS.map((key) => (
-                  <button key={key} onClick={() => setWinnerKey(key)} className={`py-4 rounded-xl font-bold text-xs transition active:scale-95 flex flex-col items-center justify-center ${winnerKey === key ? "bg-white text-green-600 ring-4 ring-green-500" : "bg-blue-950/60 border border-blue-800 text-white hover:bg-blue-900/60"}`}>
-                    <span className="text-[11px] text-blue-300 font-black uppercase">{HDA_LABELS[key]}</span>
-                    <span className="text-base font-black mt-1 text-yellow-400">{gameStakes[key] || "0"}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* INPUTS & BUTTON */}
+        {/* CONTROLS */}
         <div className="space-y-3 mt-2">
           <div className="flex items-center gap-3">
-            <input value={inputA} onChange={(e) => setInputA(e.target.value)} placeholder="Home" className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500" />
+            <input
+              value={inputA}
+              onChange={(e) => setInputA(e.target.value)}
+              placeholder="Home"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500"
+            />
             <span className="font-black text-xl text-red-600 shrink-0">VS</span>
-            <input value={inputB} onChange={(e) => setInputB(e.target.value)} placeholder="Away" className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500" />
+            <input
+              value={inputB}
+              onChange={(e) => setInputB(e.target.value)}
+              placeholder="Away"
+              className="flex-1 min-w-0 px-3 py-3 border border-red-900 rounded-xl text-center text-sm bg-black/40 text-white placeholder-red-700 focus:outline-none focus:border-red-500"
+            />
           </div>
 
-          <button onClick={handleSubmit} disabled={!!fixture} className={`w-full py-4 font-black text-sm rounded-xl tracking-wide transition active:scale-95 shadow ${fixture ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-red-700 hover:bg-red-600 text-white"}`}>
+          <button
+            onClick={handleSubmit}
+            disabled={!!fixture}
+            className={`w-full py-4 font-black text-sm rounded-xl tracking-wide transition active:scale-95 shadow ${fixture ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-red-700 hover:bg-red-600 text-white"}`}
+          >
             EXECUTE GAME ANALYSIS
           </button>
         </div>
@@ -342,7 +387,7 @@ const Homepage = () => {
           <div className="flex justify-between"><span className="text-gray-400">Base Pool</span><strong className="text-green-400">{baseStake}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Small Def</span><strong className="text-cyan-400">{smallDeficit}</strong></div>
           <div className="flex justify-between"><span className="text-gray-400">Final Def</span><strong className="text-purple-400">{finalDeficit}</strong></div>
-          
+
           {fixture && (
             <div className="col-span-2 pt-2 mt-1 border-t border-white/5 text-center font-sans tracking-wide">
               <span className="text-white font-black uppercase">{teamA}</span>
