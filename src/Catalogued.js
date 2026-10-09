@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -151,8 +152,8 @@ const Homepage = () => {
      ================================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+    const home = sanitizeTeam(inputA) || "ars";
+    const away = sanitizeTeam(inputB) || "ars";
     const found = odds.find(o => o.home === home && o.away === away);
     if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
