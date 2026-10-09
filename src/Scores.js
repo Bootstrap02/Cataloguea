@@ -16,7 +16,7 @@ export const odds = [
   { id: "astars", home: "ast", away: "ars", winner: 841, oneX: 16.7, twoX: 16.7, x2: 13.3, tg0: 13.1, tg6: 23.1, ht12: 24.7, ht21: 16.2, ht30: 40.1, ft40: 58.2, ft41: 43.9 },
   { id: "totars", home: "tot", away: "ars", winner: 841, oneX: 16.7, twoX: 16.7, x2: 13.3, tg0: 13.1, tg6: 23.1, ht12: 24.7, ht21: 16.2, ht30: 40.1, ft40: 58.2, ft41: 43.9 },
 
-  //DONE ........ winner: 229 - Arsenal home vs Wolves/Aston Villa/Tottenham
+  //DONE ........ winner: 229 - Arsenal home vs Coventry/Aston Villa/Tottenham
   { id: "arsast", home: "ars", away: "ast", winner: 228, oneX: 16.6, twoX: 16.6, x2: 18.2, tg0: 16.1, tg6: 16.8, ht12: 26.2, ht21: 13, ht30: 21.4, ft40: 27.5, ft41: 25.9 },
   { id: "arstot", home: "ars", away: "tot", winner: 228, oneX: 16.6, twoX: 16.6, x2: 18.2, tg0: 16.1, tg6: 16.8, ht12: 26.2, ht21: 13, ht30: 21.4, ft40: 27.5, ft41: 25.9 },
 
@@ -24,10 +24,10 @@ export const odds = [
   { id: "notars", home: "not", away: "ars", winner: 556, oneX: 16.4, twoX: 16.4, x2: 16, tg0: 14.9, tg6: 20.7, ht12: 25.3, ht21: 14.6, ht30: 32.3, ft40: 44.5, ft41: 36 },
   { id: "bhaars", home: "bha", away: "ars", winner: 556, oneX: 16.4, twoX: 16.4, x2: 16, tg0: 14.9, tg6: 20.7, ht12: 25.3, ht21: 14.6, ht30: 32.3, ft40: 44.5, ft41: 36 },
 
-  //DONE............... winner: 262 - Arsenal away vs West Ham/Brentford/Wolves/Leeds/Everton
-  { id: "whuars", home: "whu", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
+  //DONE............... winner: 262 - Arsenal away vs Ipswich/Brentford/Coventry/Leeds/Everton
+  { id: "ipsars", home: "ips", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
   { id: "brears", home: "bre", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
-  { id: "wolars", home: "wol", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
+  { id: "covars", home: "cov", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
   { id: "leears", home: "lee", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
   { id: "evears", home: "eve", away: "ars", winner: 260, oneX: 19.3, twoX: 19.3, x2: 23.6, tg0: 18.2, tg6: 16.7, ht12: 27.6, ht21: 12, ht30: 21.1, ft40: 28.6, ft41: 24 },
 
@@ -52,18 +52,18 @@ export const odds = [
   { id: "arsbou", home: "ars", away: "bou", winner: 104, oneX: 20.4, twoX: 20.4, x2: 22.9, tg0: 14.8, tg6: 15.1, ht12: 33, ht21: 12.6, ht30: 14.9, ft40: 17.9, ft41: 20.4 },
   { id: "arsful", home: "ars", away: "ful", winner: 104, oneX: 20.4, twoX: 20.4, x2: 22.9, tg0: 14.8, tg6: 15.1, ht12: 33, ht21: 12.6, ht30: 14.9, ft40: 17.9, ft41: 20.4 },
 
-  // dDONE...........winner: 66.1 - Arsenal home vs West Ham/Brentford/Wolves/Leeds/Everton
-  { id: "arswhu", home: "ars", away: "whu", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
+  // dDONE...........winner: 66.1 - Arsenal home vs Ipswich/Brentford/Coventry/Leeds/Everton
+  { id: "arsips", home: "ars", away: "ips", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
   { id: "arsbre", home: "ars", away: "bre", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
-  { id: "arswol", home: "ars", away: "wol", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
+  { id: "arscov", home: "ars", away: "cov", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
   { id: "arslee", home: "ars", away: "lee", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
   { id: "arseve", home: "ars", away: "eve", winner: 65.6, oneX: 24.9, twoX: 24.9, x2: 28.8, tg0: 17.8, tg6: 12.7, ht12: 37.3, ht21: 11.6, ht30: 11.3, ft40: 13.9, ft41: 16.7 },
 
-  //DONE......... winner: 46.3 - Arsenal home vs Sunderland/Burnley
+  //DONE......... winner: 46.3 - Arsenal home vs Sunderland/Hull
   { id: "arssun", home: "ars", away: "sun", winner: 45.9, oneX: 31.1, twoX: 31.1, x2: 35.5, tg0: 16.7, tg6: 13, ht12: 53.4, ht21: 13.1, ht30: 9.62, ft40: 11, ft41: 16.6 },
-  { id: "arsbur", home: "ars", away: "bur", winner: 45.9, oneX: 31.1, twoX: 31.1, x2: 35.5, tg0: 16.7, tg6: 13, ht12: 53.4, ht21: 13.1, ht30: 9.62, ft40: 11, ft41: 16.6 },
+  { id: "arshul", home: "ars", away: "hul", winner: 45.9, oneX: 31.1, twoX: 31.1, x2: 35.5, tg0: 16.7, tg6: 13, ht12: 53.4, ht21: 13.1, ht30: 9.62, ft40: 11, ft41: 16.6 },
 
-  //DONE ....... winner: 168 - Arsenal away vs Burnley/Sunderland
-  { id: "burars", home: "bur", away: "ars", winner: 166, oneX: 22.3, twoX: 22.3, x2: 25.4, tg0: 15.5, tg6: 17, ht12: 33.8, ht21: 12.7, ht30: 17.6, ft40: 21.7, ft41: 21.7 },
+  //DONE ....... winner: 168 - Arsenal away vs Hull/Sunderland
+  { id: "hulars", home: "hul", away: "ars", winner: 166, oneX: 22.3, twoX: 22.3, x2: 25.4, tg0: 15.5, tg6: 17, ht12: 33.8, ht21: 12.7, ht30: 17.6, ft40: 21.7, ft41: 21.7 },
   { id: "sunars", home: "sun", away: "ars", winner: 166, oneX: 22.3, twoX: 22.3, x2: 25.4, tg0: 15.5, tg6: 17, ht12: 33.8, ht21: 12.7, ht30: 17.6, ft40: 21.7, ft41: 21.7 },
 ];
