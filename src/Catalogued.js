@@ -4,21 +4,31 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
 import { FiRefreshCw } from "react-icons/fi";
+import {
+  applySoloMatrixJackpot,
+  persistStrategyState,
+  settleSoloMatrixState,
+  submitSoloMatrixFixture,
+} from "./strategy/soloMatrixSettlement";
+import { createCatalogueaAutomationPort } from "./strategy/catalogueaAutomationPort";
+import {
+  createBackupMeta,
+  readStoredStrategyState,
+  shouldUseBackendRecovery,
+  withBackupMeta,
+} from "./strategy/localStatePersistence";
 
 const sanitizeTeam = (v) => v.toLowerCase().replace(/[^a-z]/g, "");
-const API_BASE = "https://campusbuy-backend-nkmx.onrender.com/betking";
+const API_BASE = process.env.REACT_APP_CATALOGUEA_API_BASE
+  || "https://campusbuy-backend-nkmx.onrender.com/betking";
 const LS_KEY   = "virt-epl-solo-v1";
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
 
 const ALL_ASSETS = ["oneX","twoX","x2","tg0","tg6","ht12","ht21","ht30","ft40","ft41"];
 
 const ASSET_LABELS = {
   oneX:"1X", twoX:"2X", x2:"X2", tg0:"TG0", tg6:"TG6",
   ht12:"HT12", ht21:"HT21", ht30:"HT30", ft40:"FT40", ft41:"FT41"
-};
-
-const ASSET_ODD_KEY = {
-  oneX:"oneX", twoX:"twoX", x2:"x2", tg0:"tg0", tg6:"tg6",
-  ht12:"ht12", ht21:"ht21", ht30:"ht30", ft40:"ft40", ft41:"ft41"
 };
 
 const ASSET_COLORS = {
@@ -60,6 +70,9 @@ const Homepage = () => {
   const [clicked,    setClicked]    = useState(new Set());
 
   const baseRef = useRef(baseStake);
+  const automationSettlementsRef = useRef([]);
+  const backupInFlightRef = useRef(false);
+  const backupTimerRef = useRef(null);
   useEffect(() => { baseRef.current = baseStake; }, [baseStake]);
 
   /* ================================================================
@@ -74,6 +87,9 @@ const Homepage = () => {
     setPrivateDef(d.privateDef     || emptyMap());
     setBigDef(d.bigDef             || emptyMap());
     setBrokenTarget(d.brokenTarget || emptyMap());
+    if (Array.isArray(d.automationSettlements)) {
+      automationSettlementsRef.current = d.automationSettlements;
+    }
   }, []);
 
   /* ================================================================
@@ -83,26 +99,57 @@ const Homepage = () => {
     try {
       const s = localStorage.getItem(LS_KEY);
       if (s) {
-        applyData(JSON.parse(s));
-        console.log("💾 L1: Loaded from Local Storage");
+        const parsed = readStoredStrategyState(s);
+        if (parsed) {
+          applyData(parsed);
+          console.log("💾 L1: Loaded authoritative local strategy state");
+        } else {
+          console.warn("⚠️ L1: Ignored malformed local strategy state.");
+        }
       }
     } catch (err) {
       console.error("❌ L1 Load error:", err.message);
     }
   }, [applyData]);
 
-  const saveBase = useCallback((overrides = {}) => {
-    const p = {
+  const updateBackupMeta = useCallback((meta) => {
+    try {
+      const current = localStorage.getItem(LS_KEY);
+      const parsed = current ? JSON.parse(current) : {};
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        ...parsed,
+        backupMeta: {
+          ...(parsed.backupMeta || {}),
+          ...meta,
+        },
+      }));
+    } catch (err) {
+      console.error("❌ L1 Backup metadata update error:", err.message);
+    }
+  }, []);
+
+  const saveBase = useCallback((overrides = {}, { throwOnError = false } = {}) => {
+    const p = withBackupMeta({
       base: baseRef.current, deficit,
       smallDeficit, shadow, bank,
       privateDef, bigDef, brokenTarget,
+      automationSettlements: automationSettlementsRef.current,
+      observedAt: new Date().toISOString(),
       ...overrides,
-    };
+    }, {
+      status: "local-authoritative",
+      lastAttemptAt: new Date().toISOString(),
+    });
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(p));
+      persistStrategyState(localStorage, LS_KEY, p, p.automationSettlements);
       console.log("💾 L1: Saved to Local Storage");
     } catch (err) {
       console.error("❌ L1 Save error:", err.message);
+      if (throwOnError) {
+        throw new Error(`Cataloguea strategy persistence failed: ${err.message}`, {
+          cause: err,
+        });
+      }
     }
   }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
 
@@ -113,19 +160,88 @@ const Homepage = () => {
     setIsReloading(true);
     try {
       const res = await axios.get(API_BASE);
-      if (res.data) {
-        applyData(res.data);
-        // Overwrite L1 storage to remain synced
-        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
-        console.log("☁️ L2: Fetched from API & Synchronized Local Storage");
+      const backendState = res.data && typeof res.data === "object" ? res.data : null;
+      if (!backendState) {
+        console.warn("☁️ L2: API returned no valid state; local state remains authoritative.");
+        return;
       }
+
+      const localState = readStoredStrategyState(localStorage.getItem(LS_KEY));
+      if (localState && !shouldUseBackendRecovery(localState, backendState)) {
+        console.warn("☁️ L2: Local strategy state is newer than backend snapshot. Recovery skipped.");
+        alert("Local strategy state is still newer than the backend backup. Recovery was skipped.");
+        return;
+      }
+
+      const mergedState = {
+        ...backendState,
+        automationSettlements: automationSettlementsRef.current,
+        backupMeta: createBackupMeta({
+          status: "manual-recovery",
+          lastAttemptAt: new Date().toISOString(),
+          lastSuccessfulBackupAt: new Date().toISOString(),
+        }),
+      };
+      applyData(mergedState);
+      persistStrategyState(localStorage, LS_KEY, mergedState, automationSettlementsRef.current);
+      console.log("☁️ L2: Manual recovery accepted from API without overwriting newer local state");
     } catch (err) {
       console.error("❌ L2 Fetch failed:", err.message);
-      alert("API fetch failed. Reverting to local fallback data.");
+      updateBackupMeta(createBackupMeta({
+        status: "manual-recovery-failed",
+        errorMessage: err.message,
+        lastAttemptAt: new Date().toISOString(),
+      }));
+      alert("API fetch failed. Local Storage remains the runtime source of truth.");
     } finally {
       setIsReloading(false);
     }
-  }, [applyData]);
+  }, [applyData, updateBackupMeta]);
+
+  const triggerHourlyBackup = useCallback(async () => {
+    if (backupInFlightRef.current) {
+      return;
+    }
+
+    const nextAttempt = new Date().toISOString();
+    updateBackupMeta(createBackupMeta({
+      status: "backup-attempt",
+      errorMessage: null,
+      lastAttemptAt: nextAttempt,
+    }));
+
+    backupInFlightRef.current = true;
+    const payload = {
+      base: baseRef.current,
+      deficit,
+      smallDeficit,
+      shadow,
+      bank,
+      privateDef,
+      bigDef,
+      brokenTarget,
+    };
+
+    try {
+      await axios.put(API_BASE, payload);
+      const successAt = new Date().toISOString();
+      updateBackupMeta(createBackupMeta({
+        status: "backup-success",
+        lastAttemptAt: nextAttempt,
+        lastSuccessfulBackupAt: successAt,
+      }));
+      console.log("✅ L2: Hourly backup synced to API");
+    } catch (err) {
+      updateBackupMeta(createBackupMeta({
+        status: "backup-failed",
+        errorMessage: err.message,
+        lastAttemptAt: nextAttempt,
+      }));
+      console.error("❌ L2 Hourly backup failed:", err.message);
+    } finally {
+      backupInFlightRef.current = false;
+    }
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, updateBackupMeta]);
 
   const saveToAPI = useCallback(async () => {
     const p = {
@@ -135,16 +251,47 @@ const Homepage = () => {
     };
     try {
       await axios.put(API_BASE, p);
+      updateBackupMeta(createBackupMeta({
+        status: "manual-backup-success",
+        lastAttemptAt: new Date().toISOString(),
+        lastSuccessfulBackupAt: new Date().toISOString(),
+      }));
       console.log("✅ L2: Master Backup Synced to API");
       alert("State fully backed up to API successfully.");
     } catch (err) {
+      updateBackupMeta(createBackupMeta({
+        status: "manual-backup-failed",
+        errorMessage: err.message,
+        lastAttemptAt: new Date().toISOString(),
+      }));
       console.error("❌ L2 Sync failed:", err.message);
       alert("API backup failed. Local Storage is still active.");
     }
-  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget]);
+  }, [deficit, smallDeficit, shadow, bank, privateDef, bigDef, brokenTarget, updateBackupMeta]);
 
   // Handle baseline initial app mount load via L1 Local Storage
-  useEffect(() => { fetchBase(); }, [fetchBase]);
+  useEffect(() => {
+    fetchBase();
+    return () => {
+      if (backupTimerRef.current) {
+        clearInterval(backupTimerRef.current);
+      }
+    };
+  }, [fetchBase]);
+
+  useEffect(() => {
+    if (backupTimerRef.current) {
+      clearInterval(backupTimerRef.current);
+    }
+    backupTimerRef.current = setInterval(() => {
+      void triggerHourlyBackup();
+    }, BACKUP_INTERVAL_MS);
+    return () => {
+      if (backupTimerRef.current) {
+        clearInterval(backupTimerRef.current);
+      }
+    };
+  }, [triggerHourlyBackup]);
 
   /* ================================================================
      HANDLE SUBMIT
@@ -156,52 +303,29 @@ const Homepage = () => {
     const found = odds.find(o => o.home === home && o.away === away);
     if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
 
-    setFixture(found);
-    setClicked(new Set());
-    setWinners(new Set());
-    setBigWinners(new Set());
-
-    /* ── 6-0 winner stake → smallDeficit ── */
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
-
-    /* Sync small Deficit and Shadow instantly together at all times */
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
-    setShadow(curSD);
-
-    /* ── Solo stakes: each asset independent ── */
-    const newStakes = emptyMap();
-    ALL_ASSETS.forEach(key => {
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        const bt  = brokenTarget[key] || 0;
-        const pd  = privateDef[key]   || 0;
-        newStakes[key] = Math.round((bt + curSD + pd) / (odd - 1));
-      }
-    });
-    setGameStakes(newStakes);
-
-    /* ── Big deficit stakes: bigDef[key] / odd ── */
-    const newBigStakes = {};
-    const newBrokenFromBig = { ...brokenTarget };
-    ALL_ASSETS.forEach(key => {
-      if ((bigDef[key] || 0) === 0) return;
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
-        /* Distribute stake/10 immediately into every asset's brokenTarget */
-        const share = Math.floor(newBigStakes[key] / 10);
-        if (share > 0) {
-          ALL_ASSETS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
-        }
-      }
-    });
-    setBigStakes(newBigStakes);
-    setBrokenTarget(newBrokenFromBig);
+    const submitted = submitSoloMatrixFixture({
+      baseStake,
+      deficit,
+      smallDeficit,
+      privateDef,
+      bigDef,
+      brokenTarget,
+      clicked,
+      winners,
+      bigWinners,
+    }, found, ALL_ASSETS);
+    setFixture(submitted.fixture);
+    setBaseStake(submitted.baseStake);
+    setDeficit(submitted.deficit);
+    setWinnerStake(submitted.winnerStake);
+    setSmallDeficit(submitted.smallDeficit);
+    setShadow(submitted.shadow);
+    setGameStakes(submitted.gameStakes);
+    setBigStakes(submitted.bigStakes);
+    setBrokenTarget(submitted.brokenTarget);
+    setClicked(submitted.clicked);
+    setWinners(submitted.winners);
+    setBigWinners(submitted.bigWinners);
   };
 
   const markWin    = (key) => {
@@ -218,14 +342,23 @@ const Homepage = () => {
 
   /* ── 6-0 jackpot ── */
   const handleJackpot = () => {
-    setClicked(p => new Set([...p, "six"]));
-    setBaseStake(10000);
-    setDeficit(0);
-    setSmallDeficit(0);
-    setShadow(0);
-    
+    const jackpotState = applySoloMatrixJackpot({
+      baseStake,
+      deficit,
+      smallDeficit,
+      shadow,
+      clicked,
+    });
+    setClicked(jackpotState.clicked);
+    setBaseStake(jackpotState.baseStake);
+    setDeficit(jackpotState.deficit);
+    setSmallDeficit(jackpotState.smallDeficit);
+    setShadow(jackpotState.shadow);
     saveBase({
-      base: 10000, deficit: 0, smallDeficit: 0, shadow: 0
+      base: jackpotState.baseStake,
+      deficit: jackpotState.deficit,
+      smallDeficit: jackpotState.smallDeficit,
+      shadow: jackpotState.shadow,
     });
   };
 
@@ -236,91 +369,141 @@ const Homepage = () => {
   /* ================================================================
      HANDLE NEXT
      ================================================================ */
-  const handleNext = () => {
-    if (!fixture) return;
+  const handleNext = (settlement = {}) => {
+    if (!fixture) return { status: "not_settled" };
+    const resultId = typeof settlement?.resultId === "string"
+      ? settlement.resultId
+      : null;
+    if (resultId && automationSettlementsRef.current.some((receipt) => (
+      typeof receipt === "string" ? receipt === resultId : receipt.resultId === resultId
+    ))) {
+      return { status: "already_settled", resultId };
+    }
 
-    let newSD      = smallDeficit;
-    let newShadow  = shadow;
-    let newBank    = bank;
-    let newDef     = deficit;
-    let newBase    = baseStake;
-    let newPriv    = { ...privateDef };
-    let newBigDef  = { ...bigDef };
-    let newBroken  = { ...brokenTarget };
+    const settledState = settleSoloMatrixState({
+      fixture,
+      baseStake,
+      deficit,
+      smallDeficit,
+      shadow,
+      bank,
+      privateDef,
+      bigDef,
+      brokenTarget,
+      gameStakes,
+      winners,
+      bigWinners,
+    }, ALL_ASSETS);
+    const automationSettlements = resultId
+      ? [
+        ...automationSettlementsRef.current,
+        {
+          resultId,
+          fixture: { id: fixture.id, home: fixture.home, away: fixture.away },
+          result: settlement.result,
+          actionOperationId: settlement.actionOperationId,
+        },
+      ]
+      : automationSettlementsRef.current;
 
-    /* ── 1. Settle big deficit assets ── */
-    ALL_ASSETS.forEach(key => {
-      if (bigWinners.has(key)) {
-        newBigDef[key] = 0;
-      }
-    });
+    saveBase({
+      base: settledState.baseStake,
+      deficit: settledState.deficit,
+      smallDeficit: settledState.smallDeficit,
+      shadow: settledState.shadow,
+      bank: settledState.bank,
+      privateDef: { ...settledState.privateDef },
+      bigDef: { ...settledState.bigDef },
+      brokenTarget: { ...settledState.brokenTarget },
+      automationSettlements,
+    }, { throwOnError: Boolean(resultId) });
+    automationSettlementsRef.current = automationSettlements;
 
-    /* ── 2. Settle normal solo assets ── */
-    let firstWin = true;
-    const shadowPayout = newShadow; // Snapshot the shadow value so multiple wins don't add 0
-
-    ALL_ASSETS.forEach(key => {
-      const stake = gameStakes[key] || 0;
-
-      if (winners.has(key)) {
-        newPriv[key]   = 0;
-        newBroken[key] = 0;
-
-        if (firstWin) {
-          /* First win: wipe smallDeficit */
-          newSD    = 0;
-          firstWin = false;
-        } else {
-          /* Second+ win: add the stored shadow snapshot to bank every time */
-          newBank  += shadowPayout;
-          newShadow = 0;
-          newSD     = 0;
-        }
-      } else {
-        /* Loss: stake piles into privateDef only */
-        newPriv[key] = (newPriv[key] || 0) + stake;
-
-        if (newPriv[key] >= 1000) {
-          if (newBank > 0) {
-            const reduction = Math.min(newBank, 500);
-            newBank        -= reduction;
-            newPriv[key]   -= reduction;
-          }
-          newBigDef[key] = (newBigDef[key] || 0) + newPriv[key];
-          newPriv[key]   = 0;
-        }
-      }
-    });
-
-    /* ── 3. brokenTarget overflow ── */
-    ALL_ASSETS.forEach(key => {
-      if ((newBroken[key] || 0) >= 1000) {
-        newBase += newBroken[key];
-        newBroken[key] = 0;
-      }
-    });
-
-    setSmallDeficit(newSD);
-    setShadow(newShadow);
-    setBank(newBank);
-    setDeficit(newDef);
-    setBaseStake(newBase);
-    setPrivateDef(newPriv);
-    setBigDef(newBigDef);
-    setBrokenTarget(newBroken);
+    setSmallDeficit(settledState.smallDeficit);
+    setShadow(settledState.shadow);
+    setBank(settledState.bank);
+    setDeficit(settledState.deficit);
+    setBaseStake(settledState.baseStake);
+    setPrivateDef(settledState.privateDef);
+    setBigDef(settledState.bigDef);
+    setBrokenTarget(settledState.brokenTarget);
 
     setFixture(null); setInputA(""); setInputB("");
     setGameStakes(emptyMap()); setBigStakes({});
     setWinners(new Set()); setBigWinners(new Set());
     setClicked(new Set()); setWinnerStake(0);
 
-    // Write instantly to L1 Storage engine
-    saveBase({
-      base: newBase, deficit: newDef,
-      smallDeficit: newSD, shadow: newShadow, bank: newBank,
-      privateDef: newPriv, bigDef: newBigDef, brokenTarget: newBroken,
-    });
+    return {
+      status: "settled",
+      resultId,
+      strategyState: {
+        status: "settled",
+        financialState: {
+          baseStake: settledState.baseStake,
+          deficit: settledState.deficit,
+          smallDeficit: settledState.smallDeficit,
+          shadow: settledState.shadow,
+          bank: settledState.bank,
+          privateDef: { ...settledState.privateDef },
+          bigDef: { ...settledState.bigDef },
+          brokenTarget: { ...settledState.brokenTarget },
+        },
+      },
+    };
   };
+
+  const readStrategySnapshot = useCallback(() => ({
+    fixture: fixture ? { ...fixture } : null,
+    baseStake,
+    deficit,
+    winnerStake,
+    smallDeficit,
+    shadow,
+    bank,
+    privateDef: { ...privateDef },
+    bigDef: { ...bigDef },
+    brokenTarget: { ...brokenTarget },
+    gameStakes: { ...gameStakes },
+    bigStakes: { ...bigStakes },
+    winners: [...winners],
+    bigWinners: [...bigWinners],
+    clicked: [...clicked],
+    automationSettlements: automationSettlementsRef.current.map((receipt) => (
+      typeof receipt === "string"
+        ? receipt
+        : {
+          ...receipt,
+          fixture: receipt.fixture ? { ...receipt.fixture } : undefined,
+          result: receipt.result ? { ...receipt.result } : undefined,
+        }
+    )),
+    observedAt: new Date().toISOString(),
+  }), [
+    fixture, baseStake, deficit, winnerStake, smallDeficit, shadow, bank,
+    privateDef, bigDef, brokenTarget, gameStakes, bigStakes, winners,
+    bigWinners, clicked,
+  ]);
+
+  const strategyPort = createCatalogueaAutomationPort({
+    readSnapshot: readStrategySnapshot,
+    settleStrategyResult: (normalizedResult, resultId, snapshot, actionOperationId) => (
+      handleNext({
+        resultId,
+        result: normalizedResult.result,
+        actionOperationId,
+      })
+    ),
+  });
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return undefined;
+    window.catalogueaAutomation = strategyPort;
+    return () => {
+      if (window.catalogueaAutomation === strategyPort) {
+        delete window.catalogueaAutomation;
+      }
+    };
+  }, [strategyPort]);
   const teamA     = sanitizeTeam(inputA) || "HME";
   const teamB     = sanitizeTeam(inputB) || "AWY";
   const hasBigDefs = ALL_ASSETS.some(k => (bigDef[k] || 0) > 0);

@@ -19,7 +19,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "automation:poc": "node automation/poc.js",
+    "automation:betking:inspect": "node automation/betkingInspect.js",
+    "automation:test": "node --test --test-concurrency=1 automation/*.test.js automation/*/*.test.js"
   },
   "eslintConfig": {
     "extends": [
@@ -40,6 +43,7 @@
     ]
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
     "tailwindcss": "^3.4.17"
   }
 }

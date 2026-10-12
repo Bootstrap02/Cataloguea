@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Simulated Sportsbook</title>
+  </head>
+  <body>
+    <main>
+      <h1>Local Simulated Sportsbook</h1>
+      <p>This local-only page records simulated selections. It cannot place a real wager.</p>
+
+      <label for="fixture">Fixture</label>
+      <select id="fixture">
+        <option value="livmnu">liv vs mnu</option>
+        <option value="livche">liv vs che</option>
+      </select>
+
+      <label for="market">Market / asset</label>
+      <select id="market">
+        <option value="">Choose a market</option>
+        <option value="oneX">oneX</option>
+        <option value="twoX">twoX</option>
+        <option value="x2">x2</option>
+        <option value="tg0">tg0</option>
+        <option value="tg6">tg6</option>
+        <option value="ht12">ht12</option>
+        <option value="ht21">ht21</option>
+        <option value="ht30">ht30</option>
+        <option value="ft40">ft40</option>
+        <option value="ft41">ft41</option>
+        <option value="missingMarket">missingMarket</option>
+      </select>
+
+      <p>Displayed odds: <span id="odds" aria-label="Displayed odds">—</span></p>
+      <label for="stake">Simulated stake</label>
+      <input id="stake" type="number" min="0" step="1">
+      <button id="simulate" type="button">Simulate selection</button>
+      <p id="confirmation" role="status" aria-live="polite">No simulated action yet.</p>
+      <p>Simulated action count: <span id="action-count" aria-label="Simulated action count">0</span></p>
+      <section aria-labelledby="result-heading">
+        <h2 id="result-heading">Simulated fixture result</h2>
+        <p>Result status: <output aria-label="Result status">not_started</output></p>
+        <p>Result fixture: <output aria-label="Result fixture"></output></p>
+        <p>Home team: <output aria-label="Result home team"></output></p>
+        <p>Away team: <output aria-label="Result away team"></output></p>
+        <p>Home score: <output aria-label="Result home score"></output></p>
+        <p>Away score: <output aria-label="Result away score"></output></p>
+      </section>
+    </main>
+
+    <script>
+      const fixtureSelect = document.getElementById('fixture');
+      const marketSelect = document.getElementById('market');
+      const oddsOutput = document.getElementById('odds');
+      const actionCount = document.getElementById('action-count');
+      const resultElements = {
+        status: document.querySelector('[aria-label="Result status"]'),
+        fixture: document.querySelector('[aria-label="Result fixture"]'),
+        home: document.querySelector('[aria-label="Result home team"]'),
+        away: document.querySelector('[aria-label="Result away team"]'),
+        homeScore: document.querySelector('[aria-label="Result home score"]'),
+        awayScore: document.querySelector('[aria-label="Result away score"]'),
+      };
+      const oddsByFixture = {
+        livmnu: {
+          winner: 325, oneX: 14.7, twoX: 14.7, x2: 14.6, tg0: 15.1,
+          tg6: 16.9, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 35.8, ft41: 30,
+        },
+        livche: {
+          winner: 325, oneX: 14.7, twoX: 14.7, x2: 14.6, tg0: 15.1,
+          tg6: 16.9, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 35.8, ft41: 30,
+        },
+      };
+
+      function updateOdds() {
+        const odd = oddsByFixture[fixtureSelect.value][marketSelect.value];
+        oddsOutput.textContent = odd === undefined ? '—' : String(odd);
+      }
+
+      fixtureSelect.addEventListener('change', updateOdds);
+      marketSelect.addEventListener('change', updateOdds);
+      document.getElementById('simulate').addEventListener('click', () => {
+        const fixture = fixtureSelect.value;
+        const market = marketSelect.value;
+        const stake = document.getElementById('stake').value;
+        actionCount.textContent = String(Number(actionCount.textContent) + 1);
+        if (document.body.dataset.confirmationMode !== 'silent') {
+          document.getElementById('confirmation').textContent =
+            `Simulation confirmed: ${fixture} ${market} stake ${stake}`;
+        }
+
+        const mode = document.body.dataset.resultMode || 'complete';
+        resultElements.fixture.textContent =
+          document.body.dataset.resultFixtureId || fixture;
+        resultElements.home.textContent = fixtureSelect.selectedOptions[0].textContent.split(' vs ')[0];
+        resultElements.away.textContent = fixtureSelect.selectedOptions[0].textContent.split(' vs ')[1];
+        if (mode === 'pending') {
+          resultElements.status.textContent = 'pending';
+          resultElements.homeScore.textContent = '';
+          resultElements.awayScore.textContent = '';
+        } else {
+          resultElements.status.textContent = 'complete';
+          resultElements.homeScore.textContent = mode === 'alternate_complete' ? '1' : '2';
+          resultElements.awayScore.textContent =
+            mode === 'incomplete' ? '?' : mode === 'alternate_complete' ? '0' : '1';
+        }
+      });
+
+      updateOdds();
+    </script>
+  </body>
+</html>
