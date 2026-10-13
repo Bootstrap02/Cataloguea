@@ -205,53 +205,49 @@ test('determineSettlementOutcome returns RESULT_UNVERIFIED when result not verif
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
-test('determineSettlementOutcome WON for winner (6-0)', () => {
+test('determineSettlementOutcome keeps winner (6-0) unresolved because its semantics are undefined', () => {
   const instruction = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED' };
   const result = { status: 'verified', fullTime: { home: 6, away: 0 }, halfTime: { home: 3, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET);
 });
 
-test('determineSettlementOutcome LOST for winner (not 6-0)', () => {
-  const instruction = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED' };
+test('determineSettlementOutcome WON for oneX (Liverpool leads at HT, FT draw)', () => {
+  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const result = { status: 'verified', fullTime: { home: 1, away: 1 }, halfTime: { home: 1, away: 0 } };
+  const outcome = determineSettlementOutcome(result, instruction);
+  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.deepEqual(outcome.htScore, { home: 1, away: 0 });
+  assert.deepEqual(outcome.ftScore, { home: 1, away: 1 });
+});
+
+test('determineSettlementOutcome LOST for oneX (FT not a draw)', () => {
+  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('determineSettlementOutcome WON for oneX (home win or draw)', () => {
+test('determineSettlementOutcome derives Liverpool side from the instruction fixture', () => {
+  const instruction = { strategyKey: 'twoX', betKingMappingStatus: 'MATCHED', fixture: { home: 'mnu', away: 'liv' } };
+  const result = { status: 'verified', fullTime: { home: 2, away: 2 }, halfTime: { home: 2, away: 0 } };
+  const outcome = determineSettlementOutcome(result, instruction);
+  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
+});
+
+test('determineSettlementOutcome is AMBIGUOUS_FIXTURE for oneX when Liverpool side is unknown', () => {
   const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED' };
-  const result = { status: 'verified', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } };
+  const result = { status: 'verified', fullTime: { home: 1, away: 1 }, halfTime: { home: 1, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE);
 });
 
-test('determineSettlementOutcome LOST for oneX (away win)', () => {
-  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED' };
+test('determineSettlementOutcome keeps x2, tg0, and tg6 unresolved (no settlement condition defined)', () => {
   const result = { status: 'verified', fullTime: { home: 1, away: 2 }, halfTime: { home: 0, away: 1 } };
-  const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
-});
-
-test('determineSettlementOutcome WON for x2 (away win or draw)', () => {
-  const instruction = { strategyKey: 'x2', betKingMappingStatus: 'MATCHED' };
-  const result = { status: 'verified', fullTime: { home: 1, away: 2 }, halfTime: { home: 0, away: 1 } };
-  const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
-});
-
-test('determineSettlementOutcome WON for tg0 (0-0)', () => {
-  const instruction = { strategyKey: 'tg0', betKingMappingStatus: 'MATCHED' };
-  const result = { status: 'verified', fullTime: { home: 0, away: 0 }, halfTime: { home: 0, away: 0 } };
-  const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
-});
-
-test('determineSettlementOutcome WON for tg6 (total 6 goals)', () => {
-  const instruction = { strategyKey: 'tg6', betKingMappingStatus: 'MATCHED' };
-  const result = { status: 'verified', fullTime: { home: 4, away: 2 }, halfTime: { home: 2, away: 1 } };
-  const outcome = determineSettlementOutcome(result, instruction);
-  assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
+  for (const strategyKey of ['x2', 'tg0', 'tg6']) {
+    const outcome = determineSettlementOutcome(result, { strategyKey, betKingMappingStatus: 'MATCHED' });
+    assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET, strategyKey);
+  }
 });
 
 test('determineSettlementOutcome WON for ht12 (HT 1-2)', () => {

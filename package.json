@@ -22,7 +22,8 @@
     "eject": "react-scripts eject",
     "automation:poc": "node automation/poc.js",
     "automation:betking:inspect": "node automation/betkingInspect.js",
-    "automation:test": "node --test --test-concurrency=1 automation/*.test.js automation/*/*.test.js"
+    "automation:test": "node --test --test-concurrency=1 automation/*.test.js automation/*/*.test.js",
+    "automation:betking:run": "node automation/betkingRun.js"
   },
   "eslintConfig": {
     "extends": [

@@ -1,8 +1,16 @@
 const { ASSET_KEYS } = require('./catalogueaAdapter');
 const { submitSoloMatrixFixture } = require('../../src/strategy/soloMatrixSettlement');
 const { STRATEGY_BET_TYPES, UNRESOLVED_MARKET } = require('./canonicalBetTypes');
-
-const MINIMUM_STAKE = 10;
+const {
+  MINIMUM_STAKE,
+  STAKE_QUALIFICATION,
+  evaluateMinimumStake,
+  mergeNormalAndBigDeficitStakes,
+} = require('./rules');
+const {
+  determineLiverpoolSide,
+  resolveOrientedSelection,
+} = require('./liverpoolPerspective');
 
 const OUTCOME_STATUSES = Object.freeze({
   QUALIFYING: 'QUALIFYING',
@@ -11,6 +19,24 @@ const OUTCOME_STATUSES = Object.freeze({
   NO_STAKE_CALCULATED: 'NO_STAKE_CALCULATED',
   FIXTURE_NOT_SUBMITTED: 'FIXTURE_NOT_SUBMITTED',
 });
+
+// Rule identifiers that produced each stake decision (see rules.js).
+const STAKE_RULE_IDS = Object.freeze(['RULE-002', 'RULE-001']);
+
+// Strategy fixtures (src/Scores.js rows) carry odds as flat properties
+// (fixture.oneX, fixture.winner, ...). A nested fixture.odds object is also
+// accepted. The flat shape is what the strategy itself consumes.
+function readFixtureOdd(fixture, key) {
+  const nested = fixture?.odds?.[key];
+  const flat = fixture?.[key];
+  const value = typeof nested === 'number' ? nested : flat;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function toSet(value) {
+  if (value instanceof Set) return value;
+  return new Set(Array.isArray(value) ? value : []);
+}
 
 function createStrategyDecisionAdapter({
   readStrategySnapshot,
@@ -24,50 +50,22 @@ function createStrategyDecisionAdapter({
     if (!fixture) {
       throw new Error('A fixture is required for stake evaluation.');
     }
-    // The fixture from the strategy has odds as direct properties (winner, oneX, twoX, etc.)
-    // Check if at least some odds are present
-    const hasOdds = ASSET_KEYS.some((key) => typeof fixture[key] === 'number') || typeof fixture.winner === 'number';
+    const hasOdds = ASSET_KEYS.some((key) => typeof fixture[key] === 'number')
+      || typeof fixture.winner === 'number';
     if (!hasOdds) {
       throw new Error('A fixture with odds is required for stake evaluation.');
     }
-    const submitted = submitSoloMatrixFixture(state, fixture, ASSET_KEYS);
-    return submitted;
+    // The existing strategy owns every stake formula. Nothing is recomputed here.
+    return submitSoloMatrixFixture(state, fixture, ASSET_KEYS);
   }
 
   function getStakeForAsset(submittedState, assetKey) {
-    const normalStake = submittedState.gameStakes?.[assetKey] ?? 0;
-    const bigStake = submittedState.bigStakes?.[assetKey] ?? 0;
-    return { normal: normalStake, big: bigStake, total: normalStake + bigStake };
-  }
-
-  function determineInstructionStatus(assetKey, stakeInfo, betKingMapping) {
-    const totalStake = stakeInfo.total;
-
-    if (totalStake <= 0) {
-      return {
-        status: OUTCOME_STATUSES.NO_STAKE_CALCULATED,
-        reason: 'No stake was calculated for this asset.',
-      };
+    if (assetKey === 'winner') {
+      return { normal: submittedState.winnerStake ?? 0, big: 0 };
     }
-
-    if (totalStake < MINIMUM_STAKE) {
-      return {
-        status: OUTCOME_STATUSES.SKIPPED_BELOW_MINIMUM,
-        reason: `Stake ${totalStake} is below the minimum of ${MINIMUM_STAKE}.`,
-      };
-    }
-
-    const mapping = betKingMapping[assetKey] ?? { status: UNRESOLVED_MARKET };
-    if (mapping.status === UNRESOLVED_MARKET) {
-      return {
-        status: OUTCOME_STATUSES.UNRESOLVED_MARKET,
-        reason: `No verified BetKing market mapping exists for ${assetKey}.`,
-      };
-    }
-
     return {
-      status: OUTCOME_STATUSES.QUALIFYING,
-      reason: `Stake ${totalStake} meets minimum and market mapping is resolved.`,
+      normal: submittedState.gameStakes?.[assetKey] ?? 0,
+      big: submittedState.bigStakes?.[assetKey] ?? 0,
     };
   }
 
@@ -75,13 +73,63 @@ function createStrategyDecisionAdapter({
     const betType = STRATEGY_BET_TYPES.find((bt) => bt.strategyKey === assetKey);
     if (!betType) return { status: UNRESOLVED_MARKET, market: null, selection: null };
 
-    const mapping = betType.betKing;
+    const override = betKingMarketMappings[assetKey];
+    const mapping = override && typeof override === 'object' ? override : betType.betKing;
     return {
       status: mapping.status,
-      market: mapping.market,
-      selection: mapping.selection,
+      market: mapping.market ?? null,
+      selection: mapping.selection ?? null,
       canonicalId: betType.canonicalId,
       strategyLabel: betType.strategyLabel,
+      semanticsStatus: betType.semanticsStatus,
+    };
+  }
+
+  // Order of decisions (explicit so every rejection is explainable):
+  //   1. combine normal + big-deficit components of THIS option (RULE-002)
+  //   2. no stake -> NO_STAKE_CALCULATED
+  //   3. minimum stake on the combined amount (RULE-001)
+  //   4. market mapping
+  function determineInstructionStatus(stakeInfo, betKingMapping) {
+    const merged = mergeNormalAndBigDeficitStakes(stakeInfo.normal, stakeInfo.big);
+
+    if (merged.combined <= 0) {
+      return {
+        merged,
+        stakeQualification: null,
+        stakeEligible: false,
+        status: OUTCOME_STATUSES.NO_STAKE_CALCULATED,
+        reason: 'No stake was calculated for this asset.',
+      };
+    }
+
+    const qualification = evaluateMinimumStake(merged.combined);
+    if (qualification.status !== STAKE_QUALIFICATION.QUALIFIES) {
+      return {
+        merged,
+        stakeQualification: qualification.status,
+        stakeEligible: false,
+        status: OUTCOME_STATUSES.SKIPPED_BELOW_MINIMUM,
+        reason: qualification.reason,
+      };
+    }
+
+    if (betKingMapping.status === UNRESOLVED_MARKET) {
+      return {
+        merged,
+        stakeQualification: qualification.status,
+        stakeEligible: true,
+        status: OUTCOME_STATUSES.UNRESOLVED_MARKET,
+        reason: 'Stake qualifies, but no verified BetKing market mapping exists for this option.',
+      };
+    }
+
+    return {
+      merged,
+      stakeQualification: qualification.status,
+      stakeEligible: true,
+      status: OUTCOME_STATUSES.QUALIFYING,
+      reason: `Stake ${merged.combined} meets minimum and market mapping is resolved.`,
     };
   }
 
@@ -104,56 +152,41 @@ function createStrategyDecisionAdapter({
       privateDef: snapshot.privateDef ?? {},
       bigDef: snapshot.bigDef ?? {},
       brokenTarget: snapshot.brokenTarget ?? {},
-      clicked: snapshot.clicked ?? new Set(),
-      winners: snapshot.winners ?? new Set(),
-      bigWinners: snapshot.bigWinners ?? new Set(),
+      clicked: toSet(snapshot.clicked),
+      winners: toSet(snapshot.winners),
+      bigWinners: toSet(snapshot.bigWinners),
     };
 
     const submitted = evaluateStakes(state, fixture);
+    const liverpool = determineLiverpoolSide(fixture);
 
-    const instructions = ASSET_KEYS.map((assetKey) => {
+    const instructions = ['winner', ...ASSET_KEYS].map((assetKey) => {
       const stakeInfo = getStakeForAsset(submitted, assetKey);
       const betKingInfo = getBetKingMarketInfo(assetKey);
-      const statusResult = determineInstructionStatus(assetKey, stakeInfo, betKingInfo);
+      const decision = determineInstructionStatus(stakeInfo, betKingInfo);
+      const oriented = resolveOrientedSelection(assetKey, liverpool.side);
 
       return {
         strategyKey: assetKey,
         strategyLabel: betKingInfo.strategyLabel,
         canonicalId: betKingInfo.canonicalId,
-        stake: stakeInfo.total,
-        normalStake: stakeInfo.normal,
-        bigDeficitStake: stakeInfo.big,
-        odds: fixture.odds?.[assetKey] ?? null,
+        semanticsStatus: betKingInfo.semanticsStatus,
+        stake: decision.merged.combined,
+        normalStake: decision.merged.normal,
+        bigDeficitStake: decision.merged.big,
+        odds: readFixtureOdd(fixture, assetKey),
         betKingMarket: betKingInfo.market,
         betKingSelection: betKingInfo.selection,
-        status: statusResult.status,
-        reason: statusResult.reason,
+        orientedSelection: oriented.oriented ? oriented.selection : null,
+        liverpoolSide: liverpool.side,
+        stakeQualification: decision.stakeQualification,
+        stakeEligible: decision.stakeEligible,
+        ruleIds: STAKE_RULE_IDS,
+        status: decision.status,
+        reason: decision.reason,
         betKingMappingStatus: betKingInfo.status,
       };
     });
-
-    const winnerStake = Math.max(Math.round((state.baseStake + state.deficit) / (fixture.odds?.winner ?? 1)), 10);
-    const winnerStatus = winnerStake < MINIMUM_STAKE
-      ? OUTCOME_STATUSES.SKIPPED_BELOW_MINIMUM
-      : OUTCOME_STATUSES.QUALIFYING;
-    const winnerReason = winnerStake < MINIMUM_STAKE
-      ? `Winner stake ${winnerStake} is below minimum ${MINIMUM_STAKE}.`
-      : `Winner stake ${winnerStake} meets minimum.`;
-
-    const winnerInstruction = {
-      strategyKey: 'winner',
-      strategyLabel: '6–0',
-      canonicalId: 'SCORE_6_0',
-      stake: winnerStake,
-      normalStake: winnerStake,
-      bigDeficitStake: 0,
-      odds: fixture.odds?.winner ?? null,
-      betKingMarket: null,
-      betKingSelection: null,
-      status: winnerStatus,
-      reason: winnerReason,
-      betKingMappingStatus: UNRESOLVED_MARKET,
-    };
 
     return {
       status: 'OK',
@@ -162,8 +195,9 @@ function createStrategyDecisionAdapter({
         home: fixture.home,
         away: fixture.away,
       },
-      winnerStake,
-      instructions: [winnerInstruction, ...instructions],
+      liverpool,
+      winnerStake: submitted.winnerStake,
+      instructions,
       recommendedAction: snapshot.recommendedAction,
       observedAt: snapshot.observedAt,
     };
@@ -174,8 +208,15 @@ function createStrategyDecisionAdapter({
     return buildInstructions(snapshot);
   }
 
+  // For readers that return a Promise (a snapshot read through the browser page).
+  async function getCurrentInstructionsAsync() {
+    const snapshot = await readStrategySnapshot();
+    return buildInstructions(snapshot);
+  }
+
   return Object.freeze({
     getCurrentInstructions,
+    getCurrentInstructionsAsync,
     MINIMUM_STAKE,
     OUTCOME_STATUSES,
   });

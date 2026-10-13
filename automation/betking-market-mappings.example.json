@@ -1,0 +1,9 @@
+{
+  "_readme": "Copy to ~/.cataloguea/betking-market-mappings.json (or set AUTOMATION_BETKING_MAPPINGS_FILE). Add an entry ONLY for a strategy option whose BetKing market and selection you verified on the real site. Entries need status VERIFIED, market, selection (exactly as BetKing displays them), and evidence. Incomplete entries are ignored and the option stays UNRESOLVED_MARKET.",
+  "oneX": {
+    "status": "REPLACE_WITH_VERIFIED_AFTER_YOU_CHECK",
+    "market": "EXAMPLE: exact market name shown by BetKing",
+    "selection": "EXAMPLE: exact selection label shown by BetKing",
+    "evidence": "EXAMPLE: where/when you confirmed this equals the strategy's oneX condition"
+  }
+}

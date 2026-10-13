@@ -1,0 +1,36 @@
+{
+  "_readme": "Copy to ~/.cataloguea/betking-selectors.json (or set AUTOMATION_BETKING_SELECTORS_FILE). Every selector below is a PLACEHOLDER to be replaced with selectors you verified on the live BetKing page (use `npm run automation:betking:inspect -- --interactive`). The controller refuses to use a section that is incomplete. Remove this _readme key if you like; it is ignored.",
+  "live": {
+    "fixtureId": { "selector": "REPLACE_WITH_VERIFIED_SELECTOR", "attribute": "data-testid" },
+    "home": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "away": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "roundId": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "clock": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "homeScore": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "awayScore": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "status": "REPLACE_WITH_VERIFIED_SELECTOR"
+  },
+  "liveStatusMap": { "REPLACE_WITH_SITE_TEXT_WHILE_PLAYING": "LIVE", "REPLACE_WITH_SITE_TEXT_WHEN_FINISHED": "FINISHED" },
+  "liveNavigation": {
+    "enterLive": "OPTIONAL_SELECTOR_TO_CLICK_TO_OPEN_THE_LIVE_VIEW"
+  },
+  "results": {
+    "navigateSelector": "OPTIONAL_SELECTOR_TO_CLICK_TO_OPEN_RESULTS",
+    "rowSelector": "REPLACE_WITH_VERIFIED_SELECTOR",
+    "statusMap": { "REPLACE_WITH_SITE_TEXT_FOR_FINISHED": "FINISHED" },
+    "fields": {
+      "fixtureId": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "home": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "away": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "roundId": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "status": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "homeScoreFT": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "awayScoreFT": "REPLACE_WITH_VERIFIED_SELECTOR",
+      "homeScoreHT": "OPTIONAL_REPLACE_OR_DELETE",
+      "awayScoreHT": "OPTIONAL_REPLACE_OR_DELETE"
+    }
+  },
+  "betSlip": {
+    "stakeInput": "OPTIONAL_REPLACE_WITH_VERIFIED_STAKE_INPUT_SELECTOR"
+  }
+}

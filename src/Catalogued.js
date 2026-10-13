@@ -380,6 +380,13 @@ const Homepage = () => {
       return { status: "already_settled", resultId };
     }
 
+    // Automation may supply outcome marks it evaluated from a verified result;
+    // the strategy's own settleSoloMatrixState still does all of the settling.
+    const hasEvaluatedMarks = Array.isArray(settlement?.marks?.winners)
+      && Array.isArray(settlement?.marks?.bigWinners);
+    const settlementWinners = hasEvaluatedMarks ? new Set(settlement.marks.winners) : winners;
+    const settlementBigWinners = hasEvaluatedMarks ? new Set(settlement.marks.bigWinners) : bigWinners;
+
     const settledState = settleSoloMatrixState({
       fixture,
       baseStake,
@@ -391,8 +398,8 @@ const Homepage = () => {
       bigDef,
       brokenTarget,
       gameStakes,
-      winners,
-      bigWinners,
+      winners: settlementWinners,
+      bigWinners: settlementBigWinners,
     }, ALL_ASSETS);
     const automationSettlements = resultId
       ? [
@@ -486,11 +493,12 @@ const Homepage = () => {
 
   const strategyPort = createCatalogueaAutomationPort({
     readSnapshot: readStrategySnapshot,
-    settleStrategyResult: (normalizedResult, resultId, snapshot, actionOperationId) => (
+    settleStrategyResult: (normalizedResult, resultId, snapshot, actionOperationId, marks) => (
       handleNext({
         resultId,
         result: normalizedResult.result,
         actionOperationId,
+        marks,
       })
     ),
   });

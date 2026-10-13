@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 26 — Cataloguea Strategy Rules Module (Complete).
+Stage 29 — Real-Site Controller (implemented, NOT tested; see below).
 
 ## Stage 23 completion report
 
@@ -1703,3 +1703,70 @@ Do not proceed to settlement integration until a verified result source is estab
 ### Files Changed
 - Created: `automation/strategy/rules.js`, `automation/strategy/rules.test.js`
 - Modified: `AUTOMATION_PROGRESS.md`
+
+
+## Stage 27 — Operational Workflow and Strategy Rules
+
+Status: IMPLEMENTED BUT UNTESTED. By explicit instruction no tests, builds, POC,
+or real-site inspection were run. Nothing here is verified against BetKing.
+Main reference: `automation/BETKING_WORKFLOW.md`.
+
+### Business rules changed or added
+
+- RULE-001 minimum stake is now **at least 10 qualifies; below 10 is skipped** (was strict `> 10`). The decision adapter now uses the rules module instead of its own comparison.
+- RULE-003: `oneX` = Liverpool leads at HT and FT is a draw; `twoX` = Liverpool trails at HT and FT is a draw. Evaluated from Liverpool's perspective with separate HT and FT scores; never from the final score alone.
+- RULE-004: Liverpool home maps `x2` to selection X2, away to X1 (label only). Settlement for `x2` stays UNRESOLVED.
+- Removed from `rules.js` the earlier invented conditions for `oneX`/`twoX`/`x2`/`tg0`/`tg6`/`winner`, and removed the duplicated, conventional-market settlement logic from `resultPoller.js` (it now delegates to `rules.js`).
+
+### Files created
+
+- `automation/BETKING_WORKFLOW.md`
+- `automation/strategy/seasonWeek.js`, `seasonWeek.test.js`
+- `automation/strategy/liverpoolPerspective.js`
+- `automation/strategy/operationalWorkflow.js`, `operationalWorkflow.test.js`
+
+### Files modified
+
+- `automation/strategy/rules.js`, `rules.test.js`
+- `automation/strategy/canonicalBetTypes.js` (semantics status, oneX/twoX conditions, `STRATEGY_1X` id with legacy alias `DOUBLE_CHANCE_1X`, x2 orientation)
+- `automation/strategy/strategyDecisionAdapter.js` (uses rules; reads `winnerStake` from the strategy; reads flat or nested odds; adds stake components, eligibility, Liverpool side, oriented selection)
+- `automation/strategy/resultPoller.js`, `resultPoller.test.js` (settlement delegated to rules; tests encoding invented semantics replaced)
+- `automation/stateMachine.js` (additive transitions and `WAITING_FOR_NEXT_FIXTURE`)
+- `AUTOMATION_PROGRESS.md`
+
+### Unresolved
+
+`winner` (6-0), `x2` settlement, `tg0`, `tg6`; `ht12`/`ht21`/`ht30`/`ft40`/`ft41` are label-based assumptions; all BetKing selection mappings; live/half-time/full-time selectors; applying marks to the strategy; half-time-aware settlement identity; bet-slip steps.
+
+### Possible test fallout to check first
+
+Tests that asserted the old `> 10` rule, the old `resultPoller` semantics, or `DOUBLE_CHANCE_1X` were edited by hand without running; run `npm run automation:test` and review any failures in `rules`, `resultPoller`, `canonicalBetTypes`, `strategyDecisionAdapter`, and `stateMachine` tests first.
+
+
+## Stage 28 — Settlement Integration and Project Audit
+
+Status: IMPLEMENTED BUT UNTESTED (no tests, builds, POC, or real-site runs).
+
+- RULE-005 (user confirmed): options skipped for a stake below 10 are not played, receive no marks, and settle as non-winning in the strategy.
+- `automation/strategy/settlementIntegration.js` (+ test): evaluates options, blocks on undecidable options, detects duplicates before staleness, refuses stale decisions via a stake fingerprint, hands evaluated marks to the strategy port, and verifies the receipt before the week may advance.
+- `src/strategy/catalogueaAutomationPort.js`: `settleVerifiedResult` accepts optional `marks`; unknown keys and mixing with manual marks are rejected; behaviour without `marks` is unchanged.
+- `src/Catalogued.js`: `handleNext` uses supplied marks when present and still calls `settleSoloMatrixState`; the manual UI path is unchanged.
+- `operationalWorkflow.js`: plans now carry `strategyFixture`, `allRecords`, and `stakeFingerprint`; `createStakeFingerprint` exported.
+- `automation/PROJECT_AUDIT.md`: the audit requested in the original brief, with evidence and status categories.
+
+Still open: `winner` (6-0), `x2` settlement, `tg0`, `tg6` meanings (they block automatic settlement); confirmation of the `ht`/`ft` keys; real-site ports and result selectors; `RunStore` wiring; bet-slip steps.
+
+
+## Stage 29 — Real-Site Controller and Ports
+
+Status: IMPLEMENTED BUT UNTESTED AND NEVER RUN. No tests were written for this stage by instruction.
+
+- `automation/betkingLiveConfig.js`: explicit `AUTOMATION_MODE=betking-live`; separate from `config.js` (unchanged, still local/test only).
+- `automation/sportsbook/betkingPorts.js`: schedule, visible week, week selection (round-switcher buttons), live snapshot (via `readLiveFixtureSnapshot`), results page, selection check, opt-in bet-slip stake entry. No submission code.
+- `automation/sportsbook/betkingSelectors.js` + `betking-selectors.example.json` + `betking-market-mappings.example.json`: evidence-backed configuration; incomplete or unverified entries are ignored.
+- `automation/strategy/strategyBridge.js`, `catalogueaPagePort.js` (settleVerifiedResult with marks), `strategyDecisionAdapter.js` (`getCurrentInstructionsAsync`, array-to-Set coercion), `settlementIntegration.js` (awaits async ports).
+- `automation/betkingController.js`, `betkingRun.js`, `betkingRunJournal.js`, `betkingReport.js`: controlled lifecycle per week with manual sign-in, human review gate, live observation with bounded recovery, Results-page cross-check or results-only polling, single settlement, stop on Ctrl-C or `stop`.
+- `stateMachine.js`: `RESULT_VERIFIED -> PAUSED` and `RECOVERING -> WAITING_FOR_RESULT` added.
+- `operationalWorkflow.js`: accepts the classification result returned by `inspectBetKingPage`.
+
+Still open: all real-site selectors beyond the observed schedule/round/odds ones; the meanings of `winner`, `x2` settlement, `tg0`, `tg6`; `ht`/`ft` confirmations; first real run.

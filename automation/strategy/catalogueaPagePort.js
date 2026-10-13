@@ -18,6 +18,12 @@ function createCatalogueaPagePort(page) {
 
   return {
     getStrategySnapshot: () => evaluatePort('getStrategySnapshot'),
+    // Passes the verified result and optional evaluated marks to the strategy's own
+    // settlement (src/strategy/catalogueaAutomationPort.js). No settlement logic here.
+    settleVerifiedResult: ({ normalizedResult, actionOperationId, marks } = {}) => evaluatePort(
+      'settleVerifiedResult',
+      { normalizedResult, actionOperationId, marks },
+    ),
     getCurrentInstruction: () => evaluatePort('getCurrentInstruction'),
     strategySettlementPort: async (request) => {
       const result = await evaluatePort('settleVerifiedResult', {

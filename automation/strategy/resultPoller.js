@@ -1,5 +1,7 @@
 const { RESULT_STATUSES } = require('../result/liveResultObserver');
 const { createResultId } = require('../result/resultIdentity');
+const { evaluateResultAgainstStrategy } = require('./rules');
+const { determineLiverpoolSide } = require('./liverpoolPerspective');
 const { createCrossViewFixtureIdentity, calculateIdentityMatch, FIXTURE_IDENTITY_CONFIDENCE } = require('./fixtureIdentity');
 
 const POLLING_DEFAULTS = Object.freeze({
@@ -230,62 +232,16 @@ function determineSettlementOutcome(verifiedResult, instruction) {
     return { outcome: SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED, reason: 'Result not verified' };
   }
 
-  if (!verifiedResult.halfTime || !verifiedResult.fullTime) {
-    return { outcome: SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED, reason: 'Missing HT or FT score' };
-  }
+  // Strategy semantics live in rules.js (single definition). Nothing about what a
+  // strategy option means is decided here.
+  const liverpoolSide = instruction.liverpoolSide
+    ?? determineLiverpoolSide(instruction.fixture).side;
+  const evaluation = evaluateResultAgainstStrategy(verifiedResult, strategyKey, { liverpoolSide });
 
-  const htHome = verifiedResult.halfTime.home;
-  const htAway = verifiedResult.halfTime.away;
-  const ftHome = verifiedResult.fullTime.home;
-  const ftAway = verifiedResult.fullTime.away;
-
-  const key = strategyKey;
-
-  let won = false;
-  switch (key) {
-    case 'winner':
-      won = ftHome === 6 && ftAway === 0;
-      break;
-    case 'oneX':
-      won = ftHome >= ftAway;
-      break;
-    case 'twoX':
-      won = ftAway >= ftHome;
-      break;
-    case 'x2':
-      won = ftAway >= ftHome;
-      break;
-    case 'tg0':
-      won = ftHome === 0 && ftAway === 0;
-      break;
-    case 'tg6':
-      won = ftHome + ftAway === 6;
-      break;
-    case 'ht12':
-      won = htHome === 1 && htAway === 2;
-      break;
-    case 'ht21':
-      won = htHome === 2 && htAway === 1;
-      break;
-    case 'ht30':
-      won = htHome === 3 && htAway === 0;
-      break;
-    case 'ft40':
-      won = ftHome === 4 && ftAway === 0;
-      break;
-    case 'ft41':
-      won = ftHome === 4 && ftAway === 1;
-      break;
-    default:
-      return { outcome: SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET, reason: `Unknown strategy key: ${key}` };
-  }
-
-  return {
-    outcome: won ? SETTLEMENT_OUTCOMES.WON : SETTLEMENT_OUTCOMES.LOST,
-    reason: won ? 'Score matches selection criteria' : 'Score does not match selection criteria',
-    htScore: { home: htHome, away: htAway },
-    ftScore: { home: ftHome, away: ftAway },
-  };
+  const outcome = { outcome: evaluation.outcome, reason: evaluation.reason };
+  if (evaluation.htScore !== undefined) outcome.htScore = evaluation.htScore;
+  if (evaluation.ftScore !== undefined) outcome.ftScore = evaluation.ftScore;
+  return outcome;
 }
 
 function createSettlementReporter({
