@@ -16,15 +16,16 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "automation:poc": "node automation/poc.js",
-    "automation:betking:inspect": "node automation/betkingInspect.js",
-    "automation:test": "node --test --test-concurrency=1 automation/*.test.js automation/*/*.test.js",
-    "automation:betking:run": "node automation/betkingRun.js"
-  },
+  "start": "react-scripts start",
+  "build": "react-scripts build",
+  "test": "react-scripts test",
+  "eject": "react-scripts eject",
+  "automation:test": "node automation/runTests.js",
+  "automation:betking:inspect": "node automation/betkingInspect.js",
+  "automation:betking:probe": "node automation/betkingProbe.js",
+  "automation:betking:run": "node automation/betkingRun.js",
+  "automation:betking:open": "node automation/betkingOpen.js"
+},
   "eslintConfig": {
     "extends": [
       "react-app",

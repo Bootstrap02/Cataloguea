@@ -1,9 +1,12 @@
-// Entry point for the REAL BetKing run:
-//   AUTOMATION_MODE=betking-live npm run automation:betking:run -- --week 5
+// Entry point for the REAL BetKing run (the real site only; there is no simulation):
+//   npm run automation:betking:run -- --week 5
+// Sign in on the BetKing window that opens; the run then continues by itself.
 //
 // Options:  --week N        required game week (1-38)
 //           --max-weeks N   weeks to process before stopping (default 1)
-//           --no-prompts    do not wait for Enter at the human checkpoints
+//           --prompts       ask for Enter at the human checkpoints (default: fully automatic)
+
+process.env.AUTOMATION_MODE = 'betking-live';
 
 const { createBetKingLiveConfig } = require('./betkingLiveConfig');
 const { loadBetKingSelectors, loadVerifiedMarketMappings } = require('./sportsbook/betkingSelectors');
@@ -42,7 +45,7 @@ async function main() {
   const outcome = await controller.run({
     requiredWeek,
     maxWeeks,
-    prompts: !process.argv.includes('--no-prompts'),
+    prompts: process.argv.includes('--prompts'),
   });
   console.log(JSON.stringify(outcome, null, 2));
   if (outcome.status !== 'COMPLETED') process.exitCode = 1;

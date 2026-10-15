@@ -87,6 +87,17 @@ function createBetKingFixtureIdentity(fixture, roundInfo = {}) {
   };
 }
 
+function parseFixtureIdCodes(id) {
+  const upper = String(id ?? '').toUpperCase().trim();
+  if (!upper) return [];
+  const parts = upper.split('-').filter(Boolean);
+  if (parts.length >= 4 && parts[0] === 'MATCHUP' && parts[1] === 'STATISTICS' && parts[2] === 'BUTTON') {
+    return parts.slice(3);
+  }
+  if (parts.length === 1 && upper.length === 6) return [upper.slice(0, 3), upper.slice(3, 6)];
+  return parts;
+}
+
 function calculateIdentityMatch(catalogueaIdentity, betKingIdentity) {
   if (!catalogueaIdentity || !betKingIdentity) {
     return { matched: false, confidence: FIXTURE_IDENTITY_CONFIDENCE.LOW, reasons: ['Missing identity'] };
@@ -109,21 +120,12 @@ function calculateIdentityMatch(catalogueaIdentity, betKingIdentity) {
   }
 
   if (catalogueaIdentity.id && betKingIdentity.fixtureId) {
-    const catId = catalogueaIdentity.id.toUpperCase();
-    // Cataloguea fixture IDs are concatenated 3-char team codes (e.g., 'livmnu' = LIV + MNU)
-    let catParts = [];
-    if (catId.length === 6) {
-      catParts = [catId.slice(0, 3), catId.slice(3, 6)];
-    } else {
-      catParts = catId.split('-').filter(Boolean);
-    }
-    
-    // Extract team codes from BetKing fixtureId (handles matchup-statistics-button-LIV-COV format)
-    let bkParts = betKingIdentity.fixtureId.toUpperCase().split('-').filter(Boolean);
-    if (bkParts.length >= 4 && bkParts[0] === 'MATCHUP' && bkParts[1] === 'STATISTICS' && bkParts[2] === 'BUTTON') {
-      bkParts = bkParts.slice(3); // Take LIV, COV
-    }
-    
+    // Cataloguea ids are concatenated 3-char codes ('livmnu'); BetKing ids look like
+    // 'matchup-statistics-button-LIV-COV' or 'LIV-COV'. Both sides are parsed the same
+    // way, so a cross-view identity that already carries a BetKing-style id also scores.
+    const catParts = parseFixtureIdCodes(catalogueaIdentity.id);
+    const bkParts = parseFixtureIdCodes(betKingIdentity.fixtureId);
+
     if (catParts.length >= 2 && bkParts.length >= 2) {
       if (catParts[0] === bkParts[0] && catParts[1] === bkParts[1]) {
         score += 1;

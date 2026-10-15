@@ -130,27 +130,56 @@ test('pollOnce returns verified result when complete', async () => {
   assert.ok(result.halfTimeProvided);
 });
 
-test('pollOnce detects CONFLICTING_RESULT on different resultId', async () => {
+test('pollOnce detects CONFLICTING_RESULT when the same poller later sees a different score', async () => {
+  let entry = {
+    fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' },
+    status: 'FINISHED',
+    fullTime: { home: 2, away: 1 },
+    halfTime: { home: 1, away: 0 },
+  };
+  const poller = createResultPoller({
+    readResultsPage: async () => createMockResultsSnapshot([entry]),
+    getExpectedFixture: () => createMockFixture(),
+    getActionOperationId: () => 'op-123',
+  });
+  const first = await poller.pollOnce();
+  assert.equal(first.status, 'verified');
+  entry = { ...entry, fullTime: { home: 3, away: 1 }, halfTime: { home: 2, away: 0 } };
+  const second = await poller.pollOnce();
+  assert.equal(second.status, 'CONFLICTING_RESULT');
+});
+
+test('pollOnce ignores results entries from a different round', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } },
+      {
+        fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU', roundName: 'Week 32' },
+        status: 'FINISHED',
+        fullTime: { home: 2, away: 1 },
+        halfTime: { home: 1, away: 0 },
+      },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
   });
-  await poller.pollOnce(); // First poll
-  // Second poll with different score
-  const poller2 = createResultPoller({
+  const result = await poller.pollOnce();
+  assert.equal(result.status, 'RESULTS_NOT_FOUND');
+});
+
+test('pollOnce accepts a results entry for the expected round', async () => {
+  const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' }, status: 'FINISHED', fullTime: { home: 3, away: 1 }, halfTime: { home: 2, away: 0 } },
+      {
+        fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU', roundName: '33' },
+        status: 'FINISHED',
+        fullTime: { home: 2, away: 1 },
+        halfTime: { home: 1, away: 0 },
+      },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
   });
-  // Copy state to simulate same poller
-  poller2.getState().resultId = poller.getState().resultId;
-  const result = await poller2.pollOnce();
-  assert.equal(result.status, 'CONFLICTING_RESULT');
+  assert.equal((await poller.pollOnce()).status, 'verified');
 });
 
 test('startPolling waits initial delay and polls until verified', async () => {

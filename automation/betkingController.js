@@ -12,6 +12,7 @@
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { StateMachine, STATES } = require('./stateMachine');
+const { BETKING_STATUSES } = require('./sportsbook/betkingAdapter');
 const { RunStore } = require('./persistence/runStore');
 const { createRunJournal } = require('./betkingRunJournal');
 const { createBetKingPorts } = require('./sportsbook/betkingPorts');
@@ -43,6 +44,14 @@ async function defaultPrompt(question) {
   }
 }
 
+// The live observer compares the short id ('LIV-COV') and, when both sides have it,
+// the full DOM id ('matchup-statistics-button-LIV-COV').
+function toObserverFixtureIds(fixtureId) {
+  const raw = String(fixtureId ?? '');
+  const match = /^matchup-statistics-button-(.+)$/i.exec(raw);
+  return match ? { id: match[1], domId: raw } : { id: raw, domId: undefined };
+}
+
 const sleepFor = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const isStop = (answer) => /^\s*stop\s*$/i.test(String(answer ?? ''));
 
@@ -59,7 +68,9 @@ function createBetKingController({
     throw new Error('A betking-live configuration is required; the simulation is never a substitute.');
   }
 
-  async function run({ requiredWeek, maxWeeks = 1, prompts = true } = {}) {
+  // prompts=false (default): after you sign in the run takes over by itself.
+  // prompts=true: asks for Enter at the human checkpoints.
+  async function run({ requiredWeek, maxWeeks = 1, prompts = false } = {}) {
     const runId = randomUUID();
     const journal = createRunJournal({ dir: config.runsDir, runId });
     const runStore = new RunStore({ filePath: path.join(journal.runDir, 'run-store.json') });
@@ -154,9 +165,50 @@ function createBetKingController({
       }
     }
 
+    // Autonomous sign-in: polls the real page until the schedule is accessible.
+    async function waitForLogin() {
+      log('Waiting for you to sign in to BetKing in the open browser window; the run continues by itself afterwards.');
+      journal.append('WAITING_FOR_LOGIN', {});
+      const deadline = Date.now() + config.loginWaitTimeoutMs;
+      while (Date.now() < deadline) {
+        if (stopRequested) return false;
+        await sleep(config.pollIntervalMs);
+        try {
+          const result = await ports.readSchedule();
+          const status = result?.status;
+          if (status && status !== BETKING_STATUSES.AUTH_REQUIRED && status !== BETKING_STATUSES.PAGE_UNAVAILABLE) {
+            journal.append('LOGIN_DETECTED', { status });
+            return true;
+          }
+        } catch (error) {
+          // The page may be navigating right after sign-in; keep waiting.
+        }
+      }
+      return false;
+    }
+
+    // Autonomous strategy wait: polls the Cataloguea tab until a fixture is submitted.
+    async function waitForStrategyFixture() {
+      log('Waiting for a Liverpool fixture to be submitted in the Cataloguea tab; the run continues by itself afterwards.');
+      journal.append('WAITING_FOR_STRATEGY_FIXTURE', {});
+      const deadline = Date.now() + config.strategyWaitTimeoutMs;
+      while (Date.now() < deadline) {
+        if (stopRequested) return false;
+        await sleep(config.pollIntervalMs);
+        try {
+          const instructions = await bridge.getInstructions();
+          if (instructions && instructions.status === 'OK') return true;
+        } catch (error) {
+          // The fixture may not be selectable yet; keep waiting.
+        }
+      }
+      return false;
+    }
+
     async function prepareWithRecovery(week) {
       let retries = 0;
       let manualAttempts = 0;
+      let autoWaits = 0;
       for (;;) {
         if (stopRequested) return { status: 'STOPPED' };
         const prep = await workflow.prepareWeek({ requiredWeek: week });
@@ -164,6 +216,16 @@ function createBetKingController({
 
         journal.append('PREPARE_FAILED', { code: prep.code, step: prep.step, details: prep.details });
         log(`Week ${week}: ${prep.code} at ${prep.step}. ${prep.policy.description}`);
+
+        const needsLogin = ['AUTHENTICATION_REQUIRED', 'SESSION_EXPIRED'].includes(prep.code);
+        if (!prompts && autoWaits < config.manualLoginMaxAttempts
+          && (needsLogin || prep.code === 'STRATEGY_STATE_MISSING')) {
+          autoWaits += 1;
+          const ready = needsLogin ? await waitForLogin() : await waitForStrategyFixture();
+          if (stopRequested) return { status: 'STOPPED' };
+          if (ready) continue;
+          return prep;
+        }
 
         const needsHuman = ['AUTHENTICATION_REQUIRED', 'SESSION_EXPIRED', 'STRATEGY_STATE_MISSING'].includes(prep.code);
         if (needsHuman && prompts && manualAttempts < config.manualLoginMaxAttempts) {
@@ -274,7 +336,7 @@ function createBetKingController({
       if (!selectors.configured.live) return { status: 'NOT_CONFIGURED' };
       const { identification } = prep;
       const observer = createLiveResultObserver({
-        id: identification.fixture.fixtureId,
+        ...toObserverFixtureIds(identification.fixture.fixtureId),
         home: identification.fixture.home,
         away: identification.fixture.away,
         roundId: identification.roundId || identification.roundName,
@@ -342,6 +404,7 @@ function createBetKingController({
         getExpectedFixture: () => ({ scheduled, live: null, results: null }),
         getActionOperationId: () => operationId,
         config: {
+          minConfidence: 'MEDIUM',
           initialDelayMs: config.resultsInitialDelayMs,
           intervalMs: config.resultsIntervalMs,
           maxAttempts: config.resultsMaxAttempts,
@@ -443,6 +506,7 @@ function createBetKingController({
         journal.append('OPEN_BETKING_FAILED', { message: error.message });
       }
 
+      await betKingPage.bringToFront();
       if (prompts) {
         await strategyPage.bringToFront();
         const answer = await prompt(

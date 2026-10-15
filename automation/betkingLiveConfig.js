@@ -56,6 +56,9 @@ function createBetKingLiveConfig(environment = process.env) {
     resultsIntervalMs: readInteger(environment, 'AUTOMATION_RESULTS_INTERVAL_MS', 15_000),
     resultsMaxAttempts: readInteger(environment, 'AUTOMATION_RESULTS_MAX_ATTEMPTS', 40, { maximum: 500 }),
     resultsCrossCheckAttempts: readInteger(environment, 'AUTOMATION_RESULTS_CROSSCHECK_ATTEMPTS', 3, { maximum: 50 }),
+    pollIntervalMs: readInteger(environment, 'AUTOMATION_POLL_INTERVAL_MS', 2000),
+    loginWaitTimeoutMs: readInteger(environment, 'AUTOMATION_LOGIN_WAIT_TIMEOUT_MS', 900_000),
+    strategyWaitTimeoutMs: readInteger(environment, 'AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS', 900_000),
     manualLoginMaxAttempts: readInteger(environment, 'AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS', 3, { maximum: 20 }),
     // Bet-slip population is opt-in. Submission is never performed by this code.
     populateBetSlip: environment.AUTOMATION_POPULATE_BET_SLIP === 'true',

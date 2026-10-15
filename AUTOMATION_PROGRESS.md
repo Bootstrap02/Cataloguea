@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 29 — Real-Site Controller (implemented, NOT tested; see below).
+Stage 31 — Sample Page Retired, Autonomous Real-Site Flow, Button Probe.
 
 ## Stage 23 completion report
 
@@ -1770,3 +1770,27 @@ Status: IMPLEMENTED BUT UNTESTED AND NEVER RUN. No tests were written for this s
 - `operationalWorkflow.js`: accepts the classification result returned by `inspectBetKingPage`.
 
 Still open: all real-site selectors beyond the observed schedule/round/odds ones; the meanings of `winner`, `x2` settlement, `tg0`, `tg6`; `ht`/`ft` confirmations; first real run.
+
+
+## Stage 30 — Verification Fixes
+
+Pure-logic automation tests (no browser) were run in the sandbox against the delivered code: strategy folder 144 of 144 passing, plus the new controller test (5 of 5). Browser tests (simulated sportsbook, recovery, stress, strategyRealLoop, config, inspector) need Playwright and open the local SAMPLE page; they were not run here.
+
+Fixed (all pre-existing defects exposed by the 14 failures):
+
+- `resultPoller.js`: `pollOnce` was not exported (8 tests). Confidence levels were compared alphabetically as strings, which rejected HIGH matches; now ranked. Results entries use `id` or fall back to `fixtureId` so a result identity can be created. Results from a different round are ignored. Default minimum confidence is LOW (exact team orientation) with duplicate detection; the real-site controller requires MEDIUM.
+- `fixtureIdentity.js`: ids in the `matchup-statistics-button-LIV-MNU` form were not parsed on the Cataloguea/cross-view side, so cross-view identities never earned the id score; both sides are now parsed the same way.
+- `resultPoller.js`: an option skipped for a stake below the minimum is reported as SKIPPED_BELOW_MINIMUM before its mapping status (RULE-005).
+- `resultPoller.test.js`: the conflict test mutated a copy of the state and could never pass; rewritten with one poller; two round-check tests added.
+- `betkingController.js`: live observer ids split into short id and DOM id; poller threshold MEDIUM.
+- New: `betkingController.test.js` (controller against in-memory stand-ins), `betkingOpen.js` (`automation:betking:open`), simulation banner in `poc.js`.
+
+Project hygiene found in the uploaded copy: 19 stray flat duplicates of delivered files in `automation/` (they are picked up by the `automation/*.test.js` glob and run twice); documents placed at the project root instead of `automation/`.
+
+
+## Stage 31 — Sample Page Retired, Autonomous Real-Site Flow, Button Probe
+
+- The built-in sample page is retired from the workflow. `automation/runTests.js` (used by `automation:test`) excludes `simulatedSportsbook.test.js`, `strategyRealLoop.test.js`, and `stress/endToEndStress.test.js`, the only tests that opened it. The files remain on disk. `poc.js` now only prints that it is retired. The user-reported `strategyRealLoop` failure (PAUSED instead of COMPLETED, 22 s run) was in that retired simulation; it does not import any module changed in Stages 27-31 apart from the additive `stateMachine.js` edits, and the same test passed in Kilo's earlier run, so it is most likely timing on the slower machine, but this was not reproduced.
+- `betkingRun.js` no longer needs `AUTOMATION_MODE=...` and is autonomous by default: after sign-in it continues by itself and also waits by itself for a submitted Cataloguea fixture. `--prompts` restores the Enter checkpoints.
+- New `automation:betking:probe` (`betkingProbe.js`, `sportsbook/betkingProbe.js`): signs-in-wait, control inventory, outline highlight, navigation-only clicks (round switcher, market tabs) with before/after state, restore, report. Not yet run against the real site.
+- Tests added: `runTests.test.js`, `sportsbook/betkingProbe.test.js`, and two autonomy tests in `betkingController.test.js`.

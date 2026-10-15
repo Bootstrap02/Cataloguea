@@ -2,6 +2,7 @@ const { RESULT_STATUSES } = require('../result/liveResultObserver');
 const { createResultId } = require('../result/resultIdentity');
 const { evaluateResultAgainstStrategy } = require('./rules');
 const { determineLiverpoolSide } = require('./liverpoolPerspective');
+const { parseWeek } = require('./seasonWeek');
 const { createCrossViewFixtureIdentity, calculateIdentityMatch, FIXTURE_IDENTITY_CONFIDENCE } = require('./fixtureIdentity');
 
 const POLLING_DEFAULTS = Object.freeze({
@@ -10,7 +11,9 @@ const POLLING_DEFAULTS = Object.freeze({
   maxAttempts: 40,
   timeoutMs: 600000,
   staleAfterMs: 90000,
-  minConfidence: FIXTURE_IDENTITY_CONFIDENCE.MEDIUM,
+  // LOW = exact home/away team match. Duplicate matches are rejected as ambiguous and
+  // rounds are cross-checked below; the real-site controller passes MEDIUM or higher.
+  minConfidence: FIXTURE_IDENTITY_CONFIDENCE.LOW,
 });
 
 const SETTLEMENT_OUTCOMES = Object.freeze({
@@ -22,6 +25,38 @@ const SETTLEMENT_OUTCOMES = Object.freeze({
   RESULT_UNVERIFIED: 'RESULT_UNVERIFIED',
   SKIPPED_BELOW_MINIMUM: 'SKIPPED_BELOW_MINIMUM',
 });
+
+// Confidence levels must be compared by rank, not alphabetically ('HIGH' < 'MEDIUM'
+// as strings, which wrongly rejected HIGH-confidence matches).
+const CONFIDENCE_RANK = Object.freeze({
+  [FIXTURE_IDENTITY_CONFIDENCE.AMBIGUOUS]: 0,
+  [FIXTURE_IDENTITY_CONFIDENCE.LOW]: 1,
+  [FIXTURE_IDENTITY_CONFIDENCE.MEDIUM]: 2,
+  [FIXTURE_IDENTITY_CONFIDENCE.HIGH]: 3,
+});
+
+function meetsConfidence(actual, minimum) {
+  return (CONFIDENCE_RANK[actual] ?? -1) >= (CONFIDENCE_RANK[minimum] ?? Number.MAX_SAFE_INTEGER);
+}
+
+function normalizeRoundLabel(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+// A results entry from a different round must never be accepted for this fixture.
+// Compared only when both sides expose a round; week numbers win over raw text.
+function roundsCompatible(entryFixture, crossView) {
+  const scheduled = crossView?.sources?.scheduled;
+  const expected = [scheduled?.roundId, scheduled?.roundName].map(normalizeRoundLabel).filter(Boolean);
+  const observed = [entryFixture?.roundId, entryFixture?.roundName].map(normalizeRoundLabel).filter(Boolean);
+  if (expected.length === 0 || observed.length === 0) return true;
+  const expectedWeeks = expected.map(parseWeek).filter((week) => week !== null);
+  const observedWeeks = observed.map(parseWeek).filter((week) => week !== null);
+  if (expectedWeeks.length > 0 && observedWeeks.length > 0) {
+    return observedWeeks.some((week) => expectedWeeks.includes(week));
+  }
+  return observed.some((label) => expected.includes(label));
+}
 
 function parseTimestamp(value) {
   if (!value) return null;
@@ -86,7 +121,9 @@ function createResultPoller({
       const matches = resultsSnapshot.results
         .map((entry) => ({
           entry,
-          match: entry.fixture ? calculateIdentityMatch(crossViewIdentity, entry.fixture) : null,
+          match: entry.fixture && roundsCompatible(entry.fixture, crossViewIdentity)
+            ? calculateIdentityMatch(crossViewIdentity, entry.fixture)
+            : null,
         }))
         .filter(({ match }) => match?.matched)
         .sort((a, b) => b.match.score - a.match.score);
@@ -100,7 +137,7 @@ function createResultPoller({
       }
 
       const { entry, match } = matches[0];
-      if (match.confidence < cfg.minConfidence) {
+      if (!meetsConfidence(match.confidence, cfg.minConfidence)) {
         return { status: RESULT_STATUSES.AMBIGUOUS_FIXTURE, attempt: pollState.attempt, timestamp: attemptStart };
       }
 
@@ -121,7 +158,7 @@ function createResultPoller({
 
       const normalizedResult = {
         status: 'verified',
-        fixture: { ...entry.fixture },
+        fixture: { ...entry.fixture, id: entry.fixture.id ?? entry.fixture.fixtureId },
         result: { homeScore: ftScore.home, awayScore: ftScore.away },
         fullTime: { home: ftScore.home, away: ftScore.away, verified: true },
         halfTime: htScore && isCompleteScore(htScore) ? { home: htScore.home, away: htScore.away, verified: true } : null,
@@ -210,6 +247,7 @@ function createResultPoller({
   }
 
   return Object.freeze({
+    pollOnce,
     startPolling,
     getState,
     reset,
@@ -220,12 +258,14 @@ function createResultPoller({
 function determineSettlementOutcome(verifiedResult, instruction) {
   const { strategyKey, betKingMappingStatus } = instruction;
 
-  if (betKingMappingStatus === 'UNRESOLVED_MARKET') {
-    return { outcome: SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET, reason: 'No verified BetKing market mapping' };
-  }
-
+  // RULE-005: an option skipped for a stake below the minimum was not played, so
+  // this is reported before (and regardless of) its market mapping status.
   if (instruction.status === 'SKIPPED_BELOW_MINIMUM') {
     return { outcome: SETTLEMENT_OUTCOMES.SKIPPED_BELOW_MINIMUM, reason: instruction.reason };
+  }
+
+  if (betKingMappingStatus === 'UNRESOLVED_MARKET') {
+    return { outcome: SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET, reason: 'No verified BetKing market mapping' };
   }
 
   if (!verifiedResult || verifiedResult.status !== 'verified') {
