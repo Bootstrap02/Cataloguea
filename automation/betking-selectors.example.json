@@ -30,6 +30,14 @@
       "awayScoreHT": "OPTIONAL_REPLACE_OR_DELETE"
     }
   },
+  "marketFlow": {
+    "_readme": "OPTIONAL overrides for the market-first flow. Defaults use the visible text seen in the screen recording (More Markets, category chips, Betslip, Total Stake Amount). Fill a key only after you verified a selector on the real page; delete keys you do not need.",
+    "moreMarkets": "OPTIONAL_SELECTOR_FOR_THE_MORE_MARKETS_TOGGLE",
+    "categoryChip": "OPTIONAL_SELECTOR_FOR_THE_CATEGORY_CHIPS",
+    "categoryHeader": "OPTIONAL_SELECTOR_WHOSE_TEXT_IS_THE_ACTIVE_CATEGORY",
+    "betslipTab": "OPTIONAL_SELECTOR_FOR_THE_BETSLIP_TAB",
+    "slipStake": "OPTIONAL_SELECTOR_FOR_THE_TOTAL_STAKE_AMOUNT_INPUT"
+  },
   "betSlip": {
     "stakeInput": "OPTIONAL_REPLACE_WITH_VERIFIED_STAKE_INPUT_SELECTOR"
   }

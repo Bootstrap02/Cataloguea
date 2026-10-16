@@ -8,8 +8,10 @@ const path = require('node:path');
 // ports, and the strategy tab. No browser, no network, no real site is touched.
 const portsPath = require.resolve('./sportsbook/betkingPorts');
 const bridgePath = require.resolve('./strategy/strategyBridge');
-const injected = { ports: null, bridge: null };
+const flowPath = require.resolve('./sportsbook/betkingMarketFlow');
+const injected = { ports: null, bridge: null, flow: null };
 require.cache[portsPath] = { id: portsPath, filename: portsPath, loaded: true, exports: { createBetKingPorts: () => injected.ports } };
+require.cache[flowPath] = { id: flowPath, filename: flowPath, loaded: true, exports: { createMarketFlow: () => injected.flow } };
 require.cache[bridgePath] = { id: bridgePath, filename: bridgePath, loaded: true, exports: { createStrategyBridge: () => injected.bridge } };
 
 const { createBetKingController } = require('./betkingController');
@@ -22,10 +24,10 @@ const STRATEGY_FIXTURE = {
   tg6: 16.9, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 35.8, ft41: 30,
 };
 
-function strategySnapshot() {
+function strategySnapshot({ bigOneX = 0, bigTwoX = 0 } = {}) {
   const zero = () => Object.fromEntries(ASSET_KEYS.map((key) => [key, 0]));
   return {
-    baseStake: 10000, deficit: 0, smallDeficit: 0, privateDef: zero(), bigDef: zero(), brokenTarget: zero(),
+    baseStake: 10000, deficit: 0, smallDeficit: 0, privateDef: zero(), bigDef: { ...zero(), oneX: bigOneX, twoX: bigTwoX }, brokenTarget: zero(),
     clicked: [], winners: [], bigWinners: [], winnerStake: 0, recommendedAction: 'manual_result_entry',
     observedAt: '2026-10-12T10:00:00.000Z', fixture: STRATEGY_FIXTURE, automationSettlements: [],
   };
@@ -51,7 +53,10 @@ function liveFrames() {
   return [frame('12', '1', '0'), frame('44', '1', '0'), frame('46', '1', '0'), frame('90', '1', '1', 'FINISHED')];
 }
 
-function setup({ answers = null, frames = liveFrames(), authFirstReads = 0, strategyReadyAfter = 0 } = {}) {
+function setup({
+  answers = null, frames = liveFrames(), authFirstReads = 0, strategyReadyAfter = 0,
+  mappings = {}, bigDeficits = {}, through = 'identify', flowOverrides = {},
+} = {}) {
   const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'betking-run-'));
   const config = createBetKingLiveConfig({
     AUTOMATION_MODE: 'betking-live',
@@ -59,10 +64,11 @@ function setup({ answers = null, frames = liveFrames(), authFirstReads = 0, stra
     AUTOMATION_LIVE_INTERVAL_MS: '1',
     AUTOMATION_MATCH_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_POLL_INTERVAL_MS: '1',
+    AUTOMATION_PIPELINE_THROUGH: through,
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS: '5000',
   });
-  const calls = { settle: [], selectWeek: [] };
+  const calls = { settle: [], selectWeek: [], flow: [] };
   let frameIndex = 0;
   let scheduleReads = 0;
   let strategyReads = 0;
@@ -85,7 +91,20 @@ function setup({ answers = null, frames = liveFrames(), authFirstReads = 0, stra
     verifySelection: async () => ({ status: 'MISSING_MARKET' }),
     populateBetSlip: async () => ({ status: 'BET_SLIP_SELECTORS_NOT_CONFIGURED' }),
   };
-  const adapter = createStrategyDecisionAdapter({ readStrategySnapshot: () => strategySnapshot() });
+  const adapter = createStrategyDecisionAdapter({
+    readStrategySnapshot: () => strategySnapshot(bigDeficits),
+    betKingMarketMappings: mappings,
+  });
+  const track = (name, result) => async (...args) => { calls.flow.push({ name, args }); return typeof result === 'function' ? result(...args) : result; };
+  injected.flow = {
+    openMarketCategory: track('openMarketCategory', { status: 'MARKET_CATEGORY_OPENED', evidence: { category: 'HT/FT', observedCategory: 'HT/FT', labelsInFixture: ['1/1', '1/X', '1/2'], via: 'test' } }),
+    identifyMarketSelection: track('identifyMarketSelection', (selection) => ({ status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'LIV', away: 'MNU', expectedHome: 'LIV', expectedAway: 'MNU', index: 1, labels: [selection] } })),
+    selectOdd: track('selectOdd', { status: 'SELECTION_ADDED', evidence: { selectedStateObserved: true, slipCountBefore: 0, slipCountAfter: 1 } }),
+    openBetSlip: track('openBetSlip', { status: 'BET_SLIP_OPEN' }),
+    enterStake: track('enterStake', { status: 'STAKE_NOT_ACCEPTED', evidence: {} }),
+    readSlipPage: track('readSlipPage', {}),
+    ...Object.fromEntries(Object.entries(flowOverrides).map(([name, result]) => [name, track(name, result)])),
+  };
   injected.bridge = {
     getInstructions: async () => (++strategyReads <= strategyReadyAfter
       ? { status: 'FIXTURE_NOT_SUBMITTED', fixture: null, instructions: [] }
@@ -105,13 +124,13 @@ function setup({ answers = null, frames = liveFrames(), authFirstReads = 0, stra
   const controller = createBetKingController({
     config,
     selectors: { configured: { live: true, results: false, betSlip: false }, live: {}, filePath: 'test' },
-    mappings: {},
+    mappings,
     launchContext: async () => context,
     prompt: async (question) => { prompts.push(question); return queue.length ? queue.shift() : ''; },
     sleep: async () => {},
     log: () => {},
   });
-  return { controller, calls, runsDir, prompts };
+  return { controller, calls, runsDir, prompts, mappings };
 }
 
 test('real-site configuration refuses to start without the explicit mode', () => {
@@ -186,4 +205,83 @@ test('the run waits for the strategy fixture by itself and then continues', asyn
   assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   assert.ok(journal.events.some((event) => event.type === 'WAITING_FOR_STRATEGY_FIXTURE'));
+});
+
+
+const ONEX_MAPPING = {
+  oneX: {
+    status: 'VERIFIED',
+    market: 'HT/FT',
+    selectionBySide: { HOME: '1/X', AWAY: '2/X' },
+    evidence: 'test evidence',
+  },
+};
+
+function readPlan(outcome) {
+  return JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'week-5-plan.json'), 'utf8')).plan;
+}
+
+test('market-first (identify): opens the category, identifies the selection, verifies odds, and never clicks an odd', async () => {
+  const { controller, calls } = setup({ mappings: ONEX_MAPPING, bigDeficits: { bigOneX: 5000 }, through: 'identify' });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const names = calls.flow.map((call) => call.name);
+  assert.deepEqual(names.slice(0, 2), ['openMarketCategory', 'identifyMarketSelection']);
+  assert.ok(!names.includes('selectOdd'));
+  // Liverpool is the home team, so oneX resolves to HT/FT 1/X.
+  assert.equal(calls.flow[0].args[0], 'HT/FT');
+  assert.equal(calls.flow[1].args[0], '1/X');
+  const oneX = readPlan(outcome).instructions.find((record) => record.strategyKey === 'oneX');
+  assert.equal(oneX.pipelineStatus, 'READ_ONLY_COMPLETE');
+  assert.equal(oneX.pipeline.stage, 'ODDS_VERIFIED');
+  assert.equal(oneX.betKingOdds, 13.3);
+  assert.equal(oneX.oddsSource, 'BETKING');
+});
+
+test('market-first (select): the odd is added only after the earlier stages, and the other option waits for its turn', async () => {
+  const { controller, calls } = setup({
+    mappings: {
+      ...ONEX_MAPPING,
+      twoX: { status: 'VERIFIED', market: 'HT/FT', selectionBySide: { HOME: '2/X', AWAY: '1/X' }, evidence: 'test evidence' },
+    },
+    bigDeficits: { bigOneX: 5000, bigTwoX: 5000 },
+    through: 'select',
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const names = calls.flow.map((call) => call.name);
+  assert.deepEqual(names, ['openMarketCategory', 'identifyMarketSelection', 'selectOdd']);
+  const plan = readPlan(outcome);
+  const first = plan.instructions[0];
+  assert.equal(first.pipeline.stage, 'SELECTION_ADDED');
+  assert.equal(first.lifecycle.selectionPrepared, true);
+  assert.equal(plan.deferred.length, 1);
+  assert.equal(plan.deferred[0].pipelineStatus, 'PENDING_SLIP_TURN');
+});
+
+test('market-first: when the category cannot be opened no odd is touched and the option is stopped', async () => {
+  const { controller, calls } = setup({
+    mappings: ONEX_MAPPING,
+    bigDeficits: { bigOneX: 5000 },
+    through: 'select',
+    flowOverrides: { openMarketCategory: { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category: 'HT/FT', attempts: [] } } },
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.ok(!calls.flow.some((call) => call.name === 'selectOdd'));
+  const plan = readPlan(outcome);
+  assert.equal(plan.pipelineFailed.length, 1);
+  assert.equal(plan.pipelineFailed[0].pipeline.failure.code, 'MARKET_CATEGORY_NOT_OPENED');
+  assert.equal(plan.instructions.length, 0);
+});
+
+test('market-first: a stake that is not entered stops the option before authorization', async () => {
+  const { controller } = setup({ mappings: ONEX_MAPPING, bigDeficits: { bigOneX: 5000 }, through: 'slip' });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const plan = readPlan(outcome);
+  assert.equal(plan.pipelineFailed.length, 1);
+  assert.equal(plan.pipelineFailed[0].pipelineStatus, 'PIPELINE_FAILED');
+  assert.ok(!plan.instructions.some((record) => record.pipelineStatus === 'AWAITING_AUTHORIZATION'));
+});
+
+test('the pipeline depth must be identify, select, or slip', () => {
+  assert.throws(() => createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_PIPELINE_THROUGH: 'submit' }), /AUTOMATION_PIPELINE_THROUGH/);
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).pipelineThrough, 'identify');
 });

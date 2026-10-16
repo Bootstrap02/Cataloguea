@@ -89,20 +89,38 @@ function loadVerifiedMarketMappings(filePath) {
       rejected.push({ key, reason: 'Unknown strategy key.' });
       continue;
     }
+    const market = typeof entry?.market === 'string' && entry.market.trim()
+      ? entry.market.trim()
+      : (typeof entry?.category === 'string' ? entry.category.trim() : '');
+    const bySide = entry?.selectionBySide && typeof entry.selectionBySide === 'object' ? entry.selectionBySide : null;
+    const sideSelectionsValid = bySide
+      && typeof bySide.HOME === 'string' && bySide.HOME.trim()
+      && typeof bySide.AWAY === 'string' && bySide.AWAY.trim();
+    const singleSelectionValid = typeof entry?.selection === 'string' && entry.selection.trim();
     const valid = entry && entry.status === 'VERIFIED'
-      && typeof entry.market === 'string' && entry.market.trim()
-      && typeof entry.selection === 'string' && entry.selection.trim()
+      && market
+      && (singleSelectionValid || sideSelectionsValid)
       && typeof entry.evidence === 'string' && entry.evidence.trim();
     if (!valid) {
-      rejected.push({ key, reason: 'Requires status VERIFIED plus non-empty market, selection, and evidence.' });
+      rejected.push({
+        key,
+        reason: 'Requires status VERIFIED, a market category, a selection (or selectionBySide with HOME and AWAY), and evidence.',
+      });
       continue;
     }
-    accepted[key] = {
-      status: 'VERIFIED',
-      market: entry.market.trim(),
-      selection: entry.selection.trim(),
-      evidence: entry.evidence.trim(),
-    };
+    accepted[key] = sideSelectionsValid
+      ? {
+        status: 'VERIFIED',
+        market,
+        selectionBySide: { HOME: bySide.HOME.trim(), AWAY: bySide.AWAY.trim() },
+        evidence: entry.evidence.trim(),
+      }
+      : {
+        status: 'VERIFIED',
+        market,
+        selection: entry.selection.trim(),
+        evidence: entry.evidence.trim(),
+      };
   }
   return { exists: file.exists, filePath, mappings: accepted, rejected };
 }

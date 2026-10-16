@@ -168,12 +168,14 @@ test('evaluateResultAgainstStrategy WON for ft41 with FT 4-1', () => {
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('ruleRegistry has all five rules', () => {
+test('ruleRegistry has all seven rules', () => {
   assert.ok(ruleRegistry.hasRule('RULE-001'));
   assert.ok(ruleRegistry.hasRule('RULE-002'));
   assert.ok(ruleRegistry.hasRule('RULE-003'));
   assert.ok(ruleRegistry.hasRule('RULE-004'));
   assert.ok(ruleRegistry.hasRule('RULE-005'));
+  assert.ok(ruleRegistry.hasRule('RULE-006'));
+  assert.ok(ruleRegistry.hasRule('RULE-007'));
 });
 
 test('ruleRegistry rules have correct structure', () => {
@@ -224,7 +226,7 @@ test('createRuleRegistry creates independent registry', () => {
 
 test('ruleRegistry getAllRules returns all rules', () => {
   const all = ruleRegistry.getAllRules();
-  assert.equal(all.length, 5);
+  assert.equal(all.length, 7);
 });
 
 test('evaluateResultAgainstStrategy handles verified flag correctly', () => {
@@ -349,4 +351,22 @@ test('RULE-005 treats skipped options as non-winning and gives them no marks', (
   const eligible = rule5.evaluate('QUALIFIES');
   assert.equal(eligible.receivesMarks, true);
   assert.equal(eligible.treatment, null);
+});
+
+
+test('RULE-006 refuses to select an odd before category, selection, fixture, and odds are verified', () => {
+  const { createOptionPipeline } = require('./marketFirstSequence');
+  const rule6 = ruleRegistry.getRule('RULE-006');
+  const pipeline = createOptionPipeline({ strategyKey: 'oneX' });
+  assert.equal(rule6.evaluate(pipeline).allowed, false);
+  assert.equal(rule6.evaluate(null).allowed, false);
+});
+
+test('RULE-007 requires an empty slip before selecting and exactly one selection after', () => {
+  const rule7 = ruleRegistry.getRule('RULE-007');
+  assert.equal(rule7.evaluate({ phase: 'BEFORE_SELECTING', slipCount: 0 }).allowed, true);
+  assert.equal(rule7.evaluate({ phase: 'BEFORE_SELECTING', slipCount: 2 }).allowed, false);
+  assert.equal(rule7.evaluate({ phase: 'AFTER_SELECTING', slipCount: 1 }).allowed, true);
+  assert.equal(rule7.evaluate({ phase: 'AFTER_SELECTING', slipCount: 2 }).allowed, false);
+  assert.equal(rule7.evaluate({ phase: 'AFTER_SELECTING', slipCount: null }).allowed, false);
 });

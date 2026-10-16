@@ -16,6 +16,14 @@ const { BETKING_STATUSES } = require('./sportsbook/betkingAdapter');
 const { RunStore } = require('./persistence/runStore');
 const { createRunJournal } = require('./betkingRunJournal');
 const { createBetKingPorts } = require('./sportsbook/betkingPorts');
+const { createMarketFlow } = require('./sportsbook/betkingMarketFlow');
+const {
+  PIPELINE_FAILURES,
+  compareSlipToExpected,
+  createOptionPipeline,
+  canSelectOdd,
+  describeAuthorizationRequest,
+} = require('./strategy/marketFirstSequence');
 const { createStrategyBridge } = require('./strategy/strategyBridge');
 const { createOperationalWorkflow, evaluateOptionsForResult } = require('./strategy/operationalWorkflow');
 const { settlePlannedFixture, createOperationId, SETTLEMENT_STATUS } = require('./strategy/settlementIntegration');
@@ -92,6 +100,7 @@ function createBetKingController({
     let betKingPage = null;
     let strategyPage = null;
     let ports = null;
+    let flow = null;
     let bridge = null;
     let workflow = null;
 
@@ -113,6 +122,7 @@ function createBetKingController({
 
     function rebuildPorts() {
       ports = createBetKingPorts({ page: betKingPage, config, selectors });
+      flow = createMarketFlow({ page: betKingPage, config, selectors });
       workflow = createOperationalWorkflow({
         stateMachine: machine,
         ports: {
@@ -250,62 +260,143 @@ function createBetKingController({
       }
     }
 
-    async function enrichPlan(prep) {
-      const { plan, identification } = prep;
-      const confirmed = [];
-      const downgraded = [];
+    // Market-first pipeline (rules RULE-006 / RULE-007). For each option with a VERIFIED
+    // mapping: open its category, identify the exact selection for the confirmed fixture, verify
+    // the odds, and only then (depending on --through) add the odd to the slip, enter the stake,
+    // and verify the slip. It stops at AWAITING_AUTHORIZATION: nothing is ever submitted.
+    async function runMarketFirstPipeline(prep) {
+      const { plan, identification, fixtureCrossCheck } = prep;
+      const through = config.pipelineThrough;
+      const fixture = { roundName: identification.roundName, home: plan.fixture.home, away: plan.fixture.away };
+      const reached = [];
+      const failed = [];
+      const deferred = [];
+      let slipHolder = null;
+
+      const FAILURE_FOR_STATUS = {
+        MARKET_CATEGORY_NOT_OPENED: PIPELINE_FAILURES.MARKET_CATEGORY_NOT_OPENED,
+        FIXTURE_ROW_NOT_AVAILABLE: PIPELINE_FAILURES.FIXTURE_ROW_NOT_AVAILABLE,
+        MARKET_SELECTION_NOT_FOUND: PIPELINE_FAILURES.MARKET_SELECTION_NOT_FOUND,
+        ODDS_UNAVAILABLE: PIPELINE_FAILURES.ODDS_UNAVAILABLE,
+        ODDS_CHANGED: PIPELINE_FAILURES.ODDS_CHANGED,
+        SLIP_NOT_EMPTY: PIPELINE_FAILURES.SLIP_NOT_EMPTY,
+        SELECTION_NOT_ADDED: PIPELINE_FAILURES.SELECTION_NOT_ADDED,
+      };
+
       for (const record of plan.instructions) {
-        let check;
-        try {
-          check = await ports.verifySelection({
-            roundName: identification.roundName,
-            home: plan.fixture.home,
-            away: plan.fixture.away,
-            market: record.betKingMarket,
-            selection: record.betKingSelection,
-          });
-        } catch (error) {
-          check = { status: 'READ_FAILED', reason: error.message };
+        const pipeline = createOptionPipeline({ strategyKey: record.strategyKey });
+        record.verificationStatus = 'NOT_VERIFIED';
+
+        if (through !== 'identify' && slipHolder) {
+          // A second outcome of the same market replaces the first and several selections
+          // would form one combined bet, so options are prepared one at a time.
+          record.pipelineStatus = 'PENDING_SLIP_TURN';
+          record.reason = `Waiting for its turn: the slip is held by ${slipHolder}. Options are prepared one at a time.`;
+          deferred.push(record);
+          continue;
         }
-        if (check.status === 'SELECTION_AVAILABLE') {
-          record.betKingOdds = check.odds;
+
+        const advance = (stage, evidence) => {
+          const outcome = pipeline.advance(stage, evidence);
+          journal.append('PIPELINE_STAGE', { strategyKey: record.strategyKey, stage, ok: outcome.ok, reason: outcome.reason ?? null });
+          return outcome.ok;
+        };
+        const stop = (code, details = {}) => {
+          pipeline.fail(code, details);
+          record.pipelineStatus = 'PIPELINE_FAILED';
+          record.eligibilityStatus = 'PIPELINE_FAILED';
+          record.verificationStatus = 'NOT_VERIFIED';
+          record.reason = `Stopped after ${pipeline.stage ?? 'no stage'}: ${code}${details.reason ? ` (${details.reason})` : ''}.`;
+          journal.append('PIPELINE_FAILED', { strategyKey: record.strategyKey, code, afterStage: pipeline.stage, details });
+          failed.push(record);
+        };
+        const stopFromStatus = (result) => stop(FAILURE_FOR_STATUS[result.status] ?? PIPELINE_FAILURES.BET_SLIP_MISMATCH, { status: result.status, evidence: result.evidence ?? null });
+
+        try {
+          if (!advance('FIXTURE_CONFIRMED', { verified: fixtureCrossCheck?.verified === true, home: plan.fixture.home, away: plan.fixture.away, liverpoolSide: plan.liverpoolSide })) {
+            stop('FIXTURE_IDENTITY_MISMATCH', { reason: 'fixture not confirmed' }); continue;
+          }
+          if (!advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: record.mappingStatus, category: record.betKingMarket, selection: record.betKingSelection })) {
+            stop('UNRESOLVED_MARKET_MAPPING'); continue;
+          }
+
+          const opened = await flow.openMarketCategory(record.betKingMarket, fixture);
+          if (opened.status !== 'MARKET_CATEGORY_OPENED') { stopFromStatus(opened); continue; }
+          if (!advance('MARKET_CATEGORY_OPENED', opened.evidence)) { stop(PIPELINE_FAILURES.MARKET_CATEGORY_NOT_OPENED); continue; }
+
+          const identified = await flow.identifyMarketSelection(record.betKingSelection, fixture);
+          if (identified.status !== 'MARKET_SELECTION_IDENTIFIED') { stopFromStatus(identified); continue; }
+          if (!advance('MARKET_SELECTION_IDENTIFIED', identified.evidence)) { stop(PIPELINE_FAILURES.MARKET_SELECTION_NOT_FOUND); continue; }
+          if (!advance('ODDS_VERIFIED', { odds: identified.odds })) { stop(PIPELINE_FAILURES.ODDS_UNAVAILABLE); continue; }
+          record.betKingOdds = identified.odds;
           record.oddsSource = 'BETKING';
           record.oddsStatus = 'READ_FROM_BETKING';
-          record.verificationStatus = 'SELECTION_VISIBLE_ON_PAGE';
-          confirmed.push(record);
-        } else {
-          record.eligibilityStatus = 'UNRESOLVED_MARKET';
-          record.verificationStatus = 'SELECTION_NOT_CONFIRMED';
-          record.lifecycle.marketResolved = false;
-          record.reason = `The mapped selection could not be confirmed on the page (${check.status}).`;
-          downgraded.push(record);
-        }
-      }
-      plan.instructions = confirmed;
-      plan.unresolved = [...plan.unresolved, ...downgraded];
+          record.verificationStatus = 'SELECTION_IDENTIFIED_ON_PAGE';
 
-      if (config.populateBetSlip) {
-        for (const record of plan.instructions) {
-          let outcome;
-          try {
-            outcome = await ports.populateBetSlip({
-              roundName: identification.roundName,
+          if (through === 'identify') { record.pipelineStatus = 'READ_ONLY_COMPLETE'; reached.push(record); continue; }
+
+          // RULE-006: no odd is touched until the stages above are all verified.
+          const gate = canSelectOdd(pipeline);
+          if (!gate.allowed) { stop(PIPELINE_FAILURES.SELECTION_NOT_ADDED, { reason: gate.reason }); continue; }
+          const added = await flow.selectOdd(record.betKingSelection, { ...fixture }, identified.odds);
+          if (added.status !== 'SELECTION_ADDED') { stopFromStatus(added); continue; }
+          if (!advance('SELECTION_ADDED', added.evidence)) { stop(PIPELINE_FAILURES.SELECTION_NOT_ADDED); continue; }
+          record.lifecycle.selectionPrepared = true;
+          record.verificationStatus = 'SELECTION_ADDED_TO_SLIP';
+          slipHolder = record.strategyKey;
+
+          if (through === 'select') { record.pipelineStatus = 'SELECTION_ADDED'; reached.push(record); continue; }
+
+          const slipOpen = await flow.openBetSlip();
+          if (slipOpen.status !== 'BET_SLIP_OPEN') { stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { status: slipOpen.status }); continue; }
+          const entered = await flow.enterStake(record.stake);
+          if (entered.status !== 'STAKE_ENTERED') { stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { status: entered.status, evidence: entered.evidence ?? null }); continue; }
+          const slip = await flow.readSlipPage();
+          const comparison = compareSlipToExpected({
+            slip,
+            expected: {
               home: plan.fixture.home,
               away: plan.fixture.away,
-              market: record.betKingMarket,
+              category: record.betKingMarket,
               selection: record.betKingSelection,
               stake: record.stake,
-            });
-          } catch (error) {
-            outcome = { status: 'BET_SLIP_FAILED', reason: error.message };
+              odds: identified.odds,
+              week: plan.week,
+            },
+          });
+          record.slip = slip;
+          if (!advance('BET_SLIP_VERIFIED', { comparison })) {
+            stop(comparison.problems.includes('SLIP_EXPIRING') ? PIPELINE_FAILURES.SLIP_EXPIRING : PIPELINE_FAILURES.BET_SLIP_MISMATCH, { problems: comparison.problems });
+            continue;
           }
-          record.betSlipStatus = outcome.status;
-          const entered = outcome.status === 'BET_SLIP_STAKE_ENTERED';
-          record.lifecycle.selectionPrepared = entered;
-          record.lifecycle.betSlipVerified = entered;
-          journal.append('BET_SLIP', { strategyKey: record.strategyKey, status: outcome.status });
+          record.lifecycle.betSlipVerified = true;
+          record.verificationStatus = 'BET_SLIP_VERIFIED';
+          advance('AWAITING_AUTHORIZATION', { submitted: false });
+          record.pipelineStatus = 'AWAITING_AUTHORIZATION';
+          record.authorizationRequest = describeAuthorizationRequest({
+            week: plan.week,
+            home: plan.fixture.home,
+            away: plan.fixture.away,
+            liverpoolSide: plan.liverpoolSide,
+            category: record.betKingMarket,
+            selection: record.betKingSelection,
+            odds: identified.odds,
+            stake: record.stake,
+            potentialWinnings: slip.potentialWinnings,
+            expirySeconds: slip.expirySeconds,
+          });
+          reached.push(record);
+        } catch (error) {
+          stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { reason: error.message });
+        } finally {
+          record.pipeline = pipeline.snapshot();
         }
       }
+
+      plan.instructions = reached;
+      plan.pipelineFailed = failed;
+      plan.deferred = deferred;
+      plan.pipelineThrough = through;
       return prep;
     }
 
@@ -531,7 +622,7 @@ function createBetKingController({
           return finish('FAILED', { code: prepared.code, step: prepared.step, week, details: prepared.details });
         }
 
-        await enrichPlan(prepared);
+        await runMarketFirstPipeline(prepared);
         const markdown = renderPlanMarkdown(prepared);
         const planPath = journal.writeArtifact(`week-${week}-instructions.md`, `${markdown}\n`);
         journal.writeArtifact(`week-${week}-plan.json`, `${JSON.stringify({ plan: prepared.plan, identification: prepared.identification }, null, 2)}\n`);

@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 31 — Sample Page Retired, Autonomous Real-Site Flow, Button Probe.
+Stage 32 — Market-First Sequence (documented and implemented; NOT run or tested).
 
 ## Stage 23 completion report
 
@@ -1794,3 +1794,41 @@ Project hygiene found in the uploaded copy: 19 stray flat duplicates of delivere
 - `betkingRun.js` no longer needs `AUTOMATION_MODE=...` and is autonomous by default: after sign-in it continues by itself and also waits by itself for a submitted Cataloguea fixture. `--prompts` restores the Enter checkpoints.
 - New `automation:betking:probe` (`betkingProbe.js`, `sportsbook/betkingProbe.js`): signs-in-wait, control inventory, outline highlight, navigation-only clicks (round switcher, market tabs) with before/after state, restore, report. Not yet run against the real site.
 - Tests added: `runTests.test.js`, `sportsbook/betkingProbe.test.js`, and two autonomy tests in `betkingController.test.js`.
+
+
+## Stage 32 — Market-First Sequence (from the owner's screen recording)
+
+Status: IMPLEMENTED AND DOCUMENTED, NOT RUN. No test, build, Playwright run, inspector run, or live-site interaction was performed in this stage. The recording is the only new evidence; it is not DOM verification.
+
+### Workflow and documentation completed
+- `automation/BETKING_WORKFLOW.md` rewritten around the market-first sequence: evidence classes (VIDEO, PROBE, CODE, DOM-VERIFIED), per-option mapping table, G1 stages and observable conditions, G2 handling of different categories, G3 what the recording establishes, G4 operating phases A-I, next controlled trial (O), conflicts and decisions (P).
+- `AUTOMATION_PROJECT_GUIDE.md`: rule 14 (test pages) marked superseded by the owner decision; rules 16 (market-first) and 17 (authorization boundary) added.
+
+### Code changes actually implemented
+- New `strategy/marketFirstSequence.js`: eight per-option stages with evidence validators, bet-slip text parser and comparison, authorization request text, `PIPELINE_DEPTHS`.
+- New `sportsbook/betkingMarketFlow.js`: open category, identify selection, select odd (slip must be empty, odds re-read, observable summary bar), open slip, enter stake, read slip, read-only category catalogue. No submission and no "PLACE BET" locator.
+- `rules.js`: RULE-006 (market-first gate) and RULE-007 (one selection per slip).
+- `canonicalBetTypes.js`: visible-in-video market proposals (`MARKET_PROPOSALS`, `getMarketProposal`), never VERIFIED.
+- `strategyDecisionAdapter.js`: mappings may name the selection per Liverpool side (`selectionBySide`) and a `category`; every instruction carries its proposal.
+- `sportsbook/betkingSelectors.js`: loader accepts `category` and `selectionBySide`; `betking-market-mappings.example.json` holds the HT/FT proposals for oneX, twoX, x2 (not verified).
+- `betkingController.js`: replaced the old selection check and slip population with the market-first pipeline; `betkingLiveConfig.js` / `betkingRun.js`: `--through identify|select|slip` (default read only).
+- `operationalWorkflow.js`: market-first workflow steps and ten new failure policies.
+- `sportsbook/betkingPorts.js`: superseded selection/slip functions removed (now in the market flow).
+- `sportsbook/betkingProbe.js`: failed clicks now record what covers the control, its box, classes, and state.
+- New `betkingMarkets.js` (`automation:betking:markets`): read-only catalogue of what each category offers for the Liverpool fixture.
+- Tests written (not run): `strategy/marketFirstSequence.test.js`; additions to `rules.test.js` and `betkingController.test.js`.
+
+### Behaviors demonstrated by the video (not DOM-verified)
+More Markets panel with 12 categories; HT/FT 3x3 grid with labels above odds; tapping an odd highlights it and shows "N Selection / Odds"; another outcome in the same market replaces the first; Betslip page with item "LIV - AST / HT/FT - 1/X / 13.30", stake box prefilled 100, chips, Total Odds, Net Potential Winnings (= stake x odds), expiry countdown (orange at 00:20), PLACE BET (not pressed).
+
+### Verified against the live DOM
+Only the Stage 31 probe findings (owner-run): round switchers, market tabs ("HT/FT", "1X2 & GG"), matches, and odds buttons exist and most were clickable; `matchup-statistics-button-*` ids are absent; "Week 35" click timed out.
+
+### Awaiting live-browser verification
+Everything in `betkingMarketFlow.js`; the text-based locators; the slip parsing; the summary-bar reading; stake entry; slip expiry behaviour; whether the slip clears after placing or expiry; single versus combined handling of several selections.
+
+### Unresolved mappings
+`oneX`, `twoX`: proposed (HT/FT), unverified. `x2`: owner must confirm its meaning (HT/FT `X/2`, `X/1` is a reading). `winner`, `tg0`, `tg6`, `ht12`, `ht21`, `ht30`, `ft40`, `ft41`: category candidates only.
+
+### Before a controlled end-to-end trial
+Steps 1-7 in `BETKING_WORKFLOW.md` section O.

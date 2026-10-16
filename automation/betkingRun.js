@@ -4,6 +4,8 @@
 //
 // Options:  --week N        required game week (1-38)
 //           --max-weeks N   weeks to process before stopping (default 1)
+//           --through STEP  how far the market-first pipeline goes: identify (default, read only),
+//                           select (adds the odd to the slip), slip (also enters and verifies the stake)
 //           --prompts       ask for Enter at the human checkpoints (default: fully automatic)
 
 process.env.AUTOMATION_MODE = 'betking-live';
@@ -30,18 +32,22 @@ async function main() {
     throw new Error('--max-weeks must be an integer between 1 and 38.');
   }
 
-  const selectors = loadBetKingSelectors(config.selectorsFile);
-  const mappingFile = loadVerifiedMarketMappings(config.mappingsFile);
+  const through = readArgument('--through');
+  const effectiveConfig = through === undefined
+    ? config
+    : createBetKingLiveConfig({ ...process.env, AUTOMATION_PIPELINE_THROUGH: through });
+  const selectors = loadBetKingSelectors(effectiveConfig.selectorsFile);
+  const mappingFile = loadVerifiedMarketMappings(effectiveConfig.mappingsFile);
 
   console.log('BetKing live run (real site; no simulation).');
   console.log(`  live selectors configured:    ${selectors.configured.live}`);
   console.log(`  results selectors configured: ${selectors.configured.results}`);
-  console.log(`  bet-slip selectors configured: ${selectors.configured.betSlip} (population enabled: ${config.populateBetSlip})`);
+  console.log(`  market-first pipeline goes through: ${effectiveConfig.pipelineThrough}`);
   console.log(`  verified market mappings:     ${Object.keys(mappingFile.mappings).length}`);
   for (const problem of selectors.problems) console.log(`  selectors problem: ${problem}`);
   for (const rejected of mappingFile.rejected) console.log(`  mapping ignored: ${rejected.key ?? '(file)'}: ${rejected.reason}`);
 
-  const controller = createBetKingController({ config, selectors, mappings: mappingFile.mappings });
+  const controller = createBetKingController({ config: effectiveConfig, selectors, mappings: mappingFile.mappings });
   const outcome = await controller.run({
     requiredWeek,
     maxWeeks,

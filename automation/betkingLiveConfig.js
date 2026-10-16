@@ -21,6 +21,17 @@ function readInteger(environment, key, fallback, { minimum = 1, maximum = 3_600_
   return value;
 }
 
+const PIPELINE_THROUGH = Object.freeze(['identify', 'select', 'slip']);
+
+function readPipelineThrough(environment) {
+  const raw = environment.AUTOMATION_PIPELINE_THROUGH;
+  if (raw === undefined || raw === '') return 'identify';
+  if (!PIPELINE_THROUGH.includes(raw)) {
+    throw new TypeError(`AUTOMATION_PIPELINE_THROUGH must be one of: ${PIPELINE_THROUGH.join(', ')}.`);
+  }
+  return raw;
+}
+
 function readAbsolutePath(environment, key, fallback) {
   const raw = environment[key];
   if (raw === undefined || raw === '') return fallback;
@@ -60,9 +71,13 @@ function createBetKingLiveConfig(environment = process.env) {
     loginWaitTimeoutMs: readInteger(environment, 'AUTOMATION_LOGIN_WAIT_TIMEOUT_MS', 900_000),
     strategyWaitTimeoutMs: readInteger(environment, 'AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS', 900_000),
     manualLoginMaxAttempts: readInteger(environment, 'AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS', 3, { maximum: 20 }),
-    // Bet-slip population is opt-in. Submission is never performed by this code.
-    populateBetSlip: environment.AUTOMATION_POPULATE_BET_SLIP === 'true',
+    marketWaitTimeoutMs: readInteger(environment, 'AUTOMATION_MARKET_WAIT_MS', 4000),
+    // How far the market-first pipeline may go. identify = open category, find selection and
+    // odds, read only (never clicks an odd). select = also add the odd to the slip.
+    // slip = also open the slip, enter the stake, and verify it, then stop awaiting your
+    // authorization. Submission is never performed by this code.
+    pipelineThrough: readPipelineThrough(environment),
   });
 }
 
-module.exports = { DEFAULT_TARGET_URL, createBetKingLiveConfig };
+module.exports = { DEFAULT_TARGET_URL, PIPELINE_THROUGH, createBetKingLiveConfig };

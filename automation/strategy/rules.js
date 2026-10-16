@@ -1,4 +1,5 @@
 const { STRATEGY_BET_TYPES } = require('./canonicalBetTypes');
+const { canSelectOdd } = require('./marketFirstSequence');
 const {
   LIVERPOOL_SIDE,
   determineLiverpoolSide,
@@ -42,6 +43,27 @@ function resolveSkippedOptionTreatment(stakeQualification) {
       ? 'Option was skipped (stake below the minimum): it is not evaluated for marks and the strategy settles it as non-winning.'
       : 'Option is stake-eligible and is evaluated normally.',
   };
+}
+
+// RULE-007: the slip must hold exactly the one selection being prepared. It must be empty
+// before an odd is selected (the recording shows a second outcome of the same fixture and
+// market REPLACES the first, and several selections would form one combined bet), and it
+// must hold exactly one selection afterwards. Another person's selections are never cleared.
+function evaluateSlipIsolation({ phase, slipCount }) {
+  if (!Number.isInteger(slipCount) || slipCount < 0) {
+    return { allowed: false, reason: 'The number of selections in the slip is unknown.' };
+  }
+  if (phase === 'BEFORE_SELECTING') {
+    return slipCount === 0
+      ? { allowed: true, reason: 'The slip is empty.' }
+      : { allowed: false, reason: `The slip already holds ${slipCount} selection(s); clear it yourself first.` };
+  }
+  if (phase === 'AFTER_SELECTING') {
+    return slipCount === 1
+      ? { allowed: true, reason: 'The slip holds exactly one selection.' }
+      : { allowed: false, reason: `Expected exactly 1 selection in the slip, saw ${slipCount}.` };
+  }
+  return { allowed: false, reason: `Unknown slip phase ${phase}.` };
 }
 
 const STRATEGY_KEYS = Object.freeze([
@@ -323,6 +345,20 @@ function createRuleRegistry() {
     evaluate: (stakeQualification) => resolveSkippedOptionTreatment(stakeQualification),
   });
 
+  registerRule('RULE-006', {
+    name: 'Market-First Navigation',
+    description: 'An odd may be selected only after the correct market category is open, the exact selection has been identified for the confirmed fixture, and its odds are verified (stage ODDS_VERIFIED). Category, selection, and stake are separate operations; every option uses its own verified category and selection.',
+    parameters: { gateStage: 'ODDS_VERIFIED' },
+    evaluate: (pipeline) => canSelectOdd(pipeline),
+  });
+
+  registerRule('RULE-007', {
+    name: 'One Selection Per Slip',
+    description: 'The slip must be empty before an odd is selected and hold exactly one selection afterwards. Options sharing a fixture and market are prepared one at a time because a second outcome replaces the first.',
+    parameters: {},
+    evaluate: (input) => evaluateSlipIsolation(input),
+  });
+
   return Object.freeze({
     registerRule,
     getRule,
@@ -342,6 +378,7 @@ function createRuleRegistry() {
 const ruleRegistry = createRuleRegistry();
 
 module.exports = {
+  evaluateSlipIsolation,
   SKIPPED_OPTION_TREATMENT,
   resolveSkippedOptionTreatment,
   MINIMUM_STAKE,

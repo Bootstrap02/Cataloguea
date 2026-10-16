@@ -16,16 +16,17 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-  "start": "react-scripts start",
-  "build": "react-scripts build",
-  "test": "react-scripts test",
-  "eject": "react-scripts eject",
-  "automation:test": "node automation/runTests.js",
-  "automation:betking:inspect": "node automation/betkingInspect.js",
-  "automation:betking:probe": "node automation/betkingProbe.js",
-  "automation:betking:run": "node automation/betkingRun.js",
-  "automation:betking:open": "node automation/betkingOpen.js"
-},
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "automation:test": "node automation/runTests.js",
+    "automation:betking:inspect": "node automation/betkingInspect.js",
+    "automation:betking:probe": "node automation/betkingProbe.js",
+    "automation:betking:run": "node automation/betkingRun.js",
+    "automation:betking:open": "node automation/betkingOpen.js",
+    "automation:betking:markets": "node automation/betkingMarkets.js"
+  },
   "eslintConfig": {
     "extends": [
       "react-app",

@@ -73,6 +73,35 @@ async function highlight(page, on) {
   }, { selectors, enabled: on });
 }
 
+// Explains WHY a control could not be clicked: what sits on top of it, whether it is inside
+// the viewport, whether it is disabled, and its pointer-events and classes.
+async function describeClickBlocker(control) {
+  const handle = await control.elementHandle({ timeout: 1000 });
+  if (!handle) return null;
+  return handle.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.x + rect.width / 2;
+    const centerY = rect.y + rect.height / 2;
+    const top = document.elementFromPoint(centerX, centerY);
+    const describe = (node) => {
+      if (!node) return null;
+      const testId = node.getAttribute('data-testid');
+      const classes = typeof node.className === 'string' ? node.className.split(/\s+/).filter(Boolean).slice(0, 4).join('.') : '';
+      return `${node.tagName.toLowerCase()}${testId ? `[data-testid=${testId}]` : ''}${classes ? `.${classes}` : ''}`;
+    };
+    return {
+      box: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+      centerInViewport: centerX >= 0 && centerY >= 0 && centerX <= window.innerWidth && centerY <= window.innerHeight,
+      topElementAtCenter: describe(top),
+      coveredByAnotherElement: Boolean(top) && !(element === top || element.contains(top)),
+      disabled: element.disabled === true,
+      ariaDisabled: element.getAttribute('aria-disabled'),
+      pointerEvents: window.getComputedStyle(element).pointerEvents,
+      classes: typeof element.className === 'string' ? element.className.slice(0, 160) : '',
+    };
+  });
+}
+
 async function clickEach(page, entry, { report, settleMs, log }) {
   const locator = page.locator(entry.selector);
   const count = await locator.count();
@@ -84,15 +113,22 @@ async function clickEach(page, entry, { report, settleMs, log }) {
       if (!(await control.isVisible())) continue;
       text = (await control.innerText()).replace(/\s+/g, ' ').trim().slice(0, 40);
       const stateBefore = await readViewState(page);
-      await control.click({ timeout: 3000 });
+      await control.scrollIntoViewIfNeeded({ timeout: 3000 });
+      await control.click({ timeout: 8000 });
       await page.waitForTimeout(settleMs);
       const stateAfter = await readViewState(page);
       const changed = JSON.stringify(stateBefore) !== JSON.stringify(stateAfter);
       report.clicks.push({ control: entry.label, text, ok: true, pageChanged: changed, before: stateBefore, after: stateAfter });
       log(`  clicked ${entry.label} "${text}" -> ${changed ? 'page changed' : 'page unchanged'} (market: ${stateAfter.selectedMarket || '-'}, first round: ${stateAfter.firstRound || '-'})`);
     } catch (error) {
-      report.clicks.push({ control: entry.label, text, ok: false, error: error.message });
-      log(`  could not click ${entry.label} "${text}": ${error.message}`);
+      let diagnostics = null;
+      try {
+        diagnostics = await describeClickBlocker(control);
+      } catch (diagnosticError) {
+        diagnostics = { error: diagnosticError.message };
+      }
+      report.clicks.push({ control: entry.label, text, ok: false, error: error.message.split('\n')[0], diagnostics });
+      log(`  could not click ${entry.label} "${text}": ${error.message.split('\n')[0]}${diagnostics?.coveredByAnotherElement ? ` (covered by ${diagnostics.topElementAtCenter})` : ''}`);
     }
   }
   return before;
@@ -166,7 +202,7 @@ function renderProbeMarkdown(report) {
     '',
     ...report.clicks.map((click) => (click.ok
       ? `- ${click.control} "${click.text}": ok, ${click.pageChanged ? 'page changed' : 'page unchanged'}`
-      : `- ${click.control} "${click.text}": FAILED (${click.error})`)),
+      : `- ${click.control} "${click.text}": FAILED (${click.error})${click.diagnostics ? `\n  - diagnostics: ${JSON.stringify(click.diagnostics)}` : ''}`)),
     '',
     `Buttons usable: ${summary.buttonsUsable ? 'YES' : 'NO'}`,
     '',

@@ -182,7 +182,81 @@ if (STRATEGY_BET_TYPES.filter(({ strategyKey }) => strategyKey !== 'winner').len
   throw new Error('Canonical strategy bet types do not match Cataloguea strategy asset keys.');
 }
 
+// ---- Market proposals from the owner's screen recording (Oct 15, 2026) -----------------
+//
+// EVIDENCE LEVEL: VISIBLE IN VIDEO ONLY. None of this has been verified against the DOM, and
+// none of it makes a mapping VERIFIED. A mapping becomes usable only when the owner records it
+// as VERIFIED, with evidence, in the mappings file (see betking-market-mappings.example.json).
+//
+// What the recording shows: the mobile Virtuals page; a "More Markets" panel listing the
+// categories below; the HT/FT category with, for each fixture, a 3x3 grid of selections
+// labelled 1/1 1/X 1/2 X/1 X/X X/2 2/1 2/X 2/2 (for LIV - AST: 3.01 13.30 58.10 7.32 5.94
+// 12.40 35.40 13.30 6.19); the slip showing "HT/FT - 1/X".
+const OBSERVED_BETKING_MARKET_CATEGORIES = Object.freeze([
+  'Favourites', 'Popular', 'Over/Under', 'Home Goals', 'Away Goals', '1X2 & GG/NG',
+  '1X2 & O/U 1.5', '1X2 & O/U 2.5', 'HT/FT', 'Half Time', 'Total Goals', 'Correct Score',
+]);
+
+const OBSERVED_HTFT_SELECTIONS = Object.freeze([
+  '1/1', '1/X', '1/2', 'X/1', 'X/X', 'X/2', '2/1', '2/X', '2/2',
+]);
+
+const PROPOSAL_STATUS = Object.freeze({
+  FROM_VIDEO_UNVERIFIED: 'PROPOSED_FROM_VIDEO_UNVERIFIED_IN_DOM',
+  NEEDS_OWNER_CONFIRMATION: 'PROPOSED_NEEDS_OWNER_CONFIRMATION',
+  CATEGORY_CANDIDATE: 'CATEGORY_CANDIDATE_SELECTION_UNRESOLVED',
+});
+
+// HT/FT symbols are written from the HOME team's side: first symbol = half-time result,
+// second = full-time result (1 = home, X = draw, 2 = away).
+const MARKET_PROPOSALS = Object.freeze({
+  oneX: Object.freeze({
+    status: PROPOSAL_STATUS.FROM_VIDEO_UNVERIFIED,
+    category: 'HT/FT',
+    selectionBySide: Object.freeze({ HOME: '1/X', AWAY: '2/X' }),
+    basis: 'oneX = Liverpool leads at half time and the match is drawn. Liverpool home: HT home lead, FT draw = 1/X. Liverpool away: HT away lead, FT draw = 2/X.',
+  }),
+  twoX: Object.freeze({
+    status: PROPOSAL_STATUS.FROM_VIDEO_UNVERIFIED,
+    category: 'HT/FT',
+    selectionBySide: Object.freeze({ HOME: '2/X', AWAY: '1/X' }),
+    basis: 'twoX = Liverpool trails at half time and the match is drawn. Liverpool home: HT away lead, FT draw = 2/X. Liverpool away: HT home lead, FT draw = 1/X.',
+  }),
+  x2: Object.freeze({
+    status: PROPOSAL_STATUS.NEEDS_OWNER_CONFIRMATION,
+    category: 'HT/FT',
+    selectionBySide: Object.freeze({ HOME: 'X/2', AWAY: 'X/1' }),
+    basis: 'Reading of the owner rule "Liverpool home -> X2, away -> X1" in HT/FT notation: half-time draw, then the OPPONENT wins. The owner has not confirmed this reading, and the x2 settlement condition is still undefined, so it must not be used until confirmed.',
+  }),
+  winner: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; the winner (6-0) condition and the exact selection are not defined.' }),
+  tg0: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Total Goals', basis: 'Category exists in the recording; contents not shown.' }),
+  tg6: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Total Goals', basis: 'Category exists in the recording; contents not shown.' }),
+  ht12: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
+  ht21: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
+  ht30: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
+  ft40: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
+  ft41: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
+});
+
+// Returns the proposal for a key, with the selection oriented for Liverpool's position when
+// the proposal is orientation dependent. Never returns a VERIFIED status.
+function getMarketProposal(strategyKey, liverpoolSide = null) {
+  const proposal = MARKET_PROPOSALS[strategyKey];
+  if (!proposal) return null;
+  return {
+    status: proposal.status,
+    category: proposal.category,
+    selection: proposal.selectionBySide ? (proposal.selectionBySide[liverpoolSide] ?? null) : null,
+    basis: proposal.basis,
+  };
+}
+
 module.exports = {
+  MARKET_PROPOSALS,
+  OBSERVED_BETKING_MARKET_CATEGORIES,
+  OBSERVED_HTFT_SELECTIONS,
+  PROPOSAL_STATUS,
+  getMarketProposal,
   SEMANTICS_STATUS,
   OBSERVED_BETKING_MARKET_CONTRACT,
   OBSERVED_BETKING_MARKET_LABELS,

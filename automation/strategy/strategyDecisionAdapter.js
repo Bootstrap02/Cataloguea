@@ -1,6 +1,6 @@
 const { ASSET_KEYS } = require('./catalogueaAdapter');
 const { submitSoloMatrixFixture } = require('../../src/strategy/soloMatrixSettlement');
-const { STRATEGY_BET_TYPES, UNRESOLVED_MARKET } = require('./canonicalBetTypes');
+const { STRATEGY_BET_TYPES, UNRESOLVED_MARKET, getMarketProposal } = require('./canonicalBetTypes');
 const {
   MINIMUM_STAKE,
   STAKE_QUALIFICATION,
@@ -69,16 +69,25 @@ function createStrategyDecisionAdapter({
     };
   }
 
-  function getBetKingMarketInfo(assetKey) {
+  // A verified mapping may name the selection per Liverpool position (selectionBySide). If
+  // the position is unknown the option stays unresolved; nothing is guessed.
+  function getBetKingMarketInfo(assetKey, liverpoolSide = null) {
     const betType = STRATEGY_BET_TYPES.find((bt) => bt.strategyKey === assetKey);
     if (!betType) return { status: UNRESOLVED_MARKET, market: null, selection: null };
 
     const override = betKingMarketMappings[assetKey];
     const mapping = override && typeof override === 'object' ? override : betType.betKing;
+    const market = mapping.market ?? mapping.category ?? null;
+    let selection = mapping.selection ?? null;
+    let status = mapping.status;
+    if (mapping.selectionBySide) {
+      selection = mapping.selectionBySide[liverpoolSide] ?? null;
+      if (!selection) status = UNRESOLVED_MARKET;
+    }
     return {
-      status: mapping.status,
-      market: mapping.market ?? null,
-      selection: mapping.selection ?? null,
+      status,
+      market,
+      selection,
       canonicalId: betType.canonicalId,
       strategyLabel: betType.strategyLabel,
       semanticsStatus: betType.semanticsStatus,
@@ -162,7 +171,7 @@ function createStrategyDecisionAdapter({
 
     const instructions = ['winner', ...ASSET_KEYS].map((assetKey) => {
       const stakeInfo = getStakeForAsset(submitted, assetKey);
-      const betKingInfo = getBetKingMarketInfo(assetKey);
+      const betKingInfo = getBetKingMarketInfo(assetKey, liverpool.side);
       const decision = determineInstructionStatus(stakeInfo, betKingInfo);
       const oriented = resolveOrientedSelection(assetKey, liverpool.side);
 
@@ -185,6 +194,8 @@ function createStrategyDecisionAdapter({
         status: decision.status,
         reason: decision.reason,
         betKingMappingStatus: betKingInfo.status,
+        // Visible-in-video proposal (never verified): shown for review, never acted on.
+        marketProposal: getMarketProposal(assetKey, liverpool.side),
       };
     });
 
