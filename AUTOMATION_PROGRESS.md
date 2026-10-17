@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 32 — Market-First Sequence (documented and implemented; NOT run or tested).
+Stage 33 — Fixture Feeding, Automatic Week, Evidence-Based Mappings (unit-tested; live site not run).
 
 ## Stage 23 completion report
 
@@ -1832,3 +1832,25 @@ Everything in `betkingMarketFlow.js`; the text-based locators; the slip parsing;
 
 ### Before a controlled end-to-end trial
 Steps 1-7 in `BETKING_WORKFLOW.md` section O.
+
+
+## Stage 33 — Fixture Feeding, Automatic Week, Evidence-Based Mappings
+
+Status: implemented; the full unit suite (`automation/runTests.js`, 315 tests plus 4 for `mappingEvidence`) passes in the sandbox. Not run against the live site; the React change (`src/Catalogued.js`) has not been compiled here, so run `npm run build` or `npm start`.
+
+### Code changes actually implemented
+- `src/Catalogued.js`: the Submit button's logic moved into `submitFixtureByTeams` (same behaviour, same alert text); new `submitFixtureForAutomation` exposed on the development hook as `submitFixture`. It refuses while a fixture is already active.
+- `catalogueaAutomationPort.js`, `catalogueaPagePort.js`, `strategyBridge.js`: `submitFixture` passed through.
+- `operationalWorkflow.js`: step `FEED_STRATEGY_FIXTURE`; when the strategy has no fixture the identified fixture is fed and must be reported back by the strategy; failure code `STRATEGY_FEED_FAILED`.
+- New `strategy/weekProgress.js`: upcoming-round detection from the round label, reconciliation with the last settled week (first run, expected, repeat, gap, 38 to 1), atomic progress file.
+- `betkingController.js` / `betkingRun.js`: `--week` defaults to auto; first run needs an explicit week before odds are selected; progress written only after a confirmed settlement; per-option timing events.
+- New `sportsbook/mappingEvidence.js`; `betkingMarkets.js --write-mappings` writes oneX and twoX as VERIFIED only when their HT/FT labels were seen with valid odds on the page; x2 is never written automatically.
+- Tests: `weekProgress.test.js`, `mappingEvidence.test.js`, additions to `betkingController.test.js` and `operationalWorkflow.test.js`.
+
+### Live-site verification
+None new. Still only the Stage 31 probe.
+
+### Findings
+- The strategy odds table has 20 teams; BetKing also lists teams outside it (COV, HUL seen). Such fixtures cannot be fed to the strategy.
+- Placing the bet and acceptance detection are not built.
+- Automatic settlement stays blocked while `winner`, `tg0`, `tg6`, and `x2` are undefined.

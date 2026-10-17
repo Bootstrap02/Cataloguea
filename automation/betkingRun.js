@@ -2,7 +2,8 @@
 //   npm run automation:betking:run -- --week 5
 // Sign in on the BetKing window that opens; the run then continues by itself.
 //
-// Options:  --week N        required game week (1-38)
+// Options:  --week N|auto   game week (1-38). Default auto: the upcoming round on the real
+//                           schedule, reconciled with the last settled week
 //           --max-weeks N   weeks to process before stopping (default 1)
 //           --through STEP  how far the market-first pipeline goes: identify (default, read only),
 //                           select (adds the odd to the slip), slip (also enters and verifies the stake)
@@ -22,9 +23,11 @@ function readArgument(name) {
 
 async function main() {
   const config = createBetKingLiveConfig(process.env);
-  const requiredWeek = parseWeek(readArgument('--week'));
-  if (requiredWeek === null) {
-    throw new Error('--week N is required and must be between 1 and 38.');
+  const weekArgument = readArgument('--week');
+  const automaticWeek = weekArgument === undefined || weekArgument === 'auto';
+  const requiredWeek = automaticWeek ? null : parseWeek(weekArgument);
+  if (!automaticWeek && requiredWeek === null) {
+    throw new Error('--week must be a number between 1 and 38, or auto.');
   }
   const maxWeeksRaw = readArgument('--max-weeks');
   const maxWeeks = maxWeeksRaw === undefined ? 1 : Number(maxWeeksRaw);

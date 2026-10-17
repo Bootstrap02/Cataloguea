@@ -14,6 +14,7 @@ function createStrategyBridge({ page, betKingMarketMappings = {} } = {}) {
   });
   return Object.freeze({
     getInstructions: () => adapter.getCurrentInstructionsAsync(),
+    submitFixture: (input) => pagePort.submitFixture(input),
     strategyPort: Object.freeze({
       getStrategySnapshot: () => pagePort.getStrategySnapshot(),
       settleVerifiedResult: (input) => pagePort.settleVerifiedResult(input),

@@ -25,6 +25,8 @@ function createCatalogueaPagePort(page) {
       { normalizedResult, actionOperationId, marks },
     ),
     getCurrentInstruction: () => evaluatePort('getCurrentInstruction'),
+    // Feeds a fixture (team codes) to the strategy running in the page.
+    submitFixture: ({ home, away } = {}) => evaluatePort('submitFixture', { home, away }),
     strategySettlementPort: async (request) => {
       const result = await evaluatePort('settleVerifiedResult', {
         normalizedResult: request.normalizedResult,

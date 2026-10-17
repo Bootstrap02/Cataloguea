@@ -1,6 +1,6 @@
 # Cataloguea BetKing Operational Workflow
 
-Status: Stage 27-32. Evidence is labelled throughout with four classes:
+Status: Stage 27-33. Evidence is labelled throughout with four classes:
 
 - **VIDEO**: visibly demonstrated in the owner's screen recording (Oct 15, 2026, mobile site).
 - **PROBE**: observed by a computer-run `automation:betking:probe` (owner's report, Oct 15).
@@ -197,6 +197,30 @@ forced through HT/FT.
 - **H. Result observation and settlement.** Section H and I: separate half-time and full-time scores, strategy outcome kept separate from whether any wager was accepted, idempotent settlement.
 - **I. Recovery.** Section K plus: after any interruption the fixture and category are re-verified before a stage is repeated; `SELECTION_NOT_ADDED` means "re-read the slip first, never click again blindly"; no fabricated odds, results, or submissions.
 
+## G5. Handing the week and fixture to the strategy (Stage 33)
+
+1. **Week.** With `--week auto` (the default) the controller reads the schedule, takes the FIRST listed round that has a readable "Week N" label as the upcoming round, and prints it with its countdown and the other visible weeks for you to compare. The countdown never chooses the week. The week is reconciled with `~/.cataloguea/betking-progress.json` (the last week this project settled): next week = accepted; the same week = refused (`WEEK_REPEAT`); anything else = refused (`WEEK_GAP`); 38 is followed by 1. On a first run with no progress file the week is accepted for `--through identify`, but `--through select|slip` is refused until you confirm it yourself with `--week N` (`WEEK_NOT_CONFIRMED`). An explicit `--week N` is still verified against the schedule. The progress file is written only after a settlement is confirmed and persisted.
+2. **Liverpool fixture.** Exactly one Liverpool fixture in that round; home or away and the opponent are recorded; ambiguity stops the run.
+3. **Feeding the strategy.** If the strategy has no active fixture, the controller submits the identified home and away team codes (lower case, e.g. `liv`, `mnu`) through the strategy's own submit routine (`submitFixture` on the development hook, which is the same code as the Submit button). The strategy then calculates every stake itself. The fixture counts as fed only when the strategy reports it back. An already-active fixture is never replaced: if it differs from the website fixture the run stops (`FIXTURE_IDENTITY_MISMATCH`). If the opponent has no odds row in `src/Scores.js` (for example BetKing teams such as Coventry or Hull are not in the 20-team table) the run stops with `STRATEGY_FEED_FAILED`; odds are never invented. Set `AUTOMATION_FEED_STRATEGY=false` to submit the fixture in the Cataloguea tab yourself instead.
+4. **Stake plan.** `week-N-instructions.md` lists, per option, the final stake (normal + big-deficit for that option only), whether it is 10 or more, the market and selection, and how far the market-first pipeline got.
+
+## G6. Readiness for the first controlled rehearsal
+
+| Capability | Code | Run on the real site |
+| --- | --- | --- |
+| Login hand-off (you sign in, the run continues) | yes | probe confirmed page access after login |
+| Week detection and reconciliation (1-38, rollover) | yes | not run |
+| Liverpool fixture, home/away, opponent | yes | not run |
+| Feeding the fixture to the strategy and stake calculation | yes | not run (needs `npm start`) |
+| 10-or-more rule applied to the final stake | yes | n/a |
+| Category-first navigation and selection check | yes | not run |
+| Adding the odd, entering the stake, verifying the slip | yes (`--through select` / `slip`) | not run |
+| Placing the bet and detecting acceptance | **not built** | needs a recording of the post-placement screens |
+| Result observation and settlement | partly (live/results selectors not supplied) | not run |
+| Automatic settlement of every option | blocked until `winner`, `tg0`, `tg6`, `x2` are defined | n/a |
+
+Timing risk: options are prepared one at a time and the slip carries an expiry countdown, so the time per option (journal event `PIPELINE_TIMING`) must be measured against the round countdown. Whether BetKing offers single bets with their own stakes when several selections are in the slip is unknown.
+
 ## H. Half-time and full-time results
 
 Scores are kept as separate `halfTime` and `fullTime` `{home, away}` objects and converted to Liverpool/opponent only in `liverpoolPerspective.js`. No live, half-time, or full-time selector has been verified on the real site. A half-time score is never inferred from the final score; a match is never assumed complete after ~30 seconds.
@@ -230,8 +254,8 @@ message, and its three browser test files are excluded from `automation:test`.
 
 - `npm run automation:betking:open` - opens the real page (visible, persistent profile), prints what was read (classification, rounds, Liverpool fixtures) and waits for Enter. Read-only.
 - `npm run automation:betking:probe` - opens the real page, waits for you to sign in (no Enter needed), then proves the platform's buttons can be used: outlines the round-switcher buttons and market tabs, clicks them (navigation only), records what changed, restores the view, and saves `probe.json` / `probe.md`. It never clicks odds, selections, or bet-slip controls. Cookie consent is never accepted automatically; if a banner blocks a click, dismiss it yourself in the window.
-- `npm run automation:betking:markets [-- --week N]` - read only: for each category in the More Markets panel, opens it and records the selection labels and odds for each visible Liverpool fixture (`market-catalogue.json` / `.md`). Never clicks an odd. This is the evidence for verifying mappings.
-- `npm run automation:betking:run -- --week N [--through identify|select|slip] [--max-weeks M] [--prompts]` - the real-site run. Sign in on the BetKing window; the run then continues by itself (it also waits by itself for a Liverpool fixture to be submitted in the Cataloguea tab). `--through` sets how far the market-first pipeline goes (default `identify`, read only). `--prompts` asks for Enter at the human checkpoints instead. It never submits a wager.
+- `npm run automation:betking:markets [-- --week N] [--write-mappings]` - read only: for each category in the More Markets panel, opens it and records the selection labels and odds for each visible Liverpool fixture (`market-catalogue.json` / `.md`). Never clicks an odd. This is the evidence for verifying mappings. It also checks the proposed oneX/twoX labels against what it saw; with `--write-mappings` it writes oneX and twoX into your mappings file as VERIFIED (evidence recorded) only when their HT/FT labels were seen with valid odds. It never writes x2.
+- `npm run automation:betking:run [-- --week N|auto] [--through identify|select|slip] [--max-weeks M] [--prompts]` - the real-site run (week defaults to auto, see G5). Sign in on the BetKing window; the run then continues by itself (it also waits by itself for a Liverpool fixture to be submitted in the Cataloguea tab). `--through` sets how far the market-first pipeline goes (default `identify`, read only). `--prompts` asks for Enter at the human checkpoints instead. It never submits a wager.
 - `npm run automation:betking:inspect` (`-- --interactive` for manual login) - read-only inspection report.
 - `npm run automation:test` - unit tests only (no sample page, no browser windows).
 - Cataloguea must run with `npm start` (development build) so `window.catalogueaAutomation` exists; the run opens it in a second tab of the same browser.
@@ -240,7 +264,7 @@ Real-site configuration (all optional, all evidence-based):
 
 - `~/.cataloguea/betking-selectors.json` (see `automation/betking-selectors.example.json`): live and results selectors you verified, plus optional `marketFlow` overrides for the market-first locators. Incomplete sections are ignored and reported.
 - `~/.cataloguea/betking-market-mappings.json` (see `automation/betking-market-mappings.example.json`): only entries marked `VERIFIED` with a market category, a selection (or `selectionBySide` with HOME and AWAY), and evidence are accepted; everything else stays `UNRESOLVED_MARKET`. The example file holds the HT/FT proposals for oneX, twoX, and x2, marked not yet verified.
-- Environment: `AUTOMATION_BETKING_URL`, `AUTOMATION_CATALOGUEA_URL` (default `http://localhost:3000`), `AUTOMATION_BETKING_PROFILE_DIR`, `AUTOMATION_BETKING_RUNS_DIR`, `AUTOMATION_POLL_INTERVAL_MS`, `AUTOMATION_LOGIN_WAIT_TIMEOUT_MS`, `AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS`, `AUTOMATION_LIVE_INTERVAL_MS`, `AUTOMATION_MATCH_WAIT_TIMEOUT_MS`, `AUTOMATION_RESULTS_INITIAL_DELAY_MS`, `AUTOMATION_RESULTS_INTERVAL_MS`, `AUTOMATION_RESULTS_MAX_ATTEMPTS`, `AUTOMATION_RESULTS_CROSSCHECK_ATTEMPTS`, `AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS`, `AUTOMATION_MARKET_WAIT_MS`, `AUTOMATION_PIPELINE_THROUGH` (`identify` | `select` | `slip`; same as `--through`).
+- Environment: `AUTOMATION_BETKING_URL`, `AUTOMATION_CATALOGUEA_URL` (default `http://localhost:3000`), `AUTOMATION_BETKING_PROFILE_DIR`, `AUTOMATION_BETKING_RUNS_DIR`, `AUTOMATION_POLL_INTERVAL_MS`, `AUTOMATION_LOGIN_WAIT_TIMEOUT_MS`, `AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS`, `AUTOMATION_LIVE_INTERVAL_MS`, `AUTOMATION_MATCH_WAIT_TIMEOUT_MS`, `AUTOMATION_RESULTS_INITIAL_DELAY_MS`, `AUTOMATION_RESULTS_INTERVAL_MS`, `AUTOMATION_RESULTS_MAX_ATTEMPTS`, `AUTOMATION_RESULTS_CROSSCHECK_ATTEMPTS`, `AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS`, `AUTOMATION_MARKET_WAIT_MS`, `AUTOMATION_FEED_STRATEGY` (`false` to submit the fixture yourself), `AUTOMATION_BETKING_PROGRESS_FILE`, `AUTOMATION_PIPELINE_THROUGH` (`identify` | `select` | `slip`; same as `--through`).
 
 Run flow: launch, open both tabs, wait for sign-in, prepare the week (select week, identify Liverpool fixture, strategy stakes, merge, filter, mappings, selection check), write `week-N-instructions.md` and `week-N-plan.json` to the run directory, watch the live match, cross-check with the Results page when configured, evaluate, settle once, persist-check, report the next week. Because the program never submits wagers, place any bets yourself while the slip is open; the slip expires with the round (VIDEO: "Next event will expire in"). Stop with Ctrl-C.
 
@@ -251,6 +275,8 @@ Run flow: launch, open both tabs, wait for sign-in, prepare the week (select wee
 - The market-first locators (More Markets toggle, category chips, Betslip tab, slip text, stake input) are located by visible text from the recording and are not DOM-verified. The summary bar and slip are read from page text.
 - How BetKing treats several slip selections (single bets or one combined bet) is unknown, so one selection at a time is enforced.
 - Whether the slip clears itself after a bet is placed or the event expires is unknown.
+- The strategy odds table covers 20 teams; BetKing's league also has teams outside it (e.g. COV, HUL). A Liverpool fixture against such a team cannot be fed to the strategy until its odds row is added.
+- Placing the bet and detecting acceptance are not built (no evidence of the post-placement screens).
 - `matchup-statistics-button-*` ids are absent (PROBE), so fixture ids are team codes; identity relies on teams, round, and home/away.
 - Round switcher "Week 35" could not be clicked in the probe; cause unknown (diagnostics added).
 - Live score/clock/status and Results selectors are NOT verified; supply them in the selectors file. Half time is derived from the live clock passing 45, unverified against BetKing's virtual clock.

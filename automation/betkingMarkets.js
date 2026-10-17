@@ -1,11 +1,13 @@
 // Market catalogue for the Liverpool fixture(s) on the REAL BetKing page:
-//   npm run automation:betking:markets [-- --week N]
+//   npm run automation:betking:markets [-- --week N] [--write-mappings]
 //
 // Waits for you to sign in (no Enter needed), then, for each market category in the More
 // Markets panel, opens the category and records the selection labels and odds shown for each
 // visible Liverpool fixture. It is READ ONLY: it opens categories (navigation) but never clicks
 // an odd, never touches the bet slip, and never places a bet. The saved report is the evidence
-// you need to verify the strategy-to-market mappings.
+// you need to verify the strategy-to-market mappings. With --write-mappings it also writes
+// oneX and twoX as VERIFIED into your mappings file, but only when their HT/FT labels were
+// really seen with valid odds (x2 is never written automatically).
 
 process.env.AUTOMATION_MODE = 'betking-live';
 
@@ -18,13 +20,18 @@ const { OBSERVED_BETKING_MARKET_CATEGORIES } = require('./strategy/canonicalBetT
 const { determineLiverpoolSide } = require('./strategy/liverpoolPerspective');
 const { parseWeek } = require('./strategy/seasonWeek');
 const { waitForAccess } = require('./betkingProbe');
+const {
+  buildVerifiedEntries,
+  checkProposalsAgainstCatalogue,
+  mergeIntoMappingsFile,
+} = require('./sportsbook/mappingEvidence');
 
 function readArgument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-function renderCatalogueMarkdown(catalogue) {
+function renderCatalogueMarkdown(catalogue, proposalResults = []) {
   const lines = [
     '# BetKing market catalogue (read only)',
     '',
@@ -43,6 +50,11 @@ function renderCatalogueMarkdown(catalogue) {
       lines.push(`- ${row.category}: ${pairs || '(no selections shown)'}`);
     }
     lines.push('');
+  }
+  lines.push('## Proposal check (labels seen on the page)', '');
+  for (const result of proposalResults) {
+    const proof = result.fixtures.find((fixture) => fixture.allPresent);
+    lines.push(`- ${result.strategyKey} -> ${result.category} ${result.needed.join(' / ')}: ${result.labelsConfirmed ? `labels CONFIRMED on ${proof.home} v ${proof.away}` : 'labels NOT confirmed'}${result.autoVerifiable ? '' : ' (not auto-verifiable: needs your confirmation)'}`);
   }
   return lines.join('\n');
 }
@@ -105,8 +117,18 @@ async function main() {
     const directory = path.join(config.runsDir, `markets-${new Date().toISOString().replace(/[:.]/g, '-')}`);
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(path.join(directory, 'market-catalogue.json'), `${JSON.stringify(catalogue, null, 2)}\n`);
-    fs.writeFileSync(path.join(directory, 'market-catalogue.md'), `${renderCatalogueMarkdown(catalogue)}\n`);
+    const proposalResults = checkProposalsAgainstCatalogue(catalogue);
+    fs.writeFileSync(path.join(directory, 'market-catalogue.md'), `${renderCatalogueMarkdown(catalogue, proposalResults)}\n`);
     console.log(`Catalogue saved in ${directory}`);
+    for (const result of proposalResults) {
+      console.log(`  ${result.strategyKey} (${result.category} ${result.needed.join(' / ')}): ${result.labelsConfirmed ? 'labels confirmed on the page' : 'labels NOT confirmed'}`);
+    }
+    if (process.argv.includes('--write-mappings')) {
+      const entries = buildVerifiedEntries(proposalResults, { generatedAt: catalogue.generatedAt, reportFolder: directory });
+      const outcome = mergeIntoMappingsFile(config.mappingsFile, entries);
+      console.log(`Mappings file ${config.mappingsFile}: wrote ${outcome.written.join(', ') || 'nothing'}; kept existing VERIFIED ${outcome.skipped.join(', ') || 'none'}.`);
+      console.log('x2 was not written: confirm its meaning first.');
+    }
   } finally {
     await context.close();
   }

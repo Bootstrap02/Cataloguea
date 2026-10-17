@@ -123,6 +123,8 @@ const FAILURE_POLICIES = Object.freeze(Object.fromEntries([
     'Updated strategy state was not saved. Settlement is UNKNOWN: pause, do not advance the week, do not re-apply blindly.'),
   policy('NEXT_WEEK_FIXTURES_MISSING', 'WAIT', 'MANUAL_INTERVENTION',
     'The next week fixture is not yet published. Preserve state and wait in a documented pending state.'),
+  policy('STRATEGY_FEED_FAILED', 'MANUAL_INTERVENTION', null,
+    'The identified fixture could not be fed to the strategy: the opponent has no odds row in the strategy data, a different fixture is already active, or the strategy did not report the fixture. Odds are never invented; add the missing row or settle the active fixture first.'),
   policy('MARKET_CATEGORY_NOT_OPENED', 'RETRY', 'MARK_UNRESOLVED',
     'The requested category did not become active. Retry (bounded), then mark the option unresolved; never select an odd from another category.'),
   policy('FIXTURE_ROW_NOT_AVAILABLE', 'RETRY', 'STOP_FIXTURE',
@@ -180,6 +182,8 @@ const WORKFLOW_STEPS = Object.freeze([
     'Exactly one Liverpool fixture identified.', ['LIVERPOOL_FIXTURE_NOT_FOUND', 'AMBIGUOUS_LIVERPOOL_FIXTURE'], 'Stop the fixture; never switch week.'),
   step('VERIFY_FIXTURE_IDENTITY', STATES.MATCH_VERIFICATION, 'Check week + teams + fixture id are mutually consistent on the website, then (after reading the strategy) match against the strategy fixture with HIGH confidence.',
     'Identity verified.', ['FIXTURE_IDENTITY_MISMATCH'], 'Stop the whole fixture.'),
+  step('FEED_STRATEGY_FIXTURE', STATES.OBSERVING_STRATEGY, 'If the strategy has no active fixture, feed it the identified Liverpool fixture (home and away team codes) through the strategy\'s own submit routine. An existing active fixture is never replaced; a missing odds row is never invented.',
+    'The strategy reports the same fixture as active with its stakes calculated.', ['STRATEGY_FEED_FAILED'], 'Add the missing team odds row to the strategy data, or settle the active fixture first.'),
   step('READ_STRATEGY_STATE', STATES.OBSERVING_STRATEGY, 'Read the existing Solo Matrix state through the decision adapter.',
     'A strategy snapshot with an active fixture was read.', ['STRATEGY_STATE_MISSING', 'STALE_STRATEGY_STATE'], 'Manual submission in Cataloguea, or recalculate.'),
   step('CALCULATE_STAKES', STATES.OBSERVING_STRATEGY, 'Stakes come from the existing strategy functions (submitSoloMatrixFixture); nothing is recomputed in automation.',
@@ -807,6 +811,39 @@ function createOperationalWorkflow({ stateMachine, ports } = {}) {
       strategyInstructions = await ports.getStrategyInstructions();
     } catch (error) {
       return fail('STRATEGY_STATE_MISSING', 'READ_STRATEGY_STATE', { message: error?.message ?? String(error) });
+    }
+
+    // Feed the identified fixture to the strategy only when it has none. An already active
+    // fixture is left alone and cross-checked below.
+    if (strategyInstructions?.status === 'FIXTURE_NOT_SUBMITTED' && typeof ports.submitFixtureToStrategy === 'function') {
+      let feed;
+      try {
+        feed = await ports.submitFixtureToStrategy({
+          home: identification.fixture.home,
+          away: identification.fixture.away,
+          week: required,
+        });
+      } catch (error) {
+        feed = { ok: false, reason: error?.message ?? String(error) };
+      }
+      record('FEED_STRATEGY_FIXTURE', feed?.ok ? 'SUBMITTED' : 'FAILED', {
+        home: identification.fixture.home, away: identification.fixture.away, reason: feed?.reason ?? null, code: feed?.code ?? null,
+      });
+      if (!feed?.ok) {
+        return fail('STRATEGY_FEED_FAILED', 'FEED_STRATEGY_FIXTURE', {
+          home: identification.fixture.home, away: identification.fixture.away, reason: feed?.reason ?? 'no result', code: feed?.code ?? null,
+        });
+      }
+      // The strategy updates asynchronously; the fixture counts as fed only once it reports it.
+      const deadline = Date.now() + (ports.feedWaitMs ?? 5000);
+      do {
+        strategyInstructions = await ports.getStrategyInstructions();
+        if (strategyInstructions?.status === 'OK') break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      } while (Date.now() < deadline);
+      if (strategyInstructions?.status !== 'OK') {
+        return fail('STRATEGY_FEED_FAILED', 'FEED_STRATEGY_FIXTURE', { reason: 'The strategy never reported the submitted fixture.' });
+      }
     }
     if (!strategyInstructions || strategyInstructions.status !== 'OK') {
       return fail('STRATEGY_STATE_MISSING', 'READ_STRATEGY_STATE', {

@@ -56,6 +56,8 @@ function liveFrames() {
 function setup({
   answers = null, frames = liveFrames(), authFirstReads = 0, strategyReadyAfter = 0,
   mappings = {}, bigDeficits = {}, through = 'identify', flowOverrides = {},
+  strategyFeedable = false, feedStrategy = true, lastSettledWeek = null,
+  feedResult = { ok: true, fixture: { id: 'livmnu', home: 'liv', away: 'mnu' } },
 } = {}) {
   const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'betking-run-'));
   const config = createBetKingLiveConfig({
@@ -65,10 +67,16 @@ function setup({
     AUTOMATION_MATCH_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_POLL_INTERVAL_MS: '1',
     AUTOMATION_PIPELINE_THROUGH: through,
+    AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
+    AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS: '5000',
   });
-  const calls = { settle: [], selectWeek: [], flow: [] };
+  const calls = { settle: [], selectWeek: [], flow: [], feed: [] };
+  let fed = !strategyFeedable;
+  if (lastSettledWeek !== null) {
+    fs.writeFileSync(path.join(runsDir, 'progress.json'), JSON.stringify({ lastSettledWeek }));
+  }
   let frameIndex = 0;
   let scheduleReads = 0;
   let strategyReads = 0;
@@ -106,9 +114,14 @@ function setup({
     ...Object.fromEntries(Object.entries(flowOverrides).map(([name, result]) => [name, track(name, result)])),
   };
   injected.bridge = {
-    getInstructions: async () => (++strategyReads <= strategyReadyAfter
+    getInstructions: async () => ((++strategyReads <= strategyReadyAfter || !fed)
       ? { status: 'FIXTURE_NOT_SUBMITTED', fixture: null, instructions: [] }
       : adapter.getCurrentInstructions()),
+    submitFixture: async (input) => {
+      calls.feed.push(input);
+      if (feedResult.ok) fed = true;
+      return feedResult;
+    },
     strategyPort: {
       getStrategySnapshot: async () => strategySnapshot(),
       settleVerifiedResult: async (input) => { calls.settle.push(input); return { status: 'settled' }; },
@@ -199,7 +212,7 @@ test('after you sign in the run takes over by itself (no Enter needed)', async (
 });
 
 test('the run waits for the strategy fixture by itself and then continues', async () => {
-  const { controller, prompts } = setup({ strategyReadyAfter: 3 });
+  const { controller, prompts } = setup({ strategyReadyAfter: 3, feedStrategy: false });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.equal(prompts.length, 0);
   assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
@@ -284,4 +297,63 @@ test('market-first: a stake that is not entered stops the option before authoriz
 test('the pipeline depth must be identify, select, or slip', () => {
   assert.throws(() => createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_PIPELINE_THROUGH: 'submit' }), /AUTOMATION_PIPELINE_THROUGH/);
   assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).pipelineThrough, 'identify');
+});
+
+
+test('the identified Liverpool fixture is fed to the strategy when it has none (team codes in lower case)', async () => {
+  const { controller, calls } = setup({ strategyFeedable: true });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.deepEqual(calls.feed, [{ home: 'liv', away: 'mnu' }]);
+  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
+  assert.ok(journal.events.some((event) => event.type === 'CHECKPOINT' && event.details.step === 'FEED_STRATEGY_FIXTURE'));
+});
+
+test('a fixture the strategy has no odds for stops the run instead of inventing odds', async () => {
+  const { controller } = setup({
+    strategyFeedable: true,
+    feedStrategy: true,
+    feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for liv vs mnu' },
+  });
+  const outcome = await controller.run({ requiredWeek: 5, prompts: true });
+  // With prompts the controller offers a manual retry first; typing stop ends the run.
+  assert.ok(['STOPPED', 'FAILED'].includes(outcome.status));
+  assert.notEqual(outcome.status, 'COMPLETED');
+});
+
+test('automatic week: the upcoming round label is detected and reconciled on a first read-only run', async () => {
+  const { controller } = setup();
+  const outcome = await controller.run({ requiredWeek: null });
+  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
+  const detected = journal.events.find((event) => event.type === 'WEEK_DETECTED');
+  assert.equal(detected.details.detected.week, 5);
+  assert.equal(detected.details.reconciliation.status, 'FIRST_RUN');
+});
+
+test('automatic week: a week that was already settled is refused', async () => {
+  const { controller } = setup({ lastSettledWeek: 5 });
+  const outcome = await controller.run({ requiredWeek: null });
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.code, 'WEEK_REPEAT');
+});
+
+test('automatic week: a skipped week is refused until you choose the week yourself', async () => {
+  const { controller } = setup({ lastSettledWeek: 3 });
+  const outcome = await controller.run({ requiredWeek: null });
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.code, 'WEEK_GAP');
+});
+
+test('automatic week: the next week after the last settled one is accepted', async () => {
+  const { controller } = setup({ lastSettledWeek: 4 });
+  const outcome = await controller.run({ requiredWeek: null });
+  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+});
+
+test('automatic week: the first run refuses to select an odd until you confirm the week', async () => {
+  const { controller } = setup({ through: 'select' });
+  const outcome = await controller.run({ requiredWeek: null });
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.code, 'WEEK_NOT_CONFIRMED');
 });

@@ -365,3 +365,60 @@ test('buildOperationalPlan rejects an invalid week or unidentified fixture', () 
   assert.throws(() => buildOperationalPlan({ week: 39, identification, strategyInstructions: instructions }), RangeError);
   assert.throws(() => buildOperationalPlan({ week: 5, identification: { status: 'LIVERPOOL_NOT_FOUND' }, strategyInstructions: instructions }));
 });
+
+
+function createFeedablePorts({ feedResult = { ok: true }, neverReports = false } = {}) {
+  const base = createPorts();
+  const adapter = createStrategyDecisionAdapter({ readStrategySnapshot: () => createStrategySnapshot() });
+  let fed = false;
+  const calls = { feed: [] };
+  return {
+    calls,
+    ports: {
+      ...base,
+      getStrategyInstructions: async () => (fed && !neverReports
+        ? adapter.getCurrentInstructions()
+        : { status: 'FIXTURE_NOT_SUBMITTED', fixture: null, instructions: [] }),
+      submitFixtureToStrategy: async (input) => {
+        calls.feed.push(input);
+        if (feedResult.ok) fed = true;
+        return feedResult;
+      },
+      feedWaitMs: 300,
+    },
+  };
+}
+
+test('prepareWeek feeds the identified fixture to a strategy that has none, then continues', async () => {
+  const machine = new StateMachine();
+  const { ports, calls } = createFeedablePorts();
+  const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
+  assert.equal(result.status, 'PREPARED');
+  assert.deepEqual(calls.feed, [{ home: 'LIV', away: 'MNU', week: 5 }]);
+  assert.ok(result.trace.some((entry) => entry.step === 'FEED_STRATEGY_FIXTURE' && entry.status === 'SUBMITTED'));
+});
+
+test('prepareWeek stops when the strategy refuses the fixture (for example no odds row)', async () => {
+  const machine = new StateMachine();
+  const { ports } = createFeedablePorts({ feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for liv vs mnu' } });
+  const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
+  assert.equal(result.code, 'STRATEGY_FEED_FAILED');
+  assert.equal(machine.getState(), STATES.PAUSED);
+});
+
+test('prepareWeek does not continue when the strategy never reports the fed fixture', async () => {
+  const machine = new StateMachine();
+  const { ports } = createFeedablePorts({ neverReports: true });
+  const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
+  assert.equal(result.code, 'STRATEGY_FEED_FAILED');
+});
+
+test('an active strategy fixture is never replaced by the fed one', async () => {
+  const machine = new StateMachine();
+  const base = createPorts({ strategyFixture: { ...STRATEGY_FIXTURE, id: 'livcov', away: 'cov' } });
+  let fed = 0;
+  const ports = { ...base, submitFixtureToStrategy: async () => { fed += 1; return { ok: true }; } };
+  const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
+  assert.equal(fed, 0);
+  assert.equal(result.code, 'FIXTURE_IDENTITY_MISMATCH');
+});

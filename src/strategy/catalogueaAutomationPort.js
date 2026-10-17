@@ -56,6 +56,7 @@ function normalizeEvaluatedMarks(marks) {
 function createCatalogueaAutomationPort({
   readSnapshot,
   settleStrategyResult,
+  submitFixture,
 }) {
   if (typeof readSnapshot !== 'function' || typeof settleStrategyResult !== 'function') {
     throw new TypeError('Cataloguea strategy port requires snapshot and settlement functions.');
@@ -124,6 +125,8 @@ function createCatalogueaAutomationPort({
   return Object.freeze({
     getStrategySnapshot,
     getCurrentInstruction,
+    // Optional: feeds the identified fixture to the strategy. Present only when supplied.
+    ...(typeof submitFixture === 'function' ? { submitFixture: (input) => submitFixture(input) } : {}),
     settleVerifiedResult,
   });
 }

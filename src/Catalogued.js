@@ -296,12 +296,13 @@ const Homepage = () => {
   /* ================================================================
      HANDLE SUBMIT
      ================================================================ */
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const home = sanitizeTeam(inputA) || "liv";
-    const away = sanitizeTeam(inputB) || "liv";
+  // Shared by the Submit button and by the automation hook. The strategy itself
+  // (submitSoloMatrixFixture) does every calculation; this only finds the odds row.
+  const submitFixtureByTeams = (rawHome, rawAway) => {
+    const home = sanitizeTeam(String(rawHome ?? "")) || "liv";
+    const away = sanitizeTeam(String(rawAway ?? "")) || "liv";
     const found = odds.find(o => o.home === home && o.away === away);
-    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+    if (!found) return { ok: false, reason: `No odds for ${home} vs ${away}`, home, away };
 
     const submitted = submitSoloMatrixFixture({
       baseStake,
@@ -326,6 +327,22 @@ const Homepage = () => {
     setClicked(submitted.clicked);
     setWinners(submitted.winners);
     setBigWinners(submitted.bigWinners);
+    return { ok: true, fixture: { ...submitted.fixture }, home, away };
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const result = submitFixtureByTeams(inputA, inputB);
+    if (!result.ok) alert(result.reason);
+  };
+
+  // Automation entry point: refuses while a fixture is already active (never replaces it).
+  const submitFixtureForAutomation = ({ home, away } = {}) => {
+    if (fixture) {
+      return { ok: false, code: "FIXTURE_ALREADY_SUBMITTED", reason: "A fixture is already active.", fixture: { ...fixture } };
+    }
+    const result = submitFixtureByTeams(home, away);
+    return result.ok ? result : { ...result, code: "NO_ODDS_FOR_FIXTURE" };
   };
 
   const markWin    = (key) => {
@@ -493,6 +510,7 @@ const Homepage = () => {
 
   const strategyPort = createCatalogueaAutomationPort({
     readSnapshot: readStrategySnapshot,
+    submitFixture: submitFixtureForAutomation,
     settleStrategyResult: (normalizedResult, resultId, snapshot, actionOperationId, marks) => (
       handleNext({
         resultId,

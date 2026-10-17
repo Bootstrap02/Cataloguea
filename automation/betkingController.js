@@ -31,6 +31,13 @@ const { createLiveResultObserver, verifyResultsPageResult } = require('./result/
 const { createResultPoller } = require('./strategy/resultPoller');
 const { createBetKingFixtureIdentity } = require('./strategy/fixtureIdentity');
 const { renderPlanMarkdown } = require('./betkingReport');
+const {
+  WEEK_RECONCILIATION,
+  detectUpcomingRound,
+  readProgress,
+  reconcileWeek,
+  writeProgress,
+} = require('./strategy/weekProgress');
 
 async function defaultLaunchContext(config) {
   const { chromium } = require('playwright');
@@ -130,6 +137,7 @@ function createBetKingController({
           readVisibleWeek: () => ports.readVisibleWeek(),
           selectWeek: (week) => ports.selectWeek(week),
           getStrategyInstructions: () => bridge.getInstructions(),
+          ...(config.feedStrategy ? { submitFixtureToStrategy: ({ home, away }) => bridge.submitFixture({ home: String(home).toLowerCase(), away: String(away).toLowerCase() }) } : {}),
           onCheckpoint: (checkpoint) => journal.append('CHECKPOINT', checkpoint),
         },
       });
@@ -215,6 +223,32 @@ function createBetKingController({
       return false;
     }
 
+    // Automatic week: the upcoming round's LABEL on the real schedule, reconciled with the last
+    // settled week (1-38, 38 -> 1). The countdown is shown for you to compare, never used.
+    async function resolveUpcomingWeek() {
+      let result = await ports.readSchedule();
+      if (result?.status === BETKING_STATUSES.AUTH_REQUIRED) {
+        if (prompts) return { ok: false, code: 'AUTHENTICATION_REQUIRED', reason: 'Sign in to BetKing, then run again.' };
+        if (!(await waitForLogin())) return { ok: false, code: 'AUTHENTICATION_REQUIRED', reason: 'BetKing sign-in was not completed in time.' };
+        result = await ports.readSchedule();
+      }
+      const detected = detectUpcomingRound(result?.snapshot ?? result);
+      if (detected.status !== 'DETECTED') {
+        return { ok: false, code: 'REQUIRED_WEEK_UNKNOWN', reason: 'No round with a readable week label is visible on the schedule.' };
+      }
+      const progress = readProgress(config.progressFile);
+      const reconciliation = reconcileWeek({ detectedWeek: detected.week, lastSettledWeek: progress.lastSettledWeek });
+      journal.append('WEEK_DETECTED', { detected, lastSettledWeek: progress.lastSettledWeek, reconciliation });
+      log(`Upcoming round: ${detected.roundName}${detected.timer ? ` (countdown ${detected.timer})` : ''}; weeks visible: ${detected.visibleWeeks.join(', ')}. ${reconciliation.reason}`);
+      if (!reconciliation.ok) {
+        return { ok: false, code: `WEEK_${reconciliation.status}`, reason: `${reconciliation.reason} Run with --week N to choose the week yourself.` };
+      }
+      if (reconciliation.status === WEEK_RECONCILIATION.FIRST_RUN && config.pipelineThrough !== 'identify') {
+        return { ok: false, code: 'WEEK_NOT_CONFIRMED', reason: `First run: confirm the week yourself with --week ${detected.week} before selecting odds or touching the slip.` };
+      }
+      return { ok: true, week: detected.week };
+    }
+
     async function prepareWithRecovery(week) {
       let retries = 0;
       let manualAttempts = 0;
@@ -285,6 +319,7 @@ function createBetKingController({
 
       for (const record of plan.instructions) {
         const pipeline = createOptionPipeline({ strategyKey: record.strategyKey });
+        const optionStartedAt = Date.now();
         record.verificationStatus = 'NOT_VERIFIED';
 
         if (through !== 'identify' && slipHolder) {
@@ -390,6 +425,7 @@ function createBetKingController({
           stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { reason: error.message });
         } finally {
           record.pipeline = pipeline.snapshot();
+          journal.append('PIPELINE_TIMING', { strategyKey: record.strategyKey, elapsedMs: Date.now() - optionStartedAt, reachedStage: pipeline.stage });
         }
       }
 
@@ -611,6 +647,14 @@ function createBetKingController({
 
       // ---- one controlled lifecycle per week -----------------------------------
       let week = requiredWeek;
+      if (week === null || week === undefined) {
+        const resolved = await resolveUpcomingWeek();
+        if (!resolved.ok) {
+          moveTo(STATES.PAUSED);
+          return finish('FAILED', { code: resolved.code, reason: resolved.reason });
+        }
+        week = resolved.week;
+      }
       for (let cycle = 0; cycle < maxWeeks; cycle += 1) {
         journal.append('WEEK_STARTED', { week, cycle: cycle + 1, of: maxWeeks });
         const prepared = await prepareWithRecovery(week);
@@ -712,6 +756,11 @@ function createBetKingController({
         moveTo(STATES.SETTLEMENT_CONFIRMED);
         const nextWeek = settlement.next.nextWeek;
         journal.append('WEEK_SETTLED', { week, nextWeek, rolledOver: settlement.next.rolledOver });
+        try {
+          writeProgress(config.progressFile, week);
+        } catch (progressError) {
+          journal.append('PROGRESS_NOT_SAVED', { message: progressError.message });
+        }
         log(`Week ${week} settled once and persisted. Next target: Week ${nextWeek}.`);
 
         if (cycle + 1 >= maxWeeks) {

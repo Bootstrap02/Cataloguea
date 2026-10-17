@@ -71,6 +71,9 @@ function createBetKingLiveConfig(environment = process.env) {
     loginWaitTimeoutMs: readInteger(environment, 'AUTOMATION_LOGIN_WAIT_TIMEOUT_MS', 900_000),
     strategyWaitTimeoutMs: readInteger(environment, 'AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS', 900_000),
     manualLoginMaxAttempts: readInteger(environment, 'AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS', 3, { maximum: 20 }),
+    // Feed the identified Liverpool fixture to the strategy automatically (set AUTOMATION_FEED_STRATEGY=false to type it into Cataloguea yourself).
+    feedStrategy: environment.AUTOMATION_FEED_STRATEGY !== 'false',
+    progressFile: readAbsolutePath(environment, 'AUTOMATION_BETKING_PROGRESS_FILE', path.join(HOME_DIR, 'betking-progress.json')),
     marketWaitTimeoutMs: readInteger(environment, 'AUTOMATION_MARKET_WAIT_MS', 4000),
     // How far the market-first pipeline may go. identify = open category, find selection and
     // odds, read only (never clicks an odd). select = also add the odd to the slip.
