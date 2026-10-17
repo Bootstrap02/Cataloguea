@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 33 — Fixture Feeding, Automatic Week, Evidence-Based Mappings (unit-tested; live site not run).
+Stage 34 — Overlay Handling and Category Detection After the First Live Markets Run.
 
 ## Stage 23 completion report
 
@@ -1854,3 +1854,16 @@ None new. Still only the Stage 31 probe.
 - The strategy odds table has 20 teams; BetKing also lists teams outside it (COV, HUL seen). Such fixtures cannot be fed to the strategy.
 - Placing the bet and acceptance detection are not built.
 - Automatic settlement stays blocked while `winner`, `tg0`, `tg6`, and `x2` are undefined.
+
+
+## Stage 34 — Fixes After the First Live Markets Run
+
+Evidence from the owner-run `automation:betking:markets` (Oct 16, real site): all 17 Stage 33 files were in place; `npm run build` compiled; `npm run automation:test` 319 passed; `npm start` served HTTP 200. The markets run opened the real page and found the round and fixture rows (Week 23 ARS v LIV, Week 24 LIV v BRE), but "Favourites" was reported not opened, later categories reported the fixture row unavailable, and a FreeToPlay `.dialog__backdrop` intercepted the More Markets click. No mappings were written (correct: no evidence was gathered).
+
+### Code changes (the browser code has NOT been run against the live site)
+- `sportsbook/betkingMarketFlow.js`: overlay detection and safe dismissal (Escape, then only a control clearly labelled close, dismiss, not now, or skip; never play, join, claim, deposit, bet, accept; cookie or consent dialogs never accepted); navigation clicks retry once after an overlay is cleared or a person closes it; category chips are found INSIDE the More Markets panel (not by page-wide text, which could hit the favourites star); the active category is also read from the title beside the More Markets toggle, since the `selected-market-name` test id may be absent on the mobile layout; `captureDiagnostics` added.
+- `betkingMarkets.js`: skips the composite Favourites and Popular views; stops a fixture after two consecutive "row disappeared" results; saves `diagnostics.json` and `diagnostics.png` on the first failure; the report shows why a category was not read.
+- Test added: `betkingMarkets.test.js` (report rendering). The DOM code itself cannot be unit-tested here. Unit suite: 320 passed.
+
+### Still unverified on the live site
+Whether the header text detection reads the active category; whether the panel chip lookup finds the chips; whether the dialog's close control matches the safe patterns; everything downstream (selection, slip, stake).

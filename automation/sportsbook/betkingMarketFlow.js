@@ -18,9 +18,18 @@
 // ever clicked, and only by selectOdd after the earlier stages succeeded.
 
 const { parseBetSlipText } = require('../strategy/marketFirstSequence');
+const { OBSERVED_BETKING_MARKET_CATEGORIES } = require('../strategy/canonicalBetTypes');
 
 const ATTRIBUTE_ODD = 'data-cataloguea-odd';
 const ATTRIBUTE_STAKE = 'data-cataloguea-stake';
+const ATTRIBUTE_CATEGORY = 'data-cataloguea-category';
+const ATTRIBUTE_CLOSE = 'data-cataloguea-close';
+
+// A promotional dialog may be dismissed only through a control that clearly just closes it.
+// Anything that could play, join, claim, accept, or bet is never clicked.
+const SAFE_CLOSE_LABEL = '^(\\u00d7|\\u2715|\\u2716|x|close|dismiss|not now|no,? thanks|maybe later|later|skip|cancel)$';
+const UNSAFE_CLOSE_WORDS = 'play|join|claim|deposit|bet|accept|agree|continue|sign|register|log\\s*in|get started|win|enter|download|install';
+const ESSENTIAL_ONLY_LABEL = 'essential|reject|decline|necessary';
 
 function norm(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
@@ -58,6 +67,20 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       const text = (element) => (element ? (element.textContent || '').replace(/\s+/g, ' ').trim() : '');
       const up = (value) => String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
       const selected = document.querySelector(headerSelector || '[data-testid="selected-market-name"]');
+      // The active category is also shown as the title next to the "More Markets" / "Close Markets"
+      // toggle (recording). Read it from there when the test id is absent on this layout.
+      const toggle = [...document.querySelectorAll('span,div,button,a,p')]
+        .find((element) => element.children.length === 0 && /^(More|Close)\s+Markets$/i.test(text(element)));
+      let headerCategory = null;
+      if (toggle) {
+        const toggleText = text(toggle);
+        let node = toggle.parentElement;
+        for (let depth = 0; depth < 4 && node && headerCategory === null; depth += 1) {
+          const rest = text(node).replace(toggleText, '').replace(/\s+/g, ' ').trim();
+          if (rest && rest.length <= 40) headerCategory = rest;
+          node = node.parentElement;
+        }
+      }
       const rounds = [...document.querySelectorAll('[data-testid="league-round"]')]
         .filter((round) => up(text(round.querySelector('[data-testid="round-name"]'))) === wantedRound);
       const matches = rounds.length === 1
@@ -68,6 +91,8 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       const row = matches.length === 1 ? matches[0] : null;
       return {
         selectedMarketName: selected ? text(selected) : null,
+        headerCategory,
+        panelOpen: Boolean(toggle) && /^close/i.test(text(toggle)),
         roundCount: rounds.length,
         matchCount: matches.length,
         matchHome: row ? text(row.querySelector('[data-testid="teams-home-name"]')) : null,
@@ -80,66 +105,204 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     });
   }
 
+  // ---- overlays (promotional dialogs) ---------------------------------------------------------
+
+  async function detectOverlays() {
+    return page.evaluate(() => {
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      return [...document.querySelectorAll('.dialog__backdrop, [role="dialog"], [aria-modal="true"], dialog[open]')]
+        .filter(visible)
+        .map((node) => ({
+          tag: node.tagName.toLowerCase(),
+          classes: typeof node.className === 'string' ? node.className.slice(0, 120) : '',
+          text: (node.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+        }));
+    });
+  }
+
+  // Tries Escape, then a control that clearly only closes the dialog. Cookie or consent dialogs
+  // are never accepted: only an explicit essential-only or reject control is allowed for them.
+  async function clearOverlays() {
+    let overlays = await detectOverlays();
+    if (overlays.length === 0) return { ok: true, status: 'NO_OVERLAY' };
+    const consent = /cookie|consent|privacy/i.test(overlays.map((overlay) => overlay.text).join(' '));
+    if (!consent) {
+      await page.keyboard.press('Escape');
+      await pause(400);
+      overlays = await detectOverlays();
+      if (overlays.length === 0) return { ok: true, status: 'DISMISSED', via: 'escape' };
+    }
+    const tagged = await page.evaluate(({ safeSource, unsafeSource, essentialSource, consentDialog, attribute }) => {
+      const safe = new RegExp(safeSource, 'i');
+      const unsafe = new RegExp(unsafeSource, 'i');
+      const essential = new RegExp(essentialSource, 'i');
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      const roots = [...document.querySelectorAll('.dialog__backdrop, [role="dialog"], [aria-modal="true"], dialog[open]')].filter(visible);
+      for (const root of roots) {
+        const candidates = [...root.querySelectorAll('button,[role="button"],a,[aria-label],[class*="close" i]')].filter(visible);
+        for (const candidate of candidates) {
+          const aria = (candidate.getAttribute('aria-label') || candidate.getAttribute('title') || '').trim();
+          const label = (aria || candidate.textContent || '').replace(/\s+/g, ' ').trim();
+          const classes = typeof candidate.className === 'string' ? candidate.className : '';
+          if (unsafe.test(label)) continue;
+          const allowed = consentDialog
+            ? essential.test(label)
+            : (safe.test(label) || /close|dismiss/i.test(aria) || /close/i.test(classes));
+          if (allowed) {
+            candidate.setAttribute(attribute, '1');
+            return { label: label.slice(0, 40), tag: candidate.tagName.toLowerCase(), classes: classes.slice(0, 80) };
+          }
+        }
+      }
+      return null;
+    }, { safeSource: SAFE_CLOSE_LABEL, unsafeSource: UNSAFE_CLOSE_WORDS, essentialSource: ESSENTIAL_ONLY_LABEL, consentDialog: consent, attribute: ATTRIBUTE_CLOSE });
+    if (tagged) {
+      try {
+        await page.locator(`[${ATTRIBUTE_CLOSE}="1"]`).first().click({ timeout: actionTimeout });
+      } finally {
+        await page.evaluate((attribute) => {
+          document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
+        }, ATTRIBUTE_CLOSE);
+      }
+      await pause(500);
+      overlays = await detectOverlays();
+      if (overlays.length === 0) return { ok: true, status: 'DISMISSED', via: 'close-control', control: tagged };
+    }
+    return { ok: false, status: 'OVERLAY_NOT_DISMISSED', overlays, consent };
+  }
+
+  async function waitForOverlayCleared(timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if ((await detectOverlays()).length === 0) return true;
+      await pause(500);
+    }
+    return false;
+  }
+
+  // Clicks a NAVIGATION control (never an odd). If an overlay intercepts the click, it is
+  // dismissed (or a person is given time to dismiss it) and the click is tried once more.
+  async function safeClick(locator) {
+    try {
+      await locator.click({ timeout: actionTimeout });
+      return;
+    } catch (error) {
+      const blocked = /intercepts pointer events|Timeout/i.test(error.message);
+      if (!blocked) throw error;
+      const cleared = await clearOverlays();
+      if (!cleared.ok && !(await waitForOverlayCleared(config.overlayWaitMs ?? 20000))) {
+        const detail = (cleared.overlays ?? []).map((overlay) => overlay.text).join(' | ').slice(0, 160);
+        throw new Error(`Blocked by an overlay that could not be dismissed safely: ${detail}`);
+      }
+      await locator.click({ timeout: actionTimeout });
+    }
+  }
+
+  // Finds the category chip INSIDE the More Markets panel (never a same-named element elsewhere,
+  // such as the favourites star) and tags it for the click.
+  async function tagCategoryChip(category) {
+    return page.evaluate(({ wanted, known, attribute }) => {
+      const text = (element) => (element.textContent || '').replace(/\s+/g, ' ').trim();
+      const up = (value) => String(value).replace(/\s+/g, ' ').trim().toUpperCase();
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      const toggle = [...document.querySelectorAll('span,div,button,a,p')]
+        .find((element) => element.children.length === 0 && /^(More|Close)\s+Markets$/i.test(text(element)));
+      if (!toggle) return { found: false, reason: 'TOGGLE_NOT_FOUND' };
+      const knownSet = new Set(known.map(up));
+      let node = toggle.parentElement;
+      let panel = null;
+      for (let depth = 0; depth < 8 && node; depth += 1) {
+        const leaves = [...node.querySelectorAll('*')].filter((element) => element.children.length === 0 && knownSet.has(up(text(element))));
+        if (new Set(leaves.map((leaf) => up(text(leaf)))).size >= 6) { panel = node; break; }
+        node = node.parentElement;
+      }
+      if (!panel) return { found: false, reason: 'PANEL_NOT_FOUND' };
+      const matches = [...panel.querySelectorAll('*')].filter((element) => (
+        element.children.length === 0 && up(text(element)) === up(wanted) && visible(element)
+        && !element.closest('[data-testid="league-round"]') && !toggle.contains(element)
+      ));
+      if (matches.length === 0) return { found: false, reason: 'CHIP_NOT_FOUND' };
+      matches[0].setAttribute(attribute, '1');
+      return { found: true, matches: matches.length, panelTag: panel.tagName.toLowerCase(), panelClasses: typeof panel.className === 'string' ? panel.className.slice(0, 80) : '' };
+    }, { wanted: category, known: OBSERVED_BETKING_MARKET_CATEGORIES, attribute: ATTRIBUTE_CATEGORY });
+  }
+
   // ---- stage: market category ----------------------------------------------------------
 
   async function openMarketCategory(category, fixture) {
     const target = norm(category);
-    const isActive = (state) => norm(state.selectedMarketName) === target && state.labels.length > 0;
-    let state = await readMarketState(fixture);
-
-    if (state.roundCount !== 1 || state.matchCount !== 1) {
-      return { status: 'FIXTURE_ROW_NOT_AVAILABLE', evidence: { category, state } };
-    }
-    if (isActive(state)) {
-      return { status: 'MARKET_CATEGORY_OPENED', evidence: { category, observedCategory: state.selectedMarketName, labelsInFixture: state.labels, via: 'already-active' } };
-    }
-
+    const observed = (state) => state.selectedMarketName || state.headerCategory || null;
+    const isActive = (state) => (norm(state.selectedMarketName) === target || norm(state.headerCategory) === target) && state.labels.length > 0;
+    const opened = (state, via, attempts) => ({
+      status: 'MARKET_CATEGORY_OPENED',
+      evidence: { category, observedCategory: observed(state), labelsInFixture: state.labels, via, attempts },
+    });
     const attempts = [];
-    const confirm = async (via) => {
-      state = await pollUntil(() => readMarketState(fixture), isActive);
-      attempts.push({ via, observedCategory: state.selectedMarketName, labels: state.labels.length });
-      return isActive(state);
-    };
+    let state;
+    try {
+      const cleared = await clearOverlays();
+      if (!cleared.ok) {
+        attempts.push({ via: 'overlay', status: cleared.status, overlays: cleared.overlays });
+        if (!(await waitForOverlayCleared(config.overlayWaitMs ?? 20000))) {
+          return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, reason: 'OVERLAY_BLOCKING', attempts } };
+        }
+      }
 
-    // 1. A visible category chip (the favourites row shows a few, e.g. "HT/FT").
-    const chip = page.locator(overrides.categoryChip || '[data-testid="market-selector-tab"]')
-      .filter({ hasText: new RegExp(`^\\s*${escapeRegex(category)}\\s*$`, 'i') }).first();
-    if (await chip.count() > 0 && await chip.isVisible()) {
-      await chip.click({ timeout: actionTimeout });
-      if (await confirm('visible-chip')) {
-        return { status: 'MARKET_CATEGORY_OPENED', evidence: { category, observedCategory: state.selectedMarketName, labelsInFixture: state.labels, via: 'visible-chip', attempts } };
+      state = await readMarketState(fixture);
+      if (state.roundCount !== 1 || state.matchCount !== 1) {
+        return { status: 'FIXTURE_ROW_NOT_AVAILABLE', evidence: { category, state } };
       }
-    }
+      if (isActive(state)) return opened(state, 'already-active', attempts);
 
-    // 2. Open the "More Markets" panel and choose the category from its grid.
-    const toggle = overrides.moreMarkets
-      ? page.locator(overrides.moreMarkets).first()
-      : page.getByText(/^(More|Close)\s+Markets$/i).first();
-    if (await toggle.count() > 0 && /more/i.test((await toggle.innerText()))) {
-      await toggle.click({ timeout: actionTimeout });
-      await pause(400);
+      const confirm = async (via) => {
+        state = await pollUntil(() => readMarketState(fixture), isActive);
+        attempts.push({ via, selectedMarketName: state.selectedMarketName, headerCategory: state.headerCategory, labels: state.labels.length });
+        return isActive(state);
+      };
+
+      // 1. A visible category chip in the favourites row (for example "HT/FT").
+      const chip = page.locator(overrides.categoryChip || '[data-testid="market-selector-tab"]')
+        .filter({ hasText: new RegExp(`^\\s*${escapeRegex(category)}\\s*$`, 'i') }).first();
+      if (await chip.count() > 0 && await chip.isVisible()) {
+        await safeClick(chip);
+        if (await confirm('visible-chip')) return opened(state, 'visible-chip', attempts);
+      }
+
+      // 2. Open More Markets and choose the chip INSIDE the panel.
+      const toggle = overrides.moreMarkets
+        ? page.locator(overrides.moreMarkets).first()
+        : page.getByText(/^(More|Close)\s+Markets$/i).first();
+      state = await readMarketState(fixture);
+      if (!state.panelOpen && await toggle.count() > 0) {
+        await safeClick(toggle);
+        await pause(500);
+      }
+      const tagged = await tagCategoryChip(category);
+      attempts.push({ via: 'panel-chip', tagged });
+      if (tagged.found) {
+        try {
+          await safeClick(page.locator(`[${ATTRIBUTE_CATEGORY}="1"]`).first());
+        } finally {
+          await page.evaluate((attribute) => {
+            document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
+          }, ATTRIBUTE_CATEGORY);
+        }
+        if (await confirm('panel-chip')) return opened(state, 'more-markets-panel', attempts);
+      }
+      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, attempts, lastState: state } };
+    } catch (error) {
+      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, attempts, error: error.message.split('\n')[0], lastState: state ?? null } };
     }
-    const candidates = page.getByText(category, { exact: true });
-    const total = Math.min(await candidates.count(), 5);
-    for (let index = 0; index < total; index += 1) {
-      const candidate = candidates.nth(index);
-      if (!(await candidate.isVisible())) continue;
-      try {
-        await candidate.click({ timeout: actionTimeout });
-      } catch (error) {
-        attempts.push({ via: `grid-candidate-${index}`, error: error.message.split('\n')[0] });
-        continue;
-      }
-      if (await confirm(`grid-candidate-${index}`)) {
-        return { status: 'MARKET_CATEGORY_OPENED', evidence: { category, observedCategory: state.selectedMarketName, labelsInFixture: state.labels, via: 'more-markets-grid', attempts } };
-      }
-      // Reopen the panel if the failed click collapsed it.
-      if (await toggle.count() > 0 && /more/i.test((await toggle.innerText()))) {
-        await toggle.click({ timeout: actionTimeout });
-        await pause(400);
-      }
-    }
-    return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, attempts, lastState: state } };
   }
 
   // ---- stage: selection and odds (read only) ---------------------------------------------
@@ -186,6 +349,9 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   // ---- stage: select the odd -----------------------------------------------------------------
 
   async function selectOdd(selection, fixture, expectedOdds) {
+    // A promotional dialog must not swallow the click; the odd itself is never re-clicked blindly.
+    const cleared = await clearOverlays();
+    if (!cleared.ok) return { status: 'SELECTION_NOT_ADDED', evidence: { reason: 'OVERLAY_BLOCKING', overlays: cleared.overlays } };
     const before = await readSlipSummary();
     if (before.count !== 0) {
       return { status: 'SLIP_NOT_EMPTY', evidence: { slipCountBefore: before.count } };
@@ -259,7 +425,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const tab = overrides.betslipTab
       ? page.locator(overrides.betslipTab).first()
       : page.getByText(/^Betslip$/i).last();
-    await tab.click({ timeout: actionTimeout });
+    await safeClick(tab);
     const slip = await pollUntil(readSlipPage, (parsed) => parsed.isBetSlipPage, 5000);
     return slip.isBetSlipPage
       ? { status: 'BET_SLIP_OPEN', slip }
@@ -284,6 +450,30 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     }
   }
 
+  // Evidence for debugging a failed navigation: overlays, the header, the toggle, the panel's
+  // visible texts, and which rounds and fixtures are on screen. Read only.
+  async function captureDiagnostics(fixture) {
+    const overlays = await detectOverlays();
+    const state = await readMarketState(fixture);
+    const page_ = await page.evaluate(() => {
+      const text = (element) => (element.textContent || '').replace(/\s+/g, ' ').trim();
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      return {
+        url: window.location.href,
+        title: document.title,
+        scrollY: Math.round(window.scrollY),
+        roundNames: [...document.querySelectorAll('[data-testid="league-round"] [data-testid="round-name"]')].map(text),
+        fixturesShown: [...document.querySelectorAll('[data-testid="match"]')].filter(visible).slice(0, 24)
+          .map((match) => `${text(match.querySelector('[data-testid="teams-home-name"]') || match)} v ${text(match.querySelector('[data-testid="teams-away-name"]') || match)}`.slice(0, 40)),
+        testIds: [...new Set([...document.querySelectorAll('[data-testid]')].map((element) => element.getAttribute('data-testid')))].slice(0, 80),
+      };
+    });
+    return { capturedAt: new Date().toISOString(), overlays, state, page: page_ };
+  }
+
   // ---- read-only catalogue of what each category offers for one fixture -------------------------
 
   async function catalogueCategories(categories, fixture) {
@@ -291,7 +481,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     for (const category of categories) {
       const opened = await openMarketCategory(category, fixture);
       if (opened.status !== 'MARKET_CATEGORY_OPENED') {
-        rows.push({ category, status: opened.status, labels: [], odds: [] });
+        rows.push({ category, status: opened.status, labels: [], odds: [], evidence: opened.evidence ?? null });
         continue;
       }
       const state = await readMarketState(fixture);
@@ -302,6 +492,8 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
   return Object.freeze({
     readMarketState,
+    clearOverlays,
+    captureDiagnostics,
     openMarketCategory,
     identifyMarketSelection,
     readSlipSummary,

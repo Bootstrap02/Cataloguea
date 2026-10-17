@@ -26,6 +26,10 @@ const {
   mergeIntoMappingsFile,
 } = require('./sportsbook/mappingEvidence');
 
+// Favourites and Popular are composite views (several markets mixed together), not single
+// markets a strategy option can map to, so the catalogue skips them.
+const CATALOGUE_CATEGORIES = OBSERVED_BETKING_MARKET_CATEGORIES.filter((category) => !['Favourites', 'Popular'].includes(category));
+
 function readArgument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
@@ -43,7 +47,8 @@ function renderCatalogueMarkdown(catalogue, proposalResults = []) {
     lines.push(`## ${fixture.roundName}: ${fixture.home} v ${fixture.away} (Liverpool ${fixture.side === 'HOME' ? 'home' : 'away'})`, '');
     for (const row of fixture.categories) {
       if (row.status !== 'READ') {
-        lines.push(`- ${row.category}: NOT READ (${row.status})`);
+        const why = row.evidence?.error ?? row.evidence?.reason ?? '';
+        lines.push(`- ${row.category}: NOT READ (${row.status}${why ? `: ${why}` : ''})`);
         continue;
       }
       const pairs = row.labels.map((label, index) => `${label} ${row.odds[index] ?? '?'}`).join(' | ');
@@ -100,22 +105,48 @@ async function main() {
       return;
     }
 
+    const directory = path.join(config.runsDir, `markets-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+    fs.mkdirSync(directory, { recursive: true });
+
+    const cleared = await flow.clearOverlays();
+    console.log(`Overlay check: ${cleared.status}${cleared.via ? ` (${cleared.via})` : ''}`);
+    if (!cleared.ok) {
+      console.log('A pop-up is covering the page and could not be closed safely. Close it yourself; the run waits for it.');
+    }
+
     const initial = await flow.readMarketState(targets[0]);
+    const initialCategory = initial.selectedMarketName || initial.headerCategory;
     const catalogue = { generatedAt: new Date().toISOString(), url: page.url(), fixtures: [] };
+    let diagnosticsSaved = false;
     for (const target of targets) {
       console.log(`Reading categories for ${target.roundName}: ${target.home} v ${target.away}`);
       const categories = [];
-      for (const category of OBSERVED_BETKING_MARKET_CATEGORIES) {
+      let rowFailures = 0;
+      for (const category of CATALOGUE_CATEGORIES) {
         const rows = await flow.catalogueCategories([category], target);
         categories.push(...rows);
         console.log(`  ${category}: ${rows[0].status}${rows[0].labels.length ? ` (${rows[0].labels.length} selections)` : ''}`);
+        rowFailures = rows[0].status === 'FIXTURE_ROW_NOT_AVAILABLE' ? rowFailures + 1 : 0;
+        if (rows[0].status !== 'READ' && !diagnosticsSaved) {
+          diagnosticsSaved = true;
+          const diagnostics = await flow.captureDiagnostics(target);
+          fs.writeFileSync(path.join(directory, 'diagnostics.json'), `${JSON.stringify({ category, row: rows[0], diagnostics }, null, 2)}\n`);
+          try {
+            await page.screenshot({ path: path.join(directory, 'diagnostics.png') });
+          } catch (error) {
+            console.log(`  (screenshot failed: ${error.message.split('\n')[0]})`);
+          }
+          console.log(`  Saved diagnostics.json and diagnostics.png in ${directory}`);
+        }
+        if (rowFailures >= 2) {
+          console.log('  The fixture row disappeared twice in a row; stopping this fixture (see diagnostics).');
+          break;
+        }
       }
       catalogue.fixtures.push({ ...target, categories });
     }
-    if (initial.selectedMarketName) await flow.openMarketCategory(initial.selectedMarketName, targets[0]);
+    if (initialCategory && !/^favourites$/i.test(initialCategory)) await flow.openMarketCategory(initialCategory, targets[0]);
 
-    const directory = path.join(config.runsDir, `markets-${new Date().toISOString().replace(/[:.]/g, '-')}`);
-    fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(path.join(directory, 'market-catalogue.json'), `${JSON.stringify(catalogue, null, 2)}\n`);
     const proposalResults = checkProposalsAgainstCatalogue(catalogue);
     fs.writeFileSync(path.join(directory, 'market-catalogue.md'), `${renderCatalogueMarkdown(catalogue, proposalResults)}\n`);

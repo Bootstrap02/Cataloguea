@@ -1,6 +1,6 @@
 # Cataloguea BetKing Operational Workflow
 
-Status: Stage 27-33. Evidence is labelled throughout with four classes:
+Status: Stage 27-34. Evidence is labelled throughout with four classes:
 
 - **VIDEO**: visibly demonstrated in the owner's screen recording (Oct 15, 2026, mobile site).
 - **PROBE**: observed by a computer-run `automation:betking:probe` (owner's report, Oct 15).
@@ -182,6 +182,7 @@ forced through HT/FT.
 | Stake box prefilled 100; chips 50/100/200/500/1,000 (then +50...); winnings = stake x odds (1 -> 13.30, 50 -> 665.00, 100 -> 1,330.00) | yes | n/a | stake typed with fill and read back; winnings consistency is a warning | no |
 | "Next event will expire in mm:ss", orange at 00:20 | yes | n/a | slip rejected below 10 s remaining | no |
 | PLACE BET was not pressed | yes | n/a | no code path submits | n/a |
+| A "FreeToPlay" promotional dialog (`.dialog__backdrop`) intercepted the click on "More Markets" | n/a | seen in the owner-run markets command (Oct 16) | overlays are detected and closed only through a control that clearly just closes them; otherwise a person is given time | observed once |
 | `matchup-statistics-button-*` ids | n/a | **0 found** in the current DOM | fixture ids fall back to team codes; identity uses teams, round, side | gap |
 | Probe click failure on round switcher "Week 35" (opacity-60 class), timeout 3 s | n/a | 5 of 6 clicks worked | probe now records what covers the control | unresolved cause |
 
@@ -272,6 +273,8 @@ Run flow: launch, open both tabs, wait for sign-in, prepare the week (select wee
 
 - No selection-level BetKing mapping is DOM-verified; mappings come only from your evidence-backed file. The HT/FT proposals for oneX/twoX/x2 come from the recording.
 - Meanings of `winner` (6-0), `x2` (settlement), `tg0`, `tg6` are undefined; any such option that is stake-eligible blocks automatic settlement (the run ends `BLOCKED_SETTLEMENT`). `ht12`/`ht21`/`ht30`/`ft40`/`ft41` are assumptions from labels.
+- Overlays: a promotional dialog can cover the page. The flow presses Escape and clicks only a control labelled like close, dismiss, not now, or skip (never one containing play, join, claim, deposit, bet, accept, or similar); cookie and consent dialogs are never accepted. If it cannot be closed safely the flow waits for you to close it, then continues.
+- The active category is read from the `selected-market-name` test id when present, otherwise from the title next to the More Markets toggle (as in the recording). The first live run suggests the test id may be missing on the mobile layout; this is unconfirmed.
 - The market-first locators (More Markets toggle, category chips, Betslip tab, slip text, stake input) are located by visible text from the recording and are not DOM-verified. The summary bar and slip are read from page text.
 - How BetKing treats several slip selections (single bets or one combined bet) is unknown, so one selection at a time is enforced.
 - Whether the slip clears itself after a bet is placed or the event expires is unknown.
@@ -287,7 +290,8 @@ Run flow: launch, open both tabs, wait for sign-in, prepare the week (select wee
 
 - Stage 31 probe (owner-run, Oct 15): page opened and login detected; 4 round switchers, 2 market tabs, 5 league tabs, 40 matches, 36 odds buttons, 93 of 94 buttons visible, 0 statistics buttons; 5 of 6 navigation clicks worked; "Week 35" timed out.
 - Owner-run `npm run automation:test` (Oct 15): 278 passed, 0 failed, sample page not opened.
-- Stage 32 (this stage): the recording was studied; no test, build, browser automation, or live-site interaction was run. Everything in G1-G3 awaits the controlled trial.
+- Owner-run `automation:betking:markets` (Oct 16, before the Stage 34 fixes): the real schedule showed Week 23 ARS v LIV (Liverpool away) and Week 24 LIV v BRE; the round and fixture rows were found on the real page (the first category read passed the row check); then "Favourites" was reported not opened, later categories reported the fixture row unavailable, and a FreeToPlay dialog blocked the More Markets click. No mappings were written.
+- Stage 32: the recording was studied; no test, build, browser automation, or live-site interaction was run. Everything in G1-G3 awaits the controlled trial.
 
 ## O. Next controlled trial (computer)
 
