@@ -2,7 +2,7 @@
 
 ## Current stage
 
-Stage 34 — Overlay Handling and Category Detection After the First Live Markets Run.
+Stage 35 — Owner Definitions, Priority Order, and the Guarded Place-Bet Step (unit-tested; not run on the live site).
 
 ## Stage 23 completion report
 
@@ -1867,3 +1867,31 @@ Evidence from the owner-run `automation:betking:markets` (Oct 16, real site): al
 
 ### Still unverified on the live site
 Whether the header text detection reads the active category; whether the panel chip lookup finds the chips; whether the dialog's close control matches the safe patterns; everything downstream (selection, slip, stake).
+
+
+## Stage 35 — Owner Definitions, Priority Order, and the Guarded Place-Bet Step
+
+Status: implemented; the full unit suite passes (339 tests, no browser, nothing that can place a wager). NOT run on the live site. The owner supplied two slip screenshots (Week 16 LIV - ARS, Liverpool home; Week 17 SUN - LIV, Liverpool away), the market where each option is found, the order of play, and confirmation that BetKing allows the automation.
+
+### Decisions and definitions (owner)
+- All eleven options are defined from Liverpool's side (see `BETKING_WORKFLOW.md` section C). `winner` = Liverpool 6-0; `x2` = HT/FT X/2 at home and X/1 away (HT level, then Liverpool loses); `tg0`/`tg6` = exactly 0 / 6 total goals; `ht21`/`ht12`/`ht30` = Liverpool-opponent half-time score (HT Correct Score); `ft40`/`ft41` = Liverpool-opponent full-time score (Correct Score).
+- Order of play: winner, oneX, twoX, x2, tg0, tg6, ht21, ht12, ht30, ft40, ft41.
+- Internal keys are NOT renamed (persisted state, odds table, UI use them). Display names and the full mapping live in the workflow document and `strategy/marketMappings.js`.
+
+### Code changes
+- New `strategy/marketMappings.js`: owner-confirmed category, market, and selection per option and Liverpool side; priority order.
+- `rules.js`: all eleven win conditions evaluated from Liverpool's side; the former unresolved state is gone, so a verified result now settles automatically; `NOT_PLACED` outcome.
+- `canonicalBetTypes.js`, `liverpoolPerspective.js`, `strategyDecisionAdapter.js`: derive from the mapping table; options listed in priority order; category and market carried separately.
+- `sportsbook/betkingMarketFlow.js`: market inside a category (for example HT Correct Score inside Half Time) with its title checked; `closeBetSlip`; `placeBet`, the single function that can submit a wager (one click, never retried, result judged only from new page text, screenshots saved).
+- `strategy/marketFirstSequence.js`: stages `WAGER_SUBMITTED` and `WAGER_ACCEPTED` (accepted only with the site's confirmation text); slip parser understands the multi-selection Singles layout.
+- `betkingController.js` / `betkingRun.js` / `betkingLiveConfig.js`: `--through place`, `--auto-confirm`, `AUTOMATION_ALLOW_REAL_MONEY`, `AUTOMATION_MAX_STAKE`; built-in owner mappings (your file overrides per key); odds comparison against the strategy table; in place mode only accepted bets can receive a winning mark; unconfirmed click pauses the run.
+- `sportsbook/mappingEvidence.js` / `betkingMarkets.js`: the catalogue reads the four mapped markets and reports whether each option's labels were seen; `--write-mappings` removed (mappings are built in).
+- Tests: updated for the new definitions; new tests for all place-bet safeguards.
+
+### Findings
+- BetKing's current odds differ from the strategy odds table (for example LIV - ARS oneX 14.70 vs 13.7; winner 1,431.00 vs 563). Stakes use the table.
+- The slip's Singles group applies one stake to every selection, with a minimum of 10 per bet, so options with different stakes are placed one at a time.
+- The account balance shown in the screenshots was N0.09; real bets will be rejected until it is funded.
+
+### Awaiting live verification
+Everything in `betkingMarketFlow.js` (never run live); the PLACE BET control, the acceptance and rejection patterns, and closing the slip; the three caveats in the workflow document (ht21/ht12 away orientation, the Half Time category, Total Goals "6" meaning); the time per option against the round countdown.

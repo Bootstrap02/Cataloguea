@@ -1,65 +1,44 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
-  buildVerifiedEntries,
-  checkProposalsAgainstCatalogue,
-  mergeIntoMappingsFile,
-} = require('./mappingEvidence');
+const { checkMappingsAgainstCatalogue } = require('./mappingEvidence');
 
-const HTFT_LABELS = ['1/1', '1/X', '1/2', 'X/1', 'X/X', 'X/2', '2/1', '2/X', '2/2'];
-const HTFT_ODDS = ['3.01', '13.30', '58.10', '7.32', '5.94', '12.40', '35.40', '13.30', '6.19'];
+const HTFT = { category: 'HT/FT', market: 'HT/FT', status: 'READ', labels: ['1/1', '1/X', '1/2', 'X/1', 'X/X', 'X/2', '2/1', '2/X', '2/2'], odds: ['3.01', '13.30', '58.10', '7.32', '5.94', '12.40', '35.40', '13.30', '6.19'] };
+const GOALS = { category: 'Total Goals', market: 'Total Goals', status: 'READ', labels: ['0', '1', '2', '6'], odds: ['13.90', '8', '5', '20.00'] };
+const SCORES = { category: 'Correct Score', market: 'Correct Score', status: 'READ', labels: ['6-0', '0-6', '4-0', '0-4', '4-1', '1-4'], odds: ['1,431.00', '469.00', '95.30', '47.70', '66.80', '37.50'] };
+const HTSCORE = { category: 'Half Time', market: 'HT Correct Score', status: 'READ', labels: ['2-1', '1-2', '3-0', '0-3'], odds: ['18.50', '16.90', '59.80', '32.70'] };
 
-function catalogue(overrides = {}) {
-  return {
-    fixtures: [{
-      roundName: 'Week 1', home: 'LIV', away: 'AST', side: 'HOME',
-      categories: [{ category: 'HT/FT', status: 'READ', labels: HTFT_LABELS, odds: HTFT_ODDS, ...overrides }],
-    }],
-  };
+function catalogue(...categories) {
+  return { fixtures: [{ roundName: 'Week 16', home: 'LIV', away: 'ARS', side: 'HOME', categories }] };
 }
+const find = (results, key) => results.find((result) => result.strategyKey === key);
 
-test('the oneX and twoX labels are confirmed when the HT/FT grid shows them with valid odds', () => {
-  const results = checkProposalsAgainstCatalogue(catalogue());
-  const oneX = results.find((result) => result.strategyKey === 'oneX');
-  const twoX = results.find((result) => result.strategyKey === 'twoX');
-  assert.equal(oneX.labelsConfirmed, true);
-  assert.equal(twoX.labelsConfirmed, true);
-  assert.deepEqual(oneX.needed.sort(), ['1/X', '2/X']);
+test('every option is confirmed when its market shows its labels with valid odds', () => {
+  const results = checkMappingsAgainstCatalogue(catalogue(HTFT, GOALS, SCORES, HTSCORE));
+  assert.equal(results.length, 11);
+  assert.ok(results.every((result) => result.labelsConfirmed));
 });
 
-test('nothing is confirmed when the category was not read or a label is missing', () => {
-  assert.equal(checkProposalsAgainstCatalogue(catalogue({ status: 'MARKET_CATEGORY_NOT_OPENED' })).find((r) => r.strategyKey === 'oneX').labelsConfirmed, false);
-  const missing = catalogue({ labels: HTFT_LABELS.filter((label) => label !== '2/X'), odds: HTFT_ODDS.slice(0, 8) });
-  assert.equal(checkProposalsAgainstCatalogue(missing).find((r) => r.strategyKey === 'oneX').labelsConfirmed, false);
-  const badOdds = catalogue({ odds: ['', ...HTFT_ODDS.slice(1)] });
-  assert.equal(checkProposalsAgainstCatalogue(badOdds).find((r) => r.strategyKey === 'oneX').labelsConfirmed, true);
+test('the results follow the owner order of play', () => {
+  const results = checkMappingsAgainstCatalogue(catalogue(HTFT));
+  assert.deepEqual(results.map((result) => result.strategyKey), ['winner', 'oneX', 'twoX', 'x2', 'tg0', 'tg6', 'ht21', 'ht12', 'ht30', 'ft40', 'ft41']);
 });
 
-test('only oneX and twoX are ever written as VERIFIED; x2 is never written automatically', () => {
-  const results = checkProposalsAgainstCatalogue(catalogue());
-  assert.equal(results.find((r) => r.strategyKey === 'x2').labelsConfirmed, true);
-  const entries = buildVerifiedEntries(results, { generatedAt: '2026-10-16T10:00:00Z', reportFolder: '/tmp/report' });
-  assert.deepEqual(Object.keys(entries).sort(), ['oneX', 'twoX']);
-  assert.equal(entries.oneX.status, 'VERIFIED');
-  assert.deepEqual(entries.oneX.selectionBySide, { HOME: '1/X', AWAY: '2/X' });
-  assert.deepEqual(entries.twoX.selectionBySide, { HOME: '2/X', AWAY: '1/X' });
-  assert.match(entries.oneX.evidence, /LIV v AST/);
+test('options whose market was not read or whose label is missing are not confirmed', () => {
+  const results = checkMappingsAgainstCatalogue(catalogue(HTFT, { ...GOALS, labels: ['1', '2'], odds: ['8', '5'] }));
+  assert.equal(find(results, 'oneX').labelsConfirmed, true);
+  assert.equal(find(results, 'tg0').labelsConfirmed, false);
+  assert.equal(find(results, 'ft40').labelsConfirmed, false);
+  const notRead = checkMappingsAgainstCatalogue(catalogue({ ...HTFT, status: 'MARKET_CATEGORY_NOT_OPENED' }));
+  assert.equal(find(notRead, 'oneX').labelsConfirmed, false);
 });
 
-test('an existing VERIFIED entry is never overwritten and other entries are preserved', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mappings-'));
-  const file = path.join(directory, 'sub', 'mappings.json');
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ oneX: { status: 'VERIFIED', market: 'Other', selection: 'Z', evidence: 'mine' }, tg0: { status: 'PENDING' } }));
-  const entries = buildVerifiedEntries(checkProposalsAgainstCatalogue(catalogue()), { generatedAt: 'now', reportFolder: 'x' });
-  const outcome = mergeIntoMappingsFile(file, entries);
-  assert.deepEqual(outcome.skipped, ['oneX']);
-  assert.deepEqual(outcome.written, ['twoX']);
-  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.oneX.market, 'Other');
-  assert.equal(saved.twoX.status, 'VERIFIED');
-  assert.equal(saved.tg0.status, 'PENDING');
+test('a market with the right category but a different market name does not confirm', () => {
+  const results = checkMappingsAgainstCatalogue(catalogue({ ...HTSCORE, market: 'HT 1X2' }));
+  assert.equal(find(results, 'ht21').labelsConfirmed, false);
+});
+
+test('a label with no valid odds is not confirmed', () => {
+  const results = checkMappingsAgainstCatalogue(catalogue({ ...HTFT, odds: HTFT.odds.map((value, index) => (index === 1 ? '' : value)) }));
+  assert.equal(find(results, 'oneX').labelsConfirmed, false);
+  assert.equal(find(results, 'x2').labelsConfirmed, true);
 });

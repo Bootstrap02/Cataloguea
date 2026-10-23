@@ -306,6 +306,7 @@ function createBetKingController({
       const failed = [];
       const deferred = [];
       let slipHolder = null;
+      let halted = null;
 
       const FAILURE_FOR_STATUS = {
         MARKET_CATEGORY_NOT_OPENED: PIPELINE_FAILURES.MARKET_CATEGORY_NOT_OPENED,
@@ -322,6 +323,12 @@ function createBetKingController({
         const optionStartedAt = Date.now();
         record.verificationStatus = 'NOT_VERIFIED';
 
+        if (halted) {
+          record.pipelineStatus = 'HALTED';
+          record.reason = `Not attempted: the run stopped at ${halted.strategyKey} (${halted.code}).`;
+          deferred.push(record);
+          continue;
+        }
         if (through !== 'identify' && slipHolder) {
           // A second outcome of the same market replaces the first and several selections
           // would form one combined bet, so options are prepared one at a time.
@@ -351,11 +358,11 @@ function createBetKingController({
           if (!advance('FIXTURE_CONFIRMED', { verified: fixtureCrossCheck?.verified === true, home: plan.fixture.home, away: plan.fixture.away, liverpoolSide: plan.liverpoolSide })) {
             stop('FIXTURE_IDENTITY_MISMATCH', { reason: 'fixture not confirmed' }); continue;
           }
-          if (!advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: record.mappingStatus, category: record.betKingMarket, selection: record.betKingSelection })) {
+          if (!advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: record.mappingStatus, category: record.betKingCategory ?? record.betKingMarket, selection: record.betKingSelection })) {
             stop('UNRESOLVED_MARKET_MAPPING'); continue;
           }
 
-          const opened = await flow.openMarketCategory(record.betKingMarket, fixture);
+          const opened = await flow.openMarketCategory(record.betKingCategory ?? record.betKingMarket, fixture, { market: record.betKingMarket });
           if (opened.status !== 'MARKET_CATEGORY_OPENED') { stopFromStatus(opened); continue; }
           if (!advance('MARKET_CATEGORY_OPENED', opened.evidence)) { stop(PIPELINE_FAILURES.MARKET_CATEGORY_NOT_OPENED); continue; }
 
@@ -363,6 +370,13 @@ function createBetKingController({
           if (identified.status !== 'MARKET_SELECTION_IDENTIFIED') { stopFromStatus(identified); continue; }
           if (!advance('MARKET_SELECTION_IDENTIFIED', identified.evidence)) { stop(PIPELINE_FAILURES.MARKET_SELECTION_NOT_FOUND); continue; }
           if (!advance('ODDS_VERIFIED', { odds: identified.odds })) { stop(PIPELINE_FAILURES.ODDS_UNAVAILABLE); continue; }
+          // The strategy calculated this stake from its own odds table; show how far BetKing's
+          // current price is from it so the difference is never hidden.
+          if (typeof record.odds === 'number' && record.odds > 1) {
+            const percent = Math.round(((identified.odds - record.odds) / record.odds) * 1000) / 10;
+            record.oddsComparison = { strategyTable: record.odds, betKing: identified.odds, percentDifference: percent };
+            if (Math.abs(percent) > 5) journal.append('ODDS_DIFFER_FROM_STRATEGY_TABLE', { strategyKey: record.strategyKey, ...record.oddsComparison });
+          }
           record.betKingOdds = identified.odds;
           record.oddsSource = 'BETKING';
           record.oddsStatus = 'READ_FROM_BETKING';
@@ -392,7 +406,7 @@ function createBetKingController({
             expected: {
               home: plan.fixture.home,
               away: plan.fixture.away,
-              category: record.betKingMarket,
+              market: record.betKingMarket,
               selection: record.betKingSelection,
               stake: record.stake,
               odds: identified.odds,
@@ -420,7 +434,85 @@ function createBetKingController({
             potentialWinnings: slip.potentialWinnings,
             expirySeconds: slip.expirySeconds,
           });
-          reached.push(record);
+          if (through !== 'place') { reached.push(record); continue; }
+
+          // ---- Placement (real money). Every guard must pass, once, in this order. -----------
+          const refuse = (code, reason, severe = false) => {
+            pipeline.fail(code, { reason });
+            record.pipelineStatus = 'NOT_PLACED';
+            record.reason = `Not placed: ${code} (${reason}).`;
+            journal.append('WAGER_NOT_PLACED', { strategyKey: record.strategyKey, code, reason });
+            failed.push(record);
+            halted = { code, strategyKey: record.strategyKey, severe };
+          };
+          if (!config.allowRealMoney) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, 'AUTOMATION_ALLOW_REAL_MONEY=yes is not set'); continue; }
+          if (record.stake > config.maxStake) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, `stake ${record.stake} is above the stake cap ${config.maxStake} (AUTOMATION_MAX_STAKE)`); continue; }
+          let authorized = config.autoConfirm;
+          if (!authorized) {
+            if (!prompts) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, 'confirmation is required: run with --prompts or --auto-confirm'); continue; }
+            await betKingPage.bringToFront();
+            const answer = await prompt(`${record.authorizationRequest}\nType PLACE ${record.stake} to place this bet, or press Enter to skip: `);
+            authorized = String(answer ?? '').trim().toUpperCase() === `PLACE ${record.stake}`;
+            if (!authorized) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, 'not confirmed by you'); continue; }
+          }
+          // A last look at the slip immediately before the click.
+          const finalCheck = compareSlipToExpected({
+            slip: await flow.readSlipPage(),
+            expected: { home: plan.fixture.home, away: plan.fixture.away, market: record.betKingMarket, selection: record.betKingSelection, stake: record.stake, odds: identified.odds, week: plan.week },
+            minSecondsRemaining: 15,
+          });
+          if (!finalCheck.ok) {
+            stop(finalCheck.problems.includes('SLIP_EXPIRING') ? PIPELINE_FAILURES.SLIP_EXPIRING : PIPELINE_FAILURES.BET_SLIP_MISMATCH, { problems: finalCheck.problems });
+            halted = { code: finalCheck.problems.join(','), strategyKey: record.strategyKey, severe: false };
+            continue;
+          }
+          const placed = await flow.placeBet({
+            minSecondsRemaining: 15,
+            onEvidence: async (label) => {
+              try {
+                await betKingPage.screenshot({ path: path.join(journal.runDir, `week-${plan.week}-${record.strategyKey}-${label}.png`) });
+              } catch (screenshotError) {
+                journal.append('SCREENSHOT_FAILED', { label, message: screenshotError.message });
+              }
+            },
+          });
+          journal.append('WAGER_RESULT', { strategyKey: record.strategyKey, status: placed.status, evidence: placed.evidence });
+          const clicked = ['ACCEPTED_BY_SITE_TEXT', 'REJECTED_BY_SITE_TEXT', 'SUBMITTED_UNCONFIRMED'].includes(placed.status);
+          if (clicked) {
+            advance('WAGER_SUBMITTED', { authorized: true, clickedAt: placed.evidence.clickedAt });
+            record.lifecycle.submitted = true;
+          }
+          if (placed.status === 'ACCEPTED_BY_SITE_TEXT') {
+            advance('WAGER_ACCEPTED', { siteConfirmationText: placed.evidence.siteConfirmationText });
+            record.lifecycle.accepted = true;
+            record.pipelineStatus = 'WAGER_ACCEPTED';
+            record.verificationStatus = 'WAGER_ACCEPTED_BY_SITE_TEXT';
+            reached.push(record);
+            const closed = await flow.closeBetSlip();
+            if (closed.status !== 'BET_SLIP_CLOSED') {
+              halted = { code: 'BET_SLIP_NOT_CLOSED', strategyKey: record.strategyKey, severe: false };
+            } else {
+              slipHolder = null;
+            }
+            continue;
+          }
+          if (placed.status === 'REJECTED_BY_SITE_TEXT') {
+            pipeline.fail(PIPELINE_FAILURES.WAGER_REJECTED, placed.evidence);
+            record.pipelineStatus = 'WAGER_REJECTED';
+            record.reason = `The site rejected the bet: ${(placed.evidence.newLines ?? []).join(' | ').slice(0, 160)}`;
+            failed.push(record);
+            halted = { code: PIPELINE_FAILURES.WAGER_REJECTED, strategyKey: record.strategyKey, severe: false };
+            continue;
+          }
+          // No confirmation (or no click happened). A click without confirmation is severe: a bet may exist.
+          const severe = placed.status === 'SUBMITTED_UNCONFIRMED';
+          pipeline.fail(severe ? PIPELINE_FAILURES.WAGER_UNCONFIRMED : PIPELINE_FAILURES.PLACE_BUTTON_NOT_FOUND, { status: placed.status, evidence: placed.evidence });
+          record.pipelineStatus = severe ? 'WAGER_UNCONFIRMED' : 'NOT_PLACED';
+          record.reason = severe
+            ? 'The place-bet control was used but the site showed no confirmation. Check My Bets before doing anything else.'
+            : `The bet was not placed (${placed.status}).`;
+          failed.push(record);
+          halted = { code: severe ? PIPELINE_FAILURES.WAGER_UNCONFIRMED : placed.status, strategyKey: record.strategyKey, severe };
         } catch (error) {
           stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { reason: error.message });
         } finally {
@@ -432,6 +524,9 @@ function createBetKingController({
       plan.instructions = reached;
       plan.pipelineFailed = failed;
       plan.deferred = deferred;
+      plan.halted = halted;
+      // In place mode only options whose bet the site accepted may receive a winning mark.
+      plan.placedOnly = through === 'place';
       plan.pipelineThrough = through;
       return prep;
     }
@@ -667,6 +762,21 @@ function createBetKingController({
         }
 
         await runMarketFirstPipeline(prepared);
+        if (config.pipelineThrough === 'place') {
+          const accepted = prepared.plan.instructions.filter((record) => record.lifecycle.accepted);
+          journal.append('PLACEMENT_SUMMARY', {
+            accepted: accepted.map((record) => ({ strategyKey: record.strategyKey, stake: record.stake })),
+            halted: prepared.plan.halted,
+          });
+          if (prepared.plan.halted?.severe) {
+            moveTo(STATES.PAUSED);
+            return finish('PAUSED', { code: prepared.plan.halted.code, week, reason: 'A bet may exist without confirmation. Check My Bets before doing anything else.' });
+          }
+          if (accepted.length === 0) {
+            moveTo(STATES.PAUSED);
+            return finish('NO_BETS_PLACED', { code: prepared.plan.halted?.code ?? 'NOTHING_TO_PLACE', week });
+          }
+        }
         const markdown = renderPlanMarkdown(prepared);
         const planPath = journal.writeArtifact(`week-${week}-instructions.md`, `${markdown}\n`);
         journal.writeArtifact(`week-${week}-plan.json`, `${JSON.stringify({ plan: prepared.plan, identification: prepared.identification }, null, 2)}\n`);

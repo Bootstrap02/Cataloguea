@@ -21,7 +21,7 @@ function readInteger(environment, key, fallback, { minimum = 1, maximum = 3_600_
   return value;
 }
 
-const PIPELINE_THROUGH = Object.freeze(['identify', 'select', 'slip']);
+const PIPELINE_THROUGH = Object.freeze(['identify', 'select', 'slip', 'place']);
 
 function readPipelineThrough(environment) {
   const raw = environment.AUTOMATION_PIPELINE_THROUGH;
@@ -80,6 +80,12 @@ function createBetKingLiveConfig(environment = process.env) {
     // slip = also open the slip, enter the stake, and verify it, then stop awaiting your
     // authorization. Submission is never performed by this code.
     pipelineThrough: readPipelineThrough(environment),
+    // Real money. 'place' submits wagers only when ALL of these hold: AUTOMATION_ALLOW_REAL_MONEY=yes,
+    // the stake is within AUTOMATION_MAX_STAKE, and each bet is confirmed (typed) or --auto-confirm is set.
+    allowRealMoney: environment.AUTOMATION_ALLOW_REAL_MONEY === 'yes',
+    maxStake: readInteger(environment, 'AUTOMATION_MAX_STAKE', 1000, { maximum: 10_000_000 }),
+    autoConfirm: environment.AUTOMATION_AUTO_CONFIRM === 'true',
+    placeObserveMs: readInteger(environment, 'AUTOMATION_PLACE_OBSERVE_MS', 8000),
   });
 }
 

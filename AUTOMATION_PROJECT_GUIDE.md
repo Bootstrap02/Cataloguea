@@ -68,7 +68,7 @@ The exact current implementation in the repository takes precedence over this su
 14. ~~Use test pages, mock pages, and simulated operations before testing against live betting pages.~~ **Superseded by the owner's decision (Stage 31):** the built-in sample sportsbook page is retired and never used; all browser work happens on the real BetKing site, read-only until each step is verified. Unit tests with in-memory stand-ins remain allowed.
 15. Keep the browser visible during initial development and debugging.
 16. **Market-first selection.** Never select an odd until the correct market category is open and the exact selection has been identified for the confirmed fixture (stages `MARKET_CATEGORY_OPENED` then `MARKET_SELECTION_IDENTIFIED` then `ODDS_VERIFIED`). Category, selection, and stake are separate operations, and every option uses its own verified category and selection. A stage is entered only on observable evidence, never because a click was attempted. Details: `automation/BETKING_WORKFLOW.md` sections G1-G4 (rules RULE-006 and RULE-007).
-17. **Authorization boundary.** Selecting an odd and preparing the slip are different from submitting a wager. This project never submits; `AWAITING_AUTHORIZATION` is its last stage.
+17. **Authorization boundary.** Selecting an odd and preparing the slip are different from submitting a wager. Only `--through place` can submit, and only with `AUTOMATION_ALLOW_REAL_MONEY=yes`, a per-bet stake cap, a confirmation for each bet (or `--auto-confirm`), a verified slip, and a last slip check immediately before one click. A click is never acceptance: only the site's own confirmation text counts, and an unconfirmed click pauses the run. See `automation/BETKING_WORKFLOW.md` section G7.
 
 ## 4. Git and Change Safety
 

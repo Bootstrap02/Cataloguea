@@ -1,13 +1,12 @@
 // Market catalogue for the Liverpool fixture(s) on the REAL BetKing page:
-//   npm run automation:betking:markets [-- --week N] [--write-mappings]
+//   npm run automation:betking:markets [-- --week N]
 //
 // Waits for you to sign in (no Enter needed), then, for each market category in the More
 // Markets panel, opens the category and records the selection labels and odds shown for each
 // visible Liverpool fixture. It is READ ONLY: it opens categories (navigation) but never clicks
 // an odd, never touches the bet slip, and never places a bet. The saved report is the evidence
-// you need to verify the strategy-to-market mappings. With --write-mappings it also writes
-// oneX and twoX as VERIFIED into your mappings file, but only when their HT/FT labels were
-// really seen with valid odds (x2 is never written automatically).
+// you need to confirm the owner's strategy-to-market mappings: for every option it reports
+// whether the exact labels were seen with valid odds in the mapped category and market.
 
 process.env.AUTOMATION_MODE = 'betking-live';
 
@@ -16,19 +15,14 @@ const path = require('node:path');
 const { createBetKingLiveConfig } = require('./betkingLiveConfig');
 const { loadBetKingSelectors } = require('./sportsbook/betkingSelectors');
 const { createMarketFlow } = require('./sportsbook/betkingMarketFlow');
-const { OBSERVED_BETKING_MARKET_CATEGORIES } = require('./strategy/canonicalBetTypes');
+const { distinctMarkets } = require('./strategy/marketMappings');
 const { determineLiverpoolSide } = require('./strategy/liverpoolPerspective');
 const { parseWeek } = require('./strategy/seasonWeek');
 const { waitForAccess } = require('./betkingProbe');
-const {
-  buildVerifiedEntries,
-  checkProposalsAgainstCatalogue,
-  mergeIntoMappingsFile,
-} = require('./sportsbook/mappingEvidence');
+const { checkMappingsAgainstCatalogue } = require('./sportsbook/mappingEvidence');
 
-// Favourites and Popular are composite views (several markets mixed together), not single
-// markets a strategy option can map to, so the catalogue skips them.
-const CATALOGUE_CATEGORIES = OBSERVED_BETKING_MARKET_CATEGORIES.filter((category) => !['Favourites', 'Popular'].includes(category));
+// The catalogue reads exactly the (category, market) pairs the strategy options map to.
+const CATALOGUE_TARGETS = distinctMarkets();
 
 function readArgument(name) {
   const index = process.argv.indexOf(name);
@@ -56,10 +50,10 @@ function renderCatalogueMarkdown(catalogue, proposalResults = []) {
     }
     lines.push('');
   }
-  lines.push('## Proposal check (labels seen on the page)', '');
+  lines.push('## Mapping check (labels seen on the page)', '');
   for (const result of proposalResults) {
     const proof = result.fixtures.find((fixture) => fixture.allPresent);
-    lines.push(`- ${result.strategyKey} -> ${result.category} ${result.needed.join(' / ')}: ${result.labelsConfirmed ? `labels CONFIRMED on ${proof.home} v ${proof.away}` : 'labels NOT confirmed'}${result.autoVerifiable ? '' : ' (not auto-verifiable: needs your confirmation)'}`);
+    lines.push(`- ${result.strategyKey} -> ${result.category}${result.market !== result.category ? ` / ${result.market}` : ''} ${result.needed.join(' / ')}: ${result.labelsConfirmed ? `labels CONFIRMED on ${proof.home} v ${proof.away}` : 'labels NOT confirmed'}`);
   }
   return lines.join('\n');
 }
@@ -122,10 +116,11 @@ async function main() {
       console.log(`Reading categories for ${target.roundName}: ${target.home} v ${target.away}`);
       const categories = [];
       let rowFailures = 0;
-      for (const category of CATALOGUE_CATEGORIES) {
-        const rows = await flow.catalogueCategories([category], target);
+      for (const entry of CATALOGUE_TARGETS) {
+        const category = entry.market === entry.category ? entry.category : `${entry.category} / ${entry.market}`;
+        const rows = await flow.catalogueCategories([entry], target);
         categories.push(...rows);
-        console.log(`  ${category}: ${rows[0].status}${rows[0].labels.length ? ` (${rows[0].labels.length} selections)` : ''}`);
+        console.log(`  ${category} (${entry.keys.join(', ')}): ${rows[0].status}${rows[0].labels.length ? ` (${rows[0].labels.length} selections)` : ''}`);
         rowFailures = rows[0].status === 'FIXTURE_ROW_NOT_AVAILABLE' ? rowFailures + 1 : 0;
         if (rows[0].status !== 'READ' && !diagnosticsSaved) {
           diagnosticsSaved = true;
@@ -148,17 +143,11 @@ async function main() {
     if (initialCategory && !/^favourites$/i.test(initialCategory)) await flow.openMarketCategory(initialCategory, targets[0]);
 
     fs.writeFileSync(path.join(directory, 'market-catalogue.json'), `${JSON.stringify(catalogue, null, 2)}\n`);
-    const proposalResults = checkProposalsAgainstCatalogue(catalogue);
+    const proposalResults = checkMappingsAgainstCatalogue(catalogue);
     fs.writeFileSync(path.join(directory, 'market-catalogue.md'), `${renderCatalogueMarkdown(catalogue, proposalResults)}\n`);
     console.log(`Catalogue saved in ${directory}`);
     for (const result of proposalResults) {
-      console.log(`  ${result.strategyKey} (${result.category} ${result.needed.join(' / ')}): ${result.labelsConfirmed ? 'labels confirmed on the page' : 'labels NOT confirmed'}`);
-    }
-    if (process.argv.includes('--write-mappings')) {
-      const entries = buildVerifiedEntries(proposalResults, { generatedAt: catalogue.generatedAt, reportFolder: directory });
-      const outcome = mergeIntoMappingsFile(config.mappingsFile, entries);
-      console.log(`Mappings file ${config.mappingsFile}: wrote ${outcome.written.join(', ') || 'nothing'}; kept existing VERIFIED ${outcome.skipped.join(', ') || 'none'}.`);
-      console.log('x2 was not written: confirm its meaning first.');
+      console.log(`  ${result.strategyKey} -> ${result.category}${result.market !== result.category ? ` / ${result.market}` : ''} ${result.needed.join(' / ')}: ${result.labelsConfirmed ? 'labels confirmed on the page' : 'labels NOT confirmed'}`);
     }
   } finally {
     await context.close();

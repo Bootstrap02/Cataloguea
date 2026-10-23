@@ -147,7 +147,7 @@ test('settlePlannedFixture refuses to settle stale strategy decisions', async ()
 test('settlePlannedFixture does not settle when an option cannot be decided', async () => {
   const strategy = createFakeStrategy();
   const plan = createPlan();
-  plan.eligible.push(record('winner', 31, 0));
+  plan.eligible.push(record('mystery', 31, 0));
   const outcome = await settlePlannedFixture({
     plan,
     verifiedResult: VERIFIED,
@@ -155,7 +155,7 @@ test('settlePlannedFixture does not settle when an option cannot be decided', as
     getCurrentInstructions: createInstructions(),
   });
   assert.equal(outcome.status, SETTLEMENT_STATUS.NOT_READY);
-  assert.ok(outcome.blockers.some((blocker) => blocker.strategyKey === 'winner'));
+  assert.ok(outcome.blockers.some((blocker) => blocker.strategyKey === 'mystery'));
   assert.equal(strategy.settleCalls.length, 0);
 });
 

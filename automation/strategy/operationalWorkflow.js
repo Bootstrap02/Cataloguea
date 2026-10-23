@@ -413,6 +413,7 @@ function toInstructionRecord(instruction, context) {
     canonicalBetType: instruction.canonicalId,
     semanticsStatus: instruction.semanticsStatus,
     betKingMarket: instruction.betKingMarket ?? null,
+    betKingCategory: instruction.betKingCategory ?? instruction.betKingMarket ?? null,
     betKingSelection: instruction.betKingSelection ?? null,
     // For x2 this is the Liverpool-oriented label (X2 home / X1 away). It is a
     // label only; it is NOT a verified BetKing selection.
@@ -508,7 +509,20 @@ function evaluateOptionsForResult({ plan, verifiedResult } = {}) {
   }
   const resultVerified = verifiedResult?.status === 'verified';
 
-  const evaluations = plan.eligible.map((record) => {
+  // In place mode only options whose bet the site accepted are evaluated; an eligible option that
+  // was never placed gets no mark (the strategy settles it as non-winning, like a skipped option).
+  const evaluable = plan.placedOnly ? plan.eligible.filter((record) => record.lifecycle?.accepted) : plan.eligible;
+  const notPlaced = plan.placedOnly
+    ? plan.eligible.filter((record) => !record.lifecycle?.accepted).map((record) => ({
+      strategyKey: record.strategyKey,
+      stake: record.stake,
+      outcome: SETTLEMENT_OUTCOMES.NOT_PLACED,
+      evaluated: false,
+      reason: 'The bet was not placed, so no outcome mark is given.',
+    }))
+    : [];
+
+  const evaluations = evaluable.map((record) => {
     const evaluation = evaluateResultAgainstStrategy(verifiedResult, record.strategyKey, {
       liverpoolSide: plan.liverpoolSide,
     });
@@ -566,6 +580,7 @@ function evaluateOptionsForResult({ plan, verifiedResult } = {}) {
   return {
     evaluations,
     skipped,
+    notPlaced,
     settlementReadiness: { ready, blockers },
     proposedStrategyMarks: strategyMarks,
     note: 'Strategy outcomes only. No wager is assumed accepted; marks are a proposal and are not applied to the strategy by this module.',

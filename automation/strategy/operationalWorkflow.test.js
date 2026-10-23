@@ -297,7 +297,7 @@ test('prepareWeek asks for manual input when the strategy has no active fixture'
   assert.equal(machine.getState(), STATES.PAUSED);
 });
 
-test('evaluateOptionsForResult keeps strategy outcomes separate from execution status and blocks on unresolved options', async () => {
+test('evaluateOptionsForResult keeps strategy outcomes separate from execution status', async () => {
   const machine = new StateMachine();
   const prepared = await createOperationalWorkflow({ stateMachine: machine, ports: createPorts() }).prepareWeek({ requiredWeek: 5 });
   const verifiedResult = { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: { home: 1, away: 1 } };
@@ -306,10 +306,35 @@ test('evaluateOptionsForResult keeps strategy outcomes separate from execution s
   for (const entry of evaluation.evaluations) {
     assert.equal(entry.executionStatus, 'NOT_VERIFIED');
   }
-  // winner has undefined semantics, so settlement cannot be automatic yet.
+  // Every option now has a defined win condition, so a verified result can be settled.
+  const winner = evaluation.evaluations.find((entry) => entry.strategyKey === 'winner');
+  assert.equal(winner.outcome, 'LOST');
+  assert.equal(evaluation.settlementReadiness.ready, true);
+  assert.deepEqual(evaluation.proposedStrategyMarks, { winners: [], bigWinners: [] });
+});
+
+test('an option with an unknown strategy key still blocks settlement', () => {
+  const plan = {
+    liverpoolSide: 'HOME',
+    eligible: [{ strategyKey: 'mystery', stake: 50, stakeComponents: { normal: 50, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'X', lifecycle: { accepted: false } }],
+    skipped: [],
+  };
+  const evaluation = evaluateOptionsForResult({ plan, verifiedResult: { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: { home: 1, away: 1 } } });
   assert.equal(evaluation.settlementReadiness.ready, false);
-  assert.ok(evaluation.settlementReadiness.blockers.some((blocker) => blocker.strategyKey === 'winner'));
-  assert.equal(evaluation.proposedStrategyMarks, null);
+  assert.ok(evaluation.settlementReadiness.blockers.some((blocker) => blocker.strategyKey === 'mystery'));
+});
+
+test('in place mode only options whose bet the site accepted can win', () => {
+  const accepted = { strategyKey: 'oneX', stake: 100, stakeComponents: { normal: 100, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'OWNER_DEFINED', lifecycle: { accepted: true } };
+  const unplaced = { strategyKey: 'twoX', stake: 100, stakeComponents: { normal: 100, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'OWNER_DEFINED', lifecycle: { accepted: false } };
+  const plan = { liverpoolSide: 'HOME', placedOnly: true, eligible: [accepted, unplaced], skipped: [] };
+  const evaluation = evaluateOptionsForResult({ plan, verifiedResult: { status: 'verified', halfTime: { home: 0, away: 1 }, fullTime: { home: 1, away: 1 } } });
+  // twoX would have won (Liverpool trailed at half time, then drew) but its bet was never placed.
+  assert.deepEqual(evaluation.evaluations.map((entry) => entry.strategyKey), ['oneX']);
+  assert.equal(evaluation.notPlaced.length, 1);
+  assert.equal(evaluation.notPlaced[0].strategyKey, 'twoX');
+  assert.equal(evaluation.notPlaced[0].outcome, 'NOT_PLACED');
+  assert.deepEqual(evaluation.proposedStrategyMarks, { winners: [], bigWinners: [] });
 });
 
 test('evaluateOptionsForResult proposes marks only when every eligible option is decidable', () => {

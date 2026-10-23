@@ -33,8 +33,11 @@ test('the stages follow the market-first order from the recording', () => {
   assert.deepEqual(STAGES, [
     'FIXTURE_CONFIRMED', 'STRATEGY_OPTIONS_RESOLVED', 'MARKET_CATEGORY_OPENED', 'MARKET_SELECTION_IDENTIFIED',
     'ODDS_VERIFIED', 'SELECTION_ADDED', 'BET_SLIP_VERIFIED', 'AWAITING_AUTHORIZATION',
+    'WAGER_SUBMITTED', 'WAGER_ACCEPTED',
   ]);
   assert.equal(PIPELINE_DEPTHS.identify, 'ODDS_VERIFIED');
+  assert.equal(PIPELINE_DEPTHS.slip, 'AWAITING_AUTHORIZATION');
+  assert.equal(PIPELINE_DEPTHS.place, 'WAGER_ACCEPTED');
 });
 
 test('stages cannot be skipped: no odd is selectable before the category and selection are verified', () => {
@@ -172,4 +175,41 @@ test('the authorization request states that nothing has been submitted', () => {
   });
   assert.match(text, /Nothing has been submitted/);
   assert.match(text, /HT\/FT/);
+});
+
+
+test('a wager counts as submitted only with explicit authorization, and accepted only with the site\'s own text', () => {
+  const pipeline = pipelineThroughOdds();
+  pipeline.advance('SELECTION_ADDED', { selectedStateObserved: true, slipCountBefore: 0, slipCountAfter: 1 });
+  pipeline.advance('BET_SLIP_VERIFIED', { comparison: { ok: true, problems: [] } });
+  pipeline.advance('AWAITING_AUTHORIZATION', { submitted: false });
+  assert.equal(pipeline.advance('WAGER_SUBMITTED', { authorized: false, clickedAt: 'now' }).ok, false);
+  assert.equal(pipeline.advance('WAGER_SUBMITTED', { authorized: true }).ok, false);
+  assert.equal(pipeline.advance('WAGER_SUBMITTED', { authorized: true, clickedAt: 'now' }).ok, true);
+  assert.equal(pipeline.advance('WAGER_ACCEPTED', { siteConfirmationText: '' }).ok, false);
+  assert.equal(pipeline.advance('WAGER_ACCEPTED', { siteConfirmationText: 'Bet placed successfully' }).ok, true);
+  assert.equal(pipeline.stage, 'WAGER_ACCEPTED');
+});
+
+test('the category stage requires the market name when it differs from the category (HT Correct Score inside Half Time)', () => {
+  const pipeline = createOptionPipeline({ strategyKey: 'ht21' });
+  pipeline.advance('FIXTURE_CONFIRMED', FIXTURE_EVIDENCE);
+  pipeline.advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: 'VERIFIED', category: 'Half Time', selection: '2-1' });
+  const base = { category: 'Half Time', market: 'HT Correct Score', observedCategory: 'Half Time', labelsInFixture: ['2-1', '1-2'] };
+  assert.equal(pipeline.advance('MARKET_CATEGORY_OPENED', { ...base, observedMarkets: ['HT 1X2'] }).ok, false);
+  assert.equal(pipeline.advance('MARKET_CATEGORY_OPENED', { ...base, observedMarkets: ['HT Correct Score'] }).ok, true);
+});
+
+test('parses a multi-selection slip like the owner screenshots and detects extra selections', () => {
+  const text = [
+    'VIRTUALS BETSLIP', 'Clear All', 'Next event will expire in: 00:56', 'Singles', 'Kings League - Week 16',
+    'LIV - ARS', 'HT/FT - 1/X', '14.70', 'HT/FT - 2/X', '14.70', 'Correct Score - 6-0', '1,431.00',
+    'Group', 'Com', 'Stake (Min 10)', 'Winnings', 'Singles', '11x', '9.09', 'Total Stake Amount', '100',
+  ].join('\n');
+  const slip = parseBetSlipText(text, { stakeInputValue: '100' });
+  assert.equal(slip.items.length, 3);
+  assert.deepEqual(slip.items.map((item) => `${item.market}|${item.selection}|${item.odds}`), ['HT/FT|1/X|14.7', 'HT/FT|2/X|14.7', 'Correct Score|6-0|1431']);
+  assert.equal(slip.items[0].week, 16);
+  const check = compareSlipToExpected({ slip, expected: { home: 'LIV', away: 'ARS', market: 'HT/FT', selection: '1/X', stake: 100, odds: 14.7, week: 16 } });
+  assert.ok(check.problems.includes('EXTRA_SELECTIONS'));
 });

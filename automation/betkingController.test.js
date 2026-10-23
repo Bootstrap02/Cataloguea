@@ -18,6 +18,8 @@ const { createBetKingController } = require('./betkingController');
 const { createBetKingLiveConfig } = require('./betkingLiveConfig');
 const { createStrategyDecisionAdapter } = require('./strategy/strategyDecisionAdapter');
 const { ASSET_KEYS } = require('./strategy/catalogueaAdapter');
+const { OWNER_MAPPINGS } = require('./strategy/marketMappings');
+const { createResultId } = require('./result/resultIdentity');
 
 const STRATEGY_FIXTURE = {
   id: 'livmnu', home: 'liv', away: 'mnu', winner: 325, oneX: 14.7, twoX: 14.7, x2: 14.6, tg0: 15.1,
@@ -56,7 +58,7 @@ function liveFrames() {
 function setup({
   answers = null, frames = liveFrames(), authFirstReads = 0, strategyReadyAfter = 0,
   mappings = {}, bigDeficits = {}, through = 'identify', flowOverrides = {},
-  strategyFeedable = false, feedStrategy = true, lastSettledWeek = null,
+  strategyFeedable = false, feedStrategy = true, lastSettledWeek = null, env = {},
   feedResult = { ok: true, fixture: { id: 'livmnu', home: 'liv', away: 'mnu' } },
 } = {}) {
   const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'betking-run-'));
@@ -67,6 +69,7 @@ function setup({
     AUTOMATION_MATCH_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_POLL_INTERVAL_MS: '1',
     AUTOMATION_PIPELINE_THROUGH: through,
+    ...env,
     AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
     AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
@@ -74,6 +77,7 @@ function setup({
   });
   const calls = { settle: [], selectWeek: [], flow: [], feed: [] };
   let fed = !strategyFeedable;
+  const receipts = [];
   if (lastSettledWeek !== null) {
     fs.writeFileSync(path.join(runsDir, 'progress.json'), JSON.stringify({ lastSettledWeek }));
   }
@@ -123,8 +127,12 @@ function setup({
       return feedResult;
     },
     strategyPort: {
-      getStrategySnapshot: async () => strategySnapshot(),
-      settleVerifiedResult: async (input) => { calls.settle.push(input); return { status: 'settled' }; },
+      getStrategySnapshot: async () => ({ ...strategySnapshot(), automationSettlements: [...receipts] }),
+      settleVerifiedResult: async (input) => {
+        calls.settle.push(input);
+        receipts.push({ resultId: createResultId(input.normalizedResult, input.actionOperationId) });
+        return { status: 'settled' };
+      },
     },
   };
   const context = {
@@ -158,15 +166,14 @@ test('the controller refuses a non-live configuration (no simulation substitute)
   assert.throws(() => createBetKingController({ config: { mode: 'local' } }), /betking-live/);
 });
 
-test('a full week is prepared, watched, evaluated, and stopped safely when options cannot be decided', async () => {
+test('a full week is prepared, watched, evaluated, and settled once through the strategy port', async () => {
   const { controller, calls, runsDir } = setup();
   const outcome = await controller.run({ requiredWeek: 5 });
 
-  // winner (6-0) has no defined win condition, so settlement must not be applied.
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
-  assert.equal(outcome.state, 'PAUSED');
-  assert.ok(outcome.blockers.some((blocker) => blocker.strategyKey === 'winner'));
-  assert.equal(calls.settle.length, 0);
+  // Every option is defined, so the verified result (HT 1-0, FT 1-1) settles exactly once.
+  assert.equal(outcome.status, 'COMPLETED');
+  assert.equal(calls.settle.length, 1);
+  assert.deepEqual(calls.settle[0].marks, { winners: [], bigWinners: [] });
   assert.equal(calls.selectWeek.length, 0);
 
   const files = fs.readdirSync(outcome.runDir);
@@ -205,7 +212,7 @@ test('after you sign in the run takes over by itself (no Enter needed)', async (
   const { controller, prompts } = setup({ authFirstReads: 3 });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.equal(prompts.length, 0);
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  assert.equal(outcome.status, 'COMPLETED');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   assert.ok(journal.events.some((event) => event.type === 'WAITING_FOR_LOGIN'));
   assert.ok(journal.events.some((event) => event.type === 'LOGIN_DETECTED'));
@@ -215,7 +222,7 @@ test('the run waits for the strategy fixture by itself and then continues', asyn
   const { controller, prompts } = setup({ strategyReadyAfter: 3, feedStrategy: false });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.equal(prompts.length, 0);
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  assert.equal(outcome.status, 'COMPLETED');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   assert.ok(journal.events.some((event) => event.type === 'WAITING_FOR_STRATEGY_FIXTURE'));
 });
@@ -304,7 +311,7 @@ test('the identified Liverpool fixture is fed to the strategy when it has none (
   const { controller, calls } = setup({ strategyFeedable: true });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.deepEqual(calls.feed, [{ home: 'liv', away: 'mnu' }]);
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  assert.equal(outcome.status, 'COMPLETED');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   assert.ok(journal.events.some((event) => event.type === 'CHECKPOINT' && event.details.step === 'FEED_STRATEGY_FIXTURE'));
 });
@@ -324,7 +331,7 @@ test('a fixture the strategy has no odds for stops the run instead of inventing 
 test('automatic week: the upcoming round label is detected and reconciled on a first read-only run', async () => {
   const { controller } = setup();
   const outcome = await controller.run({ requiredWeek: null });
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  assert.equal(outcome.status, 'COMPLETED');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   const detected = journal.events.find((event) => event.type === 'WEEK_DETECTED');
   assert.equal(detected.details.detected.week, 5);
@@ -348,7 +355,7 @@ test('automatic week: a skipped week is refused until you choose the week yourse
 test('automatic week: the next week after the last settled one is accepted', async () => {
   const { controller } = setup({ lastSettledWeek: 4 });
   const outcome = await controller.run({ requiredWeek: null });
-  assert.equal(outcome.status, 'BLOCKED_SETTLEMENT');
+  assert.equal(outcome.status, 'COMPLETED');
 });
 
 test('automatic week: the first run refuses to select an odd until you confirm the week', async () => {
@@ -356,4 +363,155 @@ test('automatic week: the first run refuses to select an odd until you confirm t
   const outcome = await controller.run({ requiredWeek: null });
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.code, 'WEEK_NOT_CONFIRMED');
+});
+
+// ---- owner mappings, priority order, and the guarded place-bet step -------------------------
+
+function slipFlow(overrides = {}) {
+  const current = {};
+  return {
+    openMarketCategory: (category, fixture, options) => {
+      current.market = options?.market ?? category;
+      return {
+        status: 'MARKET_CATEGORY_OPENED',
+        evidence: { category, market: current.market, observedCategory: category, observedMarkets: [current.market], labelsInFixture: ['x'], via: 'test' },
+      };
+    },
+    identifyMarketSelection: (selection) => {
+      current.selection = selection;
+      return { status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'LIV', away: 'MNU', expectedHome: 'LIV', expectedAway: 'MNU', index: 0, labels: [selection] } };
+    },
+    enterStake: (stake) => { current.stake = stake; return { status: 'STAKE_ENTERED' }; },
+    readSlipPage: () => ({
+      isBetSlipPage: true,
+      items: [{ home: 'LIV', away: 'MNU', market: current.market, selection: current.selection, odds: 13.3, week: 5 }],
+      stake: current.stake,
+      totalOdds: 13.3,
+      potentialWinnings: current.stake * 13.3,
+      expirySeconds: 40,
+    }),
+    placeBet: { status: 'ACCEPTED_BY_SITE_TEXT', evidence: { clickedAt: '2026-10-17T10:00:00Z', siteConfirmationText: 'Bet placed successfully', newLines: [] } },
+    closeBetSlip: { status: 'BET_SLIP_CLOSED' },
+    ...overrides,
+  };
+}
+
+const PLACE_ENV = { AUTOMATION_ALLOW_REAL_MONEY: 'yes', AUTOMATION_AUTO_CONFIRM: 'true' };
+const identifiedSelections = (calls) => calls.flow.filter((call) => call.name === 'identifyMarketSelection').map((call) => call.args[0]);
+
+test('every option is resolved from the owner mappings and processed in the owner order of play', async () => {
+  const { controller, calls } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'identify', flowOverrides: slipFlow() });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'COMPLETED');
+  // Liverpool is home: winner 6-0, then oneX 1/X, then twoX 2/X.
+  assert.deepEqual(identifiedSelections(calls), ['6-0', '1/X', '2/X']);
+  const categories = calls.flow.filter((call) => call.name === 'openMarketCategory').map((call) => call.args[0]);
+  assert.deepEqual(categories, ['Correct Score', 'HT/FT', 'HT/FT']);
+});
+
+test('place mode places each verified bet once, one slip at a time, and settles only placed options', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'place', env: PLACE_ENV, flowOverrides: slipFlow(),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'COMPLETED');
+  const names = calls.flow.map((call) => call.name);
+  assert.equal(names.filter((name) => name === 'placeBet').length, 3);
+  assert.equal(names.filter((name) => name === 'closeBetSlip').length, 3);
+  // Slip handling per option: add the odd, open the slip, enter the stake, place, close, next.
+  assert.deepEqual(names.slice(0, 8), ['openMarketCategory', 'identifyMarketSelection', 'selectOdd', 'openBetSlip', 'enterStake', 'readSlipPage', 'readSlipPage', 'placeBet']);
+  // HT 1-0, FT 1-1 at home: oneX won, twoX and winner lost. Only the accepted bets are evaluated.
+  assert.deepEqual(calls.settle[0].marks, { winners: ['oneX'], bigWinners: ['oneX'] });
+});
+
+test('place mode refuses to place anything without explicit real-money consent', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: { AUTOMATION_AUTO_CONFIRM: 'true' }, flowOverrides: slipFlow(),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'NO_BETS_PLACED');
+  assert.ok(!calls.flow.some((call) => call.name === 'placeBet'));
+  assert.equal(calls.settle.length, 0);
+});
+
+test('place mode needs a typed confirmation unless auto-confirm is on', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: { AUTOMATION_ALLOW_REAL_MONEY: 'yes' }, flowOverrides: slipFlow(),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'NO_BETS_PLACED');
+  assert.ok(!calls.flow.some((call) => call.name === 'placeBet'));
+});
+
+test('a typed confirmation of the exact stake is accepted and anything else is refused', async () => {
+  const winnerStake = 31;
+  const { controller, calls } = setup({
+    mappings: { winner: OWNER_MAPPINGS.winner }, through: 'place', env: { AUTOMATION_ALLOW_REAL_MONEY: 'yes' }, flowOverrides: slipFlow(),
+    answers: ['', `PLACE ${winnerStake}`],
+  });
+  const outcome = await controller.run({ requiredWeek: 5, prompts: true });
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  assert.equal(outcome.status, 'COMPLETED');
+});
+
+test('a stake above the cap is not placed and stops the remaining options', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'place',
+    env: { ...PLACE_ENV, AUTOMATION_MAX_STAKE: '100' }, flowOverrides: slipFlow(),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  // The winner stake (31) is within the cap and is placed; oneX (over the cap) is refused and twoX is never attempted.
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  const plan = readPlan(outcome);
+  assert.equal(plan.halted.strategyKey, 'oneX');
+  assert.ok(plan.deferred.some((record) => record.strategyKey === 'twoX'));
+});
+
+test('a click with no confirmation from the site pauses the run and nothing is settled', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: PLACE_ENV,
+    flowOverrides: slipFlow({ placeBet: { status: 'SUBMITTED_UNCONFIRMED', evidence: { clickedAt: '2026-10-17T10:00:00Z', newLines: ['Loading'] } } }),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'PAUSED');
+  assert.equal(outcome.code, 'WAGER_UNCONFIRMED');
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  assert.equal(calls.settle.length, 0);
+});
+
+test('a bet the site rejects is not counted as placed and stops the run before settlement', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: PLACE_ENV,
+    flowOverrides: slipFlow({ placeBet: { status: 'REJECTED_BY_SITE_TEXT', evidence: { clickedAt: '2026-10-17T10:00:00Z', newLines: ['Insufficient balance'] } } }),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'NO_BETS_PLACED');
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  assert.equal(calls.settle.length, 0);
+});
+
+test('a slip that no longer matches right before the click is not placed', async () => {
+  const flow = slipFlow();
+  const original = flow.readSlipPage;
+  let reads = 0;
+  flow.readSlipPage = () => {
+    reads += 1;
+    const slip = original();
+    // The first read (slip verification) is correct; the last look before the click shows a changed price.
+    return reads >= 2 ? { ...slip, items: [{ ...slip.items[0], odds: 12.1 }] } : slip;
+  };
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: PLACE_ENV, flowOverrides: flow,
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.ok(!calls.flow.some((call) => call.name === 'placeBet'));
+  assert.equal(outcome.status, 'NO_BETS_PLACED');
+});
+
+test('the place depth is accepted by the configuration and is the only one that can submit', () => {
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_PIPELINE_THROUGH: 'place' }).pipelineThrough, 'place');
+  const config = createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' });
+  assert.equal(config.allowRealMoney, false);
+  assert.equal(config.autoConfirm, false);
+  assert.equal(config.maxStake, 1000);
 });

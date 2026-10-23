@@ -97,6 +97,13 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
         matchCount: matches.length,
         matchHome: row ? text(row.querySelector('[data-testid="teams-home-name"]')) : null,
         matchAway: row ? text(row.querySelector('[data-testid="teams-away-name"]')) : null,
+        marketTitles: rounds.length === 1
+          ? [...rounds[0].querySelectorAll('*')]
+            .filter((element) => element.children.length === 0 && !element.closest('[data-testid="match"]'))
+            .map(text)
+            .filter((value) => value && value.length <= 40 && !/^\d{1,2}:\d{2}$/.test(value))
+          : [],
+        chipTexts: [...document.querySelectorAll('[data-testid="market-selector-tab"]')].map(text),
         labels: row ? [...row.querySelectorAll('[data-testid="selection-name"]')].map(text) : [],
         odds: row ? [...row.querySelectorAll('[data-testid="match-odd-value"]')].map(text) : [],
       };
@@ -239,13 +246,29 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
   // ---- stage: market category ----------------------------------------------------------
 
-  async function openMarketCategory(category, fixture) {
+  // Opens a category (the panel chip, for example "Half Time") and, when the market inside it has
+  // a different name (for example "HT Correct Score"), that market's chip. The category counts as
+  // open only when the page shows it as active, and the market only when its title is shown and
+  // the fixture lists selection labels.
+  async function openMarketCategory(category, fixture, options = {}) {
+    const market = options.market ?? category;
     const target = norm(category);
+    const needsSubMarket = norm(market) !== target;
     const observed = (state) => state.selectedMarketName || state.headerCategory || null;
-    const isActive = (state) => (norm(state.selectedMarketName) === target || norm(state.headerCategory) === target) && state.labels.length > 0;
+    const categoryActive = (state) => norm(state.selectedMarketName) === target || norm(state.headerCategory) === target;
+    const marketShown = (state) => !needsSubMarket || state.marketTitles.some((name) => norm(name) === norm(market));
+    const fullyActive = (state) => categoryActive(state) && marketShown(state) && state.labels.length > 0;
     const opened = (state, via, attempts) => ({
       status: 'MARKET_CATEGORY_OPENED',
-      evidence: { category, observedCategory: observed(state), labelsInFixture: state.labels, via, attempts },
+      evidence: {
+        category,
+        market,
+        observedCategory: observed(state),
+        observedMarkets: state.marketTitles,
+        labelsInFixture: state.labels,
+        via,
+        attempts,
+      },
     });
     const attempts = [];
     let state;
@@ -254,54 +277,72 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       if (!cleared.ok) {
         attempts.push({ via: 'overlay', status: cleared.status, overlays: cleared.overlays });
         if (!(await waitForOverlayCleared(config.overlayWaitMs ?? 20000))) {
-          return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, reason: 'OVERLAY_BLOCKING', attempts } };
+          return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, market, reason: 'OVERLAY_BLOCKING', attempts } };
         }
       }
 
       state = await readMarketState(fixture);
       if (state.roundCount !== 1 || state.matchCount !== 1) {
-        return { status: 'FIXTURE_ROW_NOT_AVAILABLE', evidence: { category, state } };
+        return { status: 'FIXTURE_ROW_NOT_AVAILABLE', evidence: { category, market, state } };
       }
-      if (isActive(state)) return opened(state, 'already-active', attempts);
+      if (fullyActive(state)) return opened(state, 'already-active', attempts);
 
-      const confirm = async (via) => {
-        state = await pollUntil(() => readMarketState(fixture), isActive);
-        attempts.push({ via, selectedMarketName: state.selectedMarketName, headerCategory: state.headerCategory, labels: state.labels.length });
-        return isActive(state);
+      const confirm = async (via, predicate) => {
+        state = await pollUntil(() => readMarketState(fixture), predicate);
+        attempts.push({ via, selectedMarketName: state.selectedMarketName, headerCategory: state.headerCategory, markets: state.marketTitles, labels: state.labels.length });
+        return predicate(state);
       };
 
-      // 1. A visible category chip in the favourites row (for example "HT/FT").
-      const chip = page.locator(overrides.categoryChip || '[data-testid="market-selector-tab"]')
-        .filter({ hasText: new RegExp(`^\\s*${escapeRegex(category)}\\s*$`, 'i') }).first();
-      if (await chip.count() > 0 && await chip.isVisible()) {
-        await safeClick(chip);
-        if (await confirm('visible-chip')) return opened(state, 'visible-chip', attempts);
+      // Step A: make the category active.
+      if (!categoryActive(state)) {
+        // A visible chip in the favourites row (for example "HT/FT").
+        const chip = page.locator(overrides.categoryChip || '[data-testid="market-selector-tab"]')
+          .filter({ hasText: new RegExp(`^\\s*${escapeRegex(category)}\\s*$`, 'i') }).first();
+        let done = false;
+        if (await chip.count() > 0 && await chip.isVisible()) {
+          await safeClick(chip);
+          done = await confirm('visible-chip', categoryActive);
+        }
+        if (!done) {
+          // Open More Markets and choose the chip INSIDE the panel.
+          const toggle = overrides.moreMarkets
+            ? page.locator(overrides.moreMarkets).first()
+            : page.getByText(/^(More|Close)\s+Markets$/i).first();
+          state = await readMarketState(fixture);
+          if (!state.panelOpen && await toggle.count() > 0) {
+            await safeClick(toggle);
+            await pause(500);
+          }
+          const tagged = await tagCategoryChip(category);
+          attempts.push({ via: 'panel-chip', tagged });
+          if (tagged.found) {
+            try {
+              await safeClick(page.locator(`[${ATTRIBUTE_CATEGORY}="1"]`).first());
+            } finally {
+              await page.evaluate((attribute) => {
+                document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
+              }, ATTRIBUTE_CATEGORY);
+            }
+            done = await confirm('panel-chip', categoryActive);
+          }
+        }
+        if (!done) return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, market, attempts, lastState: state } };
       }
 
-      // 2. Open More Markets and choose the chip INSIDE the panel.
-      const toggle = overrides.moreMarkets
-        ? page.locator(overrides.moreMarkets).first()
-        : page.getByText(/^(More|Close)\s+Markets$/i).first();
-      state = await readMarketState(fixture);
-      if (!state.panelOpen && await toggle.count() > 0) {
-        await safeClick(toggle);
-        await pause(500);
-      }
-      const tagged = await tagCategoryChip(category);
-      attempts.push({ via: 'panel-chip', tagged });
-      if (tagged.found) {
-        try {
-          await safeClick(page.locator(`[${ATTRIBUTE_CATEGORY}="1"]`).first());
-        } finally {
-          await page.evaluate((attribute) => {
-            document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
-          }, ATTRIBUTE_CATEGORY);
+      // Step B: when the market has its own chip inside the category, select it.
+      if (!marketShown(state)) {
+        const marketChip = page.locator(overrides.categoryChip || '[data-testid="market-selector-tab"]')
+          .filter({ hasText: new RegExp(`^\\s*${escapeRegex(market)}\\s*$`, 'i') }).first();
+        if (await marketChip.count() === 0) {
+          attempts.push({ via: 'market-chip', found: false, chips: state.chipTexts });
+          return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, market, reason: 'MARKET_CHIP_NOT_FOUND', attempts, lastState: state } };
         }
-        if (await confirm('panel-chip')) return opened(state, 'more-markets-panel', attempts);
+        await safeClick(marketChip);
       }
-      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, attempts, lastState: state } };
+      if (await confirm('market-shown', fullyActive)) return opened(state, 'more-markets-panel', attempts);
+      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, market, attempts, lastState: state } };
     } catch (error) {
-      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, attempts, error: error.message.split('\n')[0], lastState: state ?? null } };
+      return { status: 'MARKET_CATEGORY_NOT_OPENED', evidence: { category, market, attempts, error: error.message.split('\n')[0], lastState: state ?? null } };
     }
   }
 
@@ -450,6 +491,96 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     }
   }
 
+  // ---- closing the slip and placing the bet ---------------------------------------------------
+
+  // Closes the slip with the X beside its title (as in the recording) and waits until the market
+  // page is back. Nothing else is clicked.
+  async function closeBetSlip() {
+    const tagged = await page.evaluate((attribute) => {
+      const text = (element) => (element.textContent || '').replace(/\s+/g, ' ').trim();
+      const title = [...document.querySelectorAll('*')]
+        .find((element) => element.children.length === 0 && /^VIRTUALS BETSLIP$/i.test(text(element)));
+      if (!title) return false;
+      const titleBox = title.getBoundingClientRect();
+      let node = title.parentElement;
+      for (let depth = 0; depth < 4 && node; depth += 1) {
+        const candidates = [...node.querySelectorAll('button,[role="button"],a,svg')].filter((element) => {
+          const box = element.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && box.left > titleBox.right
+            && Math.abs((box.top + box.height / 2) - (titleBox.top + titleBox.height / 2)) < 40
+            && !/clear all/i.test(text(element));
+        });
+        if (candidates.length > 0) {
+          candidates[candidates.length - 1].setAttribute(attribute, '1');
+          return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }, ATTRIBUTE_CLOSE);
+    if (!tagged) return { status: 'BET_SLIP_NOT_CLOSED', evidence: { reason: 'The close control was not found.' } };
+    try {
+      await safeClick(page.locator(`[${ATTRIBUTE_CLOSE}="1"]`).first());
+    } finally {
+      await page.evaluate((attribute) => {
+        document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
+      }, ATTRIBUTE_CLOSE);
+    }
+    const back = await pollUntil(readSlipPage, (parsed) => !parsed.isBetSlipPage, 4000);
+    return back.isBetSlipPage
+      ? { status: 'BET_SLIP_NOT_CLOSED', evidence: { reason: 'The slip is still shown.' } }
+      : { status: 'BET_SLIP_CLOSED' };
+  }
+
+  const CONFIRMED_PATTERN = /(bet\s*(slip)?\s*(has\s*been\s*)?(successfully\s*)?(placed|accepted)|successfully\s*placed|bet\s*placed|placed\s*successfully)/i;
+  const REJECTED_PATTERN = /(insufficient|not\s*enough|failed|error|rejected|declined|unable|invalid|expired|not\s*allowed|exceeds?)/i;
+
+  // THE ONLY FUNCTION THAT CAN SUBMIT A WAGER. It clicks the single visible "PLACE BET" control
+  // exactly once, never retries, and then reports only what the page shows. A click is not
+  // acceptance: without the site's own confirmation text the result is SUBMITTED_UNCONFIRMED and
+  // the run must stop. Callers must have verified the slip and obtained authorization first.
+  async function placeBet({ minSecondsRemaining = 15, onEvidence = null } = {}) {
+    const before = await readSlipPage();
+    if (!before.isBetSlipPage || before.items.length !== 1) {
+      return { status: 'PLACE_PRECONDITION_FAILED', evidence: { isBetSlipPage: before.isBetSlipPage, items: before.items.length } };
+    }
+    if (typeof before.expirySeconds === 'number' && before.expirySeconds < minSecondsRemaining) {
+      return { status: 'SLIP_EXPIRING', evidence: { expirySeconds: before.expirySeconds } };
+    }
+    const button = page.getByRole('button', { name: /^place bet$/i });
+    if (await button.count() !== 1 || !(await button.first().isVisible()) || !(await button.first().isEnabled())) {
+      return { status: 'PLACE_BUTTON_NOT_FOUND', evidence: { matches: await button.count() } };
+    }
+    const textBefore = await page.evaluate(() => document.body.innerText || '');
+    if (onEvidence) await onEvidence('before-place');
+
+    const clickedAt = new Date().toISOString();
+    try {
+      await button.first().click({ timeout: actionTimeout });
+    } catch (error) {
+      return { status: 'PLACE_CLICK_FAILED', evidence: { error: error.message.split('\n')[0] } };
+    }
+
+    // Observe what the page shows afterwards; only lines that appeared after the click count.
+    const knownLines = new Set(textBefore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+    const deadline = Date.now() + (config.placeObserveMs ?? 8000);
+    let newLines = [];
+    let verdict = 'SUBMITTED_UNCONFIRMED';
+    while (Date.now() < deadline) {
+      await pause(500);
+      const textNow = await page.evaluate(() => document.body.innerText || '');
+      newLines = textNow.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !knownLines.has(line));
+      const joined = newLines.join(' | ');
+      if (CONFIRMED_PATTERN.test(joined)) { verdict = 'ACCEPTED_BY_SITE_TEXT'; break; }
+      if (REJECTED_PATTERN.test(joined)) { verdict = 'REJECTED_BY_SITE_TEXT'; break; }
+    }
+    if (onEvidence) await onEvidence('after-place');
+    return {
+      status: verdict,
+      evidence: { clickedAt, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
+    };
+  }
+
   // Evidence for debugging a failed navigation: overlays, the header, the toggle, the panel's
   // visible texts, and which rounds and fixtures are on screen. Read only.
   async function captureDiagnostics(fixture) {
@@ -476,16 +607,18 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
   // ---- read-only catalogue of what each category offers for one fixture -------------------------
 
-  async function catalogueCategories(categories, fixture) {
+  // Each entry is { category, market } (market defaults to the category name).
+  async function catalogueCategories(entries, fixture) {
     const rows = [];
-    for (const category of categories) {
-      const opened = await openMarketCategory(category, fixture);
+    for (const entry of entries) {
+      const { category, market = category } = typeof entry === 'string' ? { category: entry } : entry;
+      const opened = await openMarketCategory(category, fixture, { market });
       if (opened.status !== 'MARKET_CATEGORY_OPENED') {
-        rows.push({ category, status: opened.status, labels: [], odds: [], evidence: opened.evidence ?? null });
+        rows.push({ category, market, status: opened.status, labels: [], odds: [], evidence: opened.evidence ?? null });
         continue;
       }
       const state = await readMarketState(fixture);
-      rows.push({ category, status: 'READ', observedCategory: state.selectedMarketName, labels: state.labels, odds: state.odds });
+      rows.push({ category, market, status: 'READ', observedCategory: state.selectedMarketName || state.headerCategory, observedMarkets: state.marketTitles, labels: state.labels, odds: state.odds });
     }
     return rows;
   }
@@ -501,6 +634,8 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     openBetSlip,
     readSlipPage,
     enterStake,
+    closeBetSlip,
+    placeBet,
     catalogueCategories,
   });
 }

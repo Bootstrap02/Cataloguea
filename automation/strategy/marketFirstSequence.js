@@ -27,13 +27,17 @@ const STAGES = Object.freeze([
   'SELECTION_ADDED',
   'BET_SLIP_VERIFIED',
   'AWAITING_AUTHORIZATION',
+  'WAGER_SUBMITTED',
+  'WAGER_ACCEPTED',
 ]);
 
-// How far a run may go. 'identify' is read-only (never clicks an odd).
+// How far a run may go. 'identify' is read-only (never clicks an odd). 'place' is the only depth
+// that can submit a wager, and it additionally needs explicit real-money consent (see config).
 const PIPELINE_DEPTHS = Object.freeze({
   identify: 'ODDS_VERIFIED',
   select: 'SELECTION_ADDED',
   slip: 'AWAITING_AUTHORIZATION',
+  place: 'WAGER_ACCEPTED',
 });
 
 // The stages are tracked PER OPTION. The existing state machine is RUN-LEVEL: the run is in
@@ -49,6 +53,8 @@ const STAGE_MACHINE_STATE = Object.freeze({
   SELECTION_ADDED: STATES.READY_FOR_ACTION,
   BET_SLIP_VERIFIED: STATES.READY_FOR_ACTION,
   AWAITING_AUTHORIZATION: STATES.READY_FOR_ACTION,
+  WAGER_SUBMITTED: STATES.EXECUTING,
+  WAGER_ACCEPTED: STATES.WAITING_FOR_RESULT,
 });
 
 // Failure codes (see FAILURE_POLICIES in operationalWorkflow.js).
@@ -62,6 +68,10 @@ const PIPELINE_FAILURES = Object.freeze({
   SELECTION_NOT_ADDED: 'SELECTION_NOT_ADDED',
   BET_SLIP_MISMATCH: 'BET_SLIP_MISMATCH',
   SLIP_EXPIRING: 'SLIP_EXPIRING',
+  WAGER_NOT_AUTHORIZED: 'WAGER_NOT_AUTHORIZED',
+  WAGER_REJECTED: 'WAGER_REJECTED',
+  WAGER_UNCONFIRMED: 'WAGER_UNCONFIRMED',
+  PLACE_BUTTON_NOT_FOUND: 'PLACE_BUTTON_NOT_FOUND',
 });
 
 const ODDS_TOLERANCE = 0.005;
@@ -92,6 +102,10 @@ const VALIDATORS = Object.freeze({
     if (!evidence?.category) return 'No category recorded.';
     if (norm(evidence.observedCategory) !== norm(evidence.category)) {
       return 'The page does not show the requested category as active.';
+    }
+    if (evidence.market && norm(evidence.market) !== norm(evidence.category)
+      && !(evidence.observedMarkets ?? []).some((name) => norm(name) === norm(evidence.market))) {
+      return `The market ${evidence.market} is not shown inside the ${evidence.category} category.`;
     }
     if (!Array.isArray(evidence.labelsInFixture) || evidence.labelsInFixture.length === 0) {
       return 'No selection labels are visible for the fixture in this category.';
@@ -127,6 +141,15 @@ const VALIDATORS = Object.freeze({
   },
   AWAITING_AUTHORIZATION(evidence) {
     if (evidence?.submitted) return 'A wager must never be marked submitted at this stage.';
+    return null;
+  },
+  WAGER_SUBMITTED(evidence) {
+    if (!evidence?.authorized) return 'The wager was not explicitly authorized.';
+    if (!evidence.clickedAt) return 'No record of when the place-bet control was used.';
+    return null;
+  },
+  WAGER_ACCEPTED(evidence) {
+    if (!evidence?.siteConfirmationText) return 'The site gave no confirmation text; a click is not acceptance.';
     return null;
   },
 });
@@ -202,43 +225,58 @@ function parseCountdownSeconds(text) {
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
-// Parses the visible text of the "VIRTUALS BETSLIP" page (as seen in the recording).
-// The input value is supplied separately because it is not part of the page text.
+// Parses the visible text of the "VIRTUALS BETSLIP" page. Two layouts have been seen:
+//   one selection (recording):  fixture line, odds, "<market> - <selection>"
+//   several selections (owner screenshots): fixture line, then repeated
+//     "<market> - <selection>" followed by its odds, then the Singles / Stake rows.
+// The stake input value is supplied separately because it is not part of the page text.
 function parseBetSlipText(text, { stakeInputValue = null } = {}) {
   const source = String(text ?? '');
   const lines = source.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const fixturePattern = /^([A-Za-z0-9]{2,5})\s*-\s*([A-Za-z0-9]{2,5})$/;
-  const oddsPattern = /^\d+(?:\.\d+)?$/;
+  const oddsPattern = /^\d[\d,]*(?:\.\d+)?$/;
+  const leaguePattern = /league.*week\s*\d+|week\s*\d+/i;
+  const stopPattern = /^(Group|Com|Stake|Total Stake|Singles|Multiple|Winnings|Total Odds|Net Potential|PLACE BET|Clear All|Next event|VIRTUALS BETSLIP)/i;
+  const toNumber = (value) => Number(String(value).replace(/,/g, ''));
   const items = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const fixture = fixturePattern.exec(lines[index]);
     if (!fixture) continue;
-    let market = null;
-    let selection = null;
-    let odds = null;
     let league = null;
-    for (let offset = 1; offset <= 4 && index + offset < lines.length; offset += 1) {
-      const candidate = lines[index + offset];
-      if (oddsPattern.test(candidate) && odds === null) { odds = Number(candidate); continue; }
-      const split = /^(.+?)\s+-\s+(.+)$/.exec(candidate);
-      if (split && !fixturePattern.test(candidate) && market === null) {
-        market = split[1].trim();
-        selection = split[2].trim();
+    for (let back = 1; back <= 3 && index - back >= 0; back += 1) {
+      if (leaguePattern.test(lines[index - back])) { league = lines[index - back]; break; }
+    }
+    const week = league ? Number((/week\s*(\d+)/i.exec(league) || [])[1]) || null : null;
+    let pendingOdds = null;
+    let cursor = index + 1;
+    for (; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (fixturePattern.test(line) || stopPattern.test(line) || (leaguePattern.test(line) && /league/i.test(line))) break;
+      if (oddsPattern.test(line)) {
+        const last = items[items.length - 1];
+        if (last && last.odds === null && last.home === fixture[1].toUpperCase() && last.away === fixture[2].toUpperCase()) {
+          last.odds = toNumber(line);
+        } else {
+          pendingOdds = toNumber(line);
+        }
+        continue;
+      }
+      const split = /^(.+?)\s+-\s+(.+)$/.exec(line);
+      if (split) {
+        items.push({
+          home: fixture[1].toUpperCase(),
+          away: fixture[2].toUpperCase(),
+          market: split[1].trim(),
+          selection: split[2].trim(),
+          odds: pendingOdds,
+          league,
+          week,
+        });
+        pendingOdds = null;
       }
     }
-    for (let back = 1; back <= 3 && index - back >= 0; back += 1) {
-      if (/week\s*\d+/i.test(lines[index - back])) { league = lines[index - back]; break; }
-    }
-    items.push({
-      home: fixture[1].toUpperCase(),
-      away: fixture[2].toUpperCase(),
-      market,
-      selection,
-      odds,
-      league,
-      week: league ? Number((/week\s*(\d+)/i.exec(league) || [])[1]) || null : null,
-    });
+    index = cursor - 1;
   }
 
   const find = (pattern) => {
@@ -250,7 +288,7 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
     items,
     stake: stakeInputValue === null || stakeInputValue === '' ? null : parseMoney(stakeInputValue),
     totalOdds: parseMoney(find(/Total Odds\s*([\d.,]+)/i)),
-    potentialWinnings: parseMoney(find(/Net Potential Winnings\s*(?:₦|N)?\s*([\d.,]+)/i)),
+    potentialWinnings: parseMoney(find(/Net Potential Winnings\s*(?:\u20a6|N)?\s*([\d.,]+)/i)),
     expirySeconds: expiryText ? parseCountdownSeconds(expiryText) : null,
     isBetSlipPage: /VIRTUALS BETSLIP/i.test(source),
   };
@@ -270,7 +308,7 @@ function compareSlipToExpected({ slip, expected, minSecondsRemaining = MIN_SECON
   const matching = slip.items.filter((item) => (
     normalizeTeamCode(item.home) === normalizeTeamCode(expected.home)
     && normalizeTeamCode(item.away) === normalizeTeamCode(expected.away)
-    && norm(item.market) === norm(expected.category)
+    && norm(item.market) === norm(expected.market ?? expected.category)
     && norm(item.selection) === norm(expected.selection)
   ));
   if (matching.length > 1) problems.push('DUPLICATE_SELECTION');
@@ -280,7 +318,7 @@ function compareSlipToExpected({ slip, expected, minSecondsRemaining = MIN_SECON
     const sameFixture = normalizeTeamCode(item.home) === normalizeTeamCode(expected.home)
       && normalizeTeamCode(item.away) === normalizeTeamCode(expected.away);
     if (!sameFixture) problems.push('WRONG_FIXTURE');
-    else if (norm(item.market) !== norm(expected.category)) problems.push('WRONG_MARKET');
+    else if (norm(item.market) !== norm(expected.market ?? expected.category)) problems.push('WRONG_MARKET');
     else problems.push('WRONG_SELECTION');
   }
   if (expected.week && item.week && item.week !== expected.week) problems.push('WRONG_WEEK');

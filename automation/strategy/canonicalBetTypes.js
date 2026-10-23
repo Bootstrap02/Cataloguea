@@ -1,4 +1,5 @@
 const { ASSET_KEYS } = require('./catalogueaAdapter');
+const { OWNER_MAPPINGS } = require('./marketMappings');
 
 const UNRESOLVED_MARKET = 'UNRESOLVED_MARKET';
 
@@ -12,6 +13,8 @@ const UNRESOLVED_MARKET = 'UNRESOLVED_MARKET';
 //                          is Liverpool-relative, are unconfirmed).
 //   UNRESOLVED           - meaning not established anywhere.
 const SEMANTICS_STATUS = Object.freeze({
+  // Owner defined the win condition and its market (Oct 17 statement and slip screenshots).
+  OWNER_DEFINED: 'OWNER_DEFINED',
   USER_SPECIFIED: 'USER_SPECIFIED',
   ORIENTATION_ONLY: 'ORIENTATION_ONLY',
   ASSUMED_FROM_LABEL: 'ASSUMED_FROM_LABEL',
@@ -23,10 +26,11 @@ const STRATEGY_BET_TYPES = Object.freeze([
     canonicalId: 'SCORE_6_0',
     strategyKey: 'winner',
     strategyLabel: '6\u20130',
-    phase: 'UNSPECIFIED',
-    semanticsStatus: SEMANTICS_STATUS.UNRESOLVED,
-    condition: { scoreLabel: '6-0', scoreOrder: 'UNRESOLVED' },
-    meaning: 'The separate winner odds field funds the UI 6\u20130 stake; the user calls it the 6\u20130 option, but whether it is an exact score, a margin, and from whose perspective is not defined by the strategy source.',
+    phase: 'FULL_TIME',
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
+    condition: { liverpoolGoals: 6, opponentGoals: 0, scoreLabel: '6-0' },
+    meaning: 'Wins when Liverpool wins 6-0 at full time (FT_LIV = 6 and FT_OPP = 0). BetKing: Correct Score 6-0 when Liverpool is home, 0-6 when away.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'STRATEGY_1X',
@@ -35,9 +39,9 @@ const STRATEGY_BET_TYPES = Object.freeze([
     strategyLabel: '1X',
     phase: 'HALF_TIME_AND_FULL_TIME',
     perspective: 'LIVERPOOL',
-    semanticsStatus: SEMANTICS_STATUS.USER_SPECIFIED,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { halfTime: 'LIVERPOOL_LEADS', fullTime: 'DRAW' },
-    meaning: 'Strategy-specific (NOT the conventional Double Chance 1X). Wins when Liverpool leads at half time AND the full-time score is a draw: HT_LIV > HT_OPP AND FT_LIV = FT_OPP.',
+    meaning: 'Strategy-specific (NOT the conventional Double Chance 1X). Wins when Liverpool leads at half time AND the full-time score is a draw: HT_LIV > HT_OPP AND FT_LIV = FT_OPP. BetKing: HT/FT 1/X when Liverpool is home, 2/X when away.',
   },
   {
     canonicalId: 'STRATEGY_2X',
@@ -45,83 +49,89 @@ const STRATEGY_BET_TYPES = Object.freeze([
     strategyLabel: '2X',
     phase: 'HALF_TIME_AND_FULL_TIME',
     perspective: 'LIVERPOOL',
-    semanticsStatus: SEMANTICS_STATUS.USER_SPECIFIED,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { halfTime: 'LIVERPOOL_TRAILS', fullTime: 'DRAW' },
-    meaning: 'Strategy-specific reverse of oneX; not an alias for X2. Wins when Liverpool trails at half time AND the full-time score is a draw: HT_LIV < HT_OPP AND FT_LIV = FT_OPP.',
+    meaning: 'Strategy-specific reverse of oneX. Wins when Liverpool trails at half time AND the full-time score is a draw: HT_LIV < HT_OPP AND FT_LIV = FT_OPP. BetKing: HT/FT 2/X when Liverpool is home, 1/X when away.',
   },
   {
     canonicalId: 'DOUBLE_CHANCE_X2',
     strategyKey: 'x2',
     strategyLabel: 'X2',
-    phase: 'UNSPECIFIED',
+    phase: 'HALF_TIME_AND_FULL_TIME',
     perspective: 'LIVERPOOL',
-    semanticsStatus: SEMANTICS_STATUS.ORIENTATION_ONLY,
-    condition: { label: 'X2' },
-    orientation: { LIVERPOOL_HOME: 'X2', LIVERPOOL_AWAY: 'X1' },
-    meaning: 'Selection depends on Liverpool position: Liverpool home -> X2, Liverpool away -> X1 (user rule). The settlement condition for X2/X1 is not specified and stays unresolved; no separate x1 strategy key exists.',
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
+    condition: { halfTime: 'DRAW', fullTime: 'LIVERPOOL_LOSES' },
+    meaning: 'Wins when the half-time score is level and Liverpool then loses: HT_LIV = HT_OPP AND FT_LIV < FT_OPP. BetKing: HT/FT X/2 when Liverpool is home, X/1 when away (not Double Chance).',
   },
   {
     canonicalId: 'TOTAL_GOALS_0',
     strategyKey: 'tg0',
     strategyLabel: 'TG0',
-    phase: 'UNSPECIFIED',
-    semanticsStatus: SEMANTICS_STATUS.UNRESOLVED,
-    condition: { label: 'TG0' },
-    meaning: 'The strategy UI category is TG0; whether this means exactly zero or a goals-market line is not encoded in the strategy source.',
+    phase: 'FULL_TIME',
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
+    condition: { totalGoals: 0 },
+    meaning: 'Wins when the match has no goals at full time (FT_LIV + FT_OPP = 0). BetKing: Total Goals 0.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'TOTAL_GOALS_6',
     strategyKey: 'tg6',
     strategyLabel: 'TG6',
-    phase: 'UNSPECIFIED',
-    semanticsStatus: SEMANTICS_STATUS.UNRESOLVED,
-    condition: { label: 'TG6' },
-    meaning: 'The strategy UI category is TG6; whether this means exactly six or a goals-market line is not encoded in the strategy source.',
+    phase: 'FULL_TIME',
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
+    condition: { totalGoals: 6 },
+    meaning: 'Wins when the match has exactly six goals at full time (FT_LIV + FT_OPP = 6). BetKing: Total Goals 6 (the catalogue checks that the label means exactly six).',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'HT_SCORE_1_2',
     strategyKey: 'ht12',
     strategyLabel: 'HT12',
     phase: 'HALF_TIME',
-    semanticsStatus: SEMANTICS_STATUS.ASSUMED_FROM_LABEL,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { home: 1, away: 2 },
-    meaning: 'ASSUMED from the label (not defined in strategy source): half-time score 1-2 in home-away order. Whether it is Liverpool-relative is unconfirmed.',
+    meaning: 'Wins when the half-time score is Liverpool 1, opponent 2 (HT_LIV = 1 and HT_OPP = 2). BetKing: HT Correct Score 1-2 when Liverpool is home, 2-1 when away. The condition field is written Liverpool-opponent.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'HT_SCORE_2_1',
     strategyKey: 'ht21',
     strategyLabel: 'HT21',
     phase: 'HALF_TIME',
-    semanticsStatus: SEMANTICS_STATUS.ASSUMED_FROM_LABEL,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { home: 2, away: 1 },
-    meaning: 'ASSUMED from the label (not defined in strategy source): half-time score 2-1 in home-away order. Whether it is Liverpool-relative is unconfirmed.',
+    meaning: 'Wins when the half-time score is Liverpool 2, opponent 1 (HT_LIV = 2 and HT_OPP = 1). BetKing: HT Correct Score 2-1 when Liverpool is home, 1-2 when away. The condition field is written Liverpool-opponent.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'HT_SCORE_3_0',
     strategyKey: 'ht30',
     strategyLabel: 'HT30',
     phase: 'HALF_TIME',
-    semanticsStatus: SEMANTICS_STATUS.ASSUMED_FROM_LABEL,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { home: 3, away: 0 },
-    meaning: 'ASSUMED from the label (not defined in strategy source): half-time score 3-0 in home-away order. Whether it is Liverpool-relative is unconfirmed.',
+    meaning: 'Wins when the half-time score is Liverpool 3, opponent 0 (HT_LIV = 3 and HT_OPP = 0). BetKing: HT Correct Score 3-0 when Liverpool is home, 0-3 when away. The condition field is written Liverpool-opponent.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'FT_SCORE_4_0',
     strategyKey: 'ft40',
     strategyLabel: 'FT40',
     phase: 'FULL_TIME',
-    semanticsStatus: SEMANTICS_STATUS.ASSUMED_FROM_LABEL,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { home: 4, away: 0 },
-    meaning: 'ASSUMED from the label (not defined in strategy source): full-time score 4-0 in home-away order. Whether it is Liverpool-relative is unconfirmed.',
+    meaning: 'Wins when Liverpool wins 4-0 at full time (FT_LIV = 4 and FT_OPP = 0). BetKing: Correct Score 4-0 when Liverpool is home, 0-4 when away. The condition field is written Liverpool-opponent.',
+    perspective: 'LIVERPOOL',
   },
   {
     canonicalId: 'FT_SCORE_4_1',
     strategyKey: 'ft41',
     strategyLabel: 'FT41',
     phase: 'FULL_TIME',
-    semanticsStatus: SEMANTICS_STATUS.ASSUMED_FROM_LABEL,
+    semanticsStatus: SEMANTICS_STATUS.OWNER_DEFINED,
     condition: { home: 4, away: 1 },
-    meaning: 'ASSUMED from the label (not defined in strategy source): full-time score 4-1 in home-away order. Whether it is Liverpool-relative is unconfirmed.',
+    meaning: 'Wins when Liverpool wins 4-1 at full time (FT_LIV = 4 and FT_OPP = 1). BetKing: Correct Score 4-1 when Liverpool is home, 1-4 when away. The condition field is written Liverpool-opponent.',
+    perspective: 'LIVERPOOL',
   },
 ].map((betType) => Object.freeze({
   ...betType,
@@ -202,41 +212,24 @@ const OBSERVED_HTFT_SELECTIONS = Object.freeze([
 ]);
 
 const PROPOSAL_STATUS = Object.freeze({
+  OWNER_CONFIRMED: 'OWNER_CONFIRMED',
   FROM_VIDEO_UNVERIFIED: 'PROPOSED_FROM_VIDEO_UNVERIFIED_IN_DOM',
   NEEDS_OWNER_CONFIRMATION: 'PROPOSED_NEEDS_OWNER_CONFIRMATION',
   CATEGORY_CANDIDATE: 'CATEGORY_CANDIDATE_SELECTION_UNRESOLVED',
 });
 
-// HT/FT symbols are written from the HOME team's side: first symbol = half-time result,
-// second = full-time result (1 = home, X = draw, 2 = away).
-const MARKET_PROPOSALS = Object.freeze({
-  oneX: Object.freeze({
-    status: PROPOSAL_STATUS.FROM_VIDEO_UNVERIFIED,
-    category: 'HT/FT',
-    selectionBySide: Object.freeze({ HOME: '1/X', AWAY: '2/X' }),
-    basis: 'oneX = Liverpool leads at half time and the match is drawn. Liverpool home: HT home lead, FT draw = 1/X. Liverpool away: HT away lead, FT draw = 2/X.',
-  }),
-  twoX: Object.freeze({
-    status: PROPOSAL_STATUS.FROM_VIDEO_UNVERIFIED,
-    category: 'HT/FT',
-    selectionBySide: Object.freeze({ HOME: '2/X', AWAY: '1/X' }),
-    basis: 'twoX = Liverpool trails at half time and the match is drawn. Liverpool home: HT away lead, FT draw = 2/X. Liverpool away: HT home lead, FT draw = 1/X.',
-  }),
-  x2: Object.freeze({
-    status: PROPOSAL_STATUS.NEEDS_OWNER_CONFIRMATION,
-    category: 'HT/FT',
-    selectionBySide: Object.freeze({ HOME: 'X/2', AWAY: 'X/1' }),
-    basis: 'Reading of the owner rule "Liverpool home -> X2, away -> X1" in HT/FT notation: half-time draw, then the OPPONENT wins. The owner has not confirmed this reading, and the x2 settlement condition is still undefined, so it must not be used until confirmed.',
-  }),
-  winner: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; the winner (6-0) condition and the exact selection are not defined.' }),
-  tg0: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Total Goals', basis: 'Category exists in the recording; contents not shown.' }),
-  tg6: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Total Goals', basis: 'Category exists in the recording; contents not shown.' }),
-  ht12: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
-  ht21: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
-  ht30: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Half Time', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
-  ft40: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
-  ft41: Object.freeze({ status: PROPOSAL_STATUS.CATEGORY_CANDIDATE, category: 'Correct Score', basis: 'Category exists in the recording; contents not shown; the key meaning is itself an assumption.' }),
-});
+// HT/FT symbols are written from the HOME team's side: first symbol = half-time result, second =
+// full-time result (1 home, X draw, 2 away). Every option is defined from Liverpool's side, so the
+// selection depends on whether Liverpool is home or away. The table lives in marketMappings.js.
+const MARKET_PROPOSALS = Object.freeze(Object.fromEntries(
+  Object.entries(OWNER_MAPPINGS).map(([key, mapping]) => [key, Object.freeze({
+    status: PROPOSAL_STATUS.OWNER_CONFIRMED,
+    category: mapping.category,
+    market: mapping.market,
+    ...(mapping.selectionBySide ? { selectionBySide: mapping.selectionBySide } : { selection: mapping.selection }),
+    basis: mapping.evidence,
+  })]),
+));
 
 // Returns the proposal for a key, with the selection oriented for Liverpool's position when
 // the proposal is orientation dependent. Never returns a VERIFIED status.
@@ -246,7 +239,8 @@ function getMarketProposal(strategyKey, liverpoolSide = null) {
   return {
     status: proposal.status,
     category: proposal.category,
-    selection: proposal.selectionBySide ? (proposal.selectionBySide[liverpoolSide] ?? null) : null,
+    market: proposal.market,
+    selection: proposal.selectionBySide ? (proposal.selectionBySide[liverpoolSide] ?? null) : (proposal.selection ?? null),
     basis: proposal.basis,
   };
 }

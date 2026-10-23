@@ -1,4 +1,5 @@
 const { ASSET_KEYS } = require('./catalogueaAdapter');
+const { STRATEGY_PRIORITY } = require('./marketMappings');
 const { submitSoloMatrixFixture } = require('../../src/strategy/soloMatrixSettlement');
 const { STRATEGY_BET_TYPES, UNRESOLVED_MARKET, getMarketProposal } = require('./canonicalBetTypes');
 const {
@@ -78,6 +79,7 @@ function createStrategyDecisionAdapter({
     const override = betKingMarketMappings[assetKey];
     const mapping = override && typeof override === 'object' ? override : betType.betKing;
     const market = mapping.market ?? mapping.category ?? null;
+    const category = mapping.category ?? mapping.market ?? null;
     let selection = mapping.selection ?? null;
     let status = mapping.status;
     if (mapping.selectionBySide) {
@@ -87,6 +89,7 @@ function createStrategyDecisionAdapter({
     return {
       status,
       market,
+      category,
       selection,
       canonicalId: betType.canonicalId,
       strategyLabel: betType.strategyLabel,
@@ -169,7 +172,8 @@ function createStrategyDecisionAdapter({
     const submitted = evaluateStakes(state, fixture);
     const liverpool = determineLiverpoolSide(fixture);
 
-    const instructions = ['winner', ...ASSET_KEYS].map((assetKey) => {
+    // Options are listed in the owner's order of play (winner first, ft41 last).
+    const instructions = STRATEGY_PRIORITY.map((assetKey) => {
       const stakeInfo = getStakeForAsset(submitted, assetKey);
       const betKingInfo = getBetKingMarketInfo(assetKey, liverpool.side);
       const decision = determineInstructionStatus(stakeInfo, betKingInfo);
@@ -185,6 +189,7 @@ function createStrategyDecisionAdapter({
         bigDeficitStake: decision.merged.big,
         odds: readFixtureOdd(fixture, assetKey),
         betKingMarket: betKingInfo.market,
+        betKingCategory: betKingInfo.category ?? null,
         betKingSelection: betKingInfo.selection,
         orientedSelection: oriented.oriented ? oriented.selection : null,
         liverpoolSide: liverpool.side,

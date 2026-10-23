@@ -18,16 +18,19 @@ const SIDE_STATUS = Object.freeze({
   AMBIGUOUS: 'AMBIGUOUS',
 });
 
-// Strategy keys whose selection depends on Liverpool's home/away position.
-// The user's rule: Liverpool home -> "X2"; Liverpool away -> "X1".
-// Only the selection LABEL is specified. The settlement condition and the
-// mapping to a BetKing market label are NOT specified and stay unresolved.
-const ORIENTED_SELECTIONS = Object.freeze({
-  x2: Object.freeze({
-    [LIVERPOOL_SIDE.HOME]: 'X2',
-    [LIVERPOOL_SIDE.AWAY]: 'X1',
-  }),
-});
+const { OWNER_MAPPINGS } = require('./marketMappings');
+
+// Strategy keys whose selection depends on Liverpool's home/away position, taken from the
+// owner-confirmed mapping table (marketMappings.js): for example oneX is 1/X when Liverpool is
+// home and 2/X when away, and x2 is X/2 at home and X/1 away.
+const ORIENTED_SELECTIONS = Object.freeze(Object.fromEntries(
+  Object.entries(OWNER_MAPPINGS)
+    .filter(([, mapping]) => mapping.selectionBySide)
+    .map(([key, mapping]) => [key, Object.freeze({
+      [LIVERPOOL_SIDE.HOME]: mapping.selectionBySide.HOME,
+      [LIVERPOOL_SIDE.AWAY]: mapping.selectionBySide.AWAY,
+    })]),
+));
 
 function normalizeCode(value) {
   return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
