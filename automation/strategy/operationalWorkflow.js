@@ -1,9 +1,9 @@
-// Operational workflow for processing the Liverpool fixture of one game week.
+// Operational workflow for processing the Arsenal fixture of one game week.
 //
 // This module is the single place that defines:
 //   * the ordered workflow steps and how each maps onto the EXISTING state machine
 //   * the failure policy for every failure condition
-//   * pure planning functions (week alignment, Liverpool fixture identification,
+//   * pure planning functions (week alignment, Arsenal fixture identification,
 //     instruction preparation, per-option evaluation, next-week planning)
 //   * a thin coordinator that drives steps 1-9 through injected ports
 //
@@ -28,8 +28,8 @@ const {
 } = require('./fixtureIdentity');
 const {
   SIDE_STATUS,
-  determineLiverpoolSide,
-} = require('./liverpoolPerspective');
+  determineArsenalSide,
+} = require('./arsenalPerspective');
 const {
   SETTLEMENT_OUTCOMES,
   evaluateResultAgainstStrategy,
@@ -83,10 +83,10 @@ const FAILURE_POLICIES = Object.freeze(Object.fromEntries([
     'The required week is not offered by the website. Do not process another week; preserve state and report.'),
   policy('WRONG_WEEK_SELECTED', 'RETRY', 'STOP_FIXTURE',
     'After selecting, the page does not show the required week. Re-select once or twice, then stop the fixture.'),
-  policy('LIVERPOOL_FIXTURE_NOT_FOUND', 'STOP_FIXTURE', null,
-    'Liverpool does not appear in the selected week. Report; never switch week or fixture.'),
-  policy('AMBIGUOUS_LIVERPOOL_FIXTURE', 'STOP_FIXTURE', null,
-    'More than one candidate Liverpool fixture. Never pick one arbitrarily; stop the whole fixture.'),
+  policy('ARSENAL_FIXTURE_NOT_FOUND', 'STOP_FIXTURE', null,
+    'Arsenal does not appear in the selected week. Report; never switch week or fixture.'),
+  policy('AMBIGUOUS_ARSENAL_FIXTURE', 'STOP_FIXTURE', null,
+    'More than one candidate Arsenal fixture. Never pick one arbitrarily; stop the whole fixture.'),
   policy('FIXTURE_IDENTITY_MISMATCH', 'STOP_FIXTURE', null,
     'The website fixture does not match the strategy fixture with HIGH confidence (teams, home/away order, id). Stop the whole fixture.'),
   policy('STRATEGY_STATE_MISSING', 'MANUAL_INTERVENTION', null,
@@ -178,11 +178,11 @@ const WORKFLOW_STEPS = Object.freeze([
     'Selection action completed.', ['REQUIRED_WEEK_UNAVAILABLE', 'WRONG_WEEK_SELECTED'], 'Never process a different week.'),
   step('VERIFY_SELECTED_WEEK', STATES.OBSERVING, 'Re-read the page: required, visible, and selected week must agree.',
     'All three weeks are equal.', ['WRONG_WEEK_SELECTED'], 'Re-select (bounded) or stop the fixture.'),
-  step('IDENTIFY_LIVERPOOL_FIXTURE', STATES.FINDING_MATCH, 'Find the single Liverpool fixture in the selected week; record home/away and opponent.',
-    'Exactly one Liverpool fixture identified.', ['LIVERPOOL_FIXTURE_NOT_FOUND', 'AMBIGUOUS_LIVERPOOL_FIXTURE'], 'Stop the fixture; never switch week.'),
+  step('IDENTIFY_ARSENAL_FIXTURE', STATES.FINDING_MATCH, 'Find the single Arsenal fixture in the selected week; record home/away and opponent.',
+    'Exactly one Arsenal fixture identified.', ['ARSENAL_FIXTURE_NOT_FOUND', 'AMBIGUOUS_ARSENAL_FIXTURE'], 'Stop the fixture; never switch week.'),
   step('VERIFY_FIXTURE_IDENTITY', STATES.MATCH_VERIFICATION, 'Check week + teams + fixture id are mutually consistent on the website, then (after reading the strategy) match against the strategy fixture with HIGH confidence.',
     'Identity verified.', ['FIXTURE_IDENTITY_MISMATCH'], 'Stop the whole fixture.'),
-  step('FEED_STRATEGY_FIXTURE', STATES.OBSERVING_STRATEGY, 'If the strategy has no active fixture, feed it the identified Liverpool fixture (home and away team codes) through the strategy\'s own submit routine. An existing active fixture is never replaced; a missing odds row is never invented.',
+  step('FEED_STRATEGY_FIXTURE', STATES.OBSERVING_STRATEGY, 'If the strategy has no active fixture, feed it the identified Arsenal fixture (home and away team codes) through the strategy\'s own submit routine. An existing active fixture is never replaced; a missing odds row is never invented.',
     'The strategy reports the same fixture as active with its stakes calculated.', ['STRATEGY_FEED_FAILED'], 'Add the missing team odds row to the strategy data, or settle the active fixture first.'),
   step('READ_STRATEGY_STATE', STATES.OBSERVING_STRATEGY, 'Read the existing Solo Matrix state through the decision adapter.',
     'A strategy snapshot with an active fixture was read.', ['STRATEGY_STATE_MISSING', 'STALE_STRATEGY_STATE'], 'Manual submission in Cataloguea, or recalculate.'),
@@ -212,7 +212,7 @@ const WORKFLOW_STEPS = Object.freeze([
     'Plan produced; the workflow is ready for review.', [], 'Re-run preparation.'),
   step('WAIT_FOR_MATCH', STATES.WAITING_FOR_RESULT, 'Wait for the real fixture to start/finish using the website state, not a fixed duration.',
     'Fixture observed in progress or completed.', ['FIXTURE_STARTS_LATER', 'INTERNET_DISCONNECTED'], 'Wait/resume from checkpoint.'),
-  step('MONITOR_LIVERPOOL_FIXTURE', STATES.WAITING_FOR_RESULT, 'Observe the SAME fixture (live observer); record scores with timestamps.',
+  step('MONITOR_ARSENAL_FIXTURE', STATES.WAITING_FOR_RESULT, 'Observe the SAME fixture (live observer); record scores with timestamps.',
     'Observations tied to the verified fixture.', ['LIVE_FIXTURE_NOT_LOCATED', 'INTERNET_DISCONNECTED'], 'Retry; re-confirm fixture identity after reconnecting.'),
   step('CAPTURE_HALFTIME_RESULT_WHEN_AVAILABLE', STATES.WAITING_FOR_RESULT, 'Keep the half-time score separate from the full-time score.',
     'Verified half-time score captured.', ['HALFTIME_SCORE_UNAVAILABLE'], 'Dependent options stay unresolved.'),
@@ -279,7 +279,7 @@ function weeksFromSnapshot(snapshot) {
 
 const FIXTURE_ID_CODES = /^(?:matchup-statistics-button-)?([A-Za-z]{2,4})-([A-Za-z]{2,4})$/;
 
-function identifyLiverpoolFixtureForWeek({ snapshot, week } = {}) {
+function identifyArsenalFixtureForWeek({ snapshot, week } = {}) {
   const required = parseWeek(week);
   if (required === null) {
     return { status: 'REQUIRED_WEEK_UNKNOWN', week: null, reason: `Invalid week ${JSON.stringify(week)}.` };
@@ -307,15 +307,15 @@ function identifyLiverpoolFixtureForWeek({ snapshot, week } = {}) {
   const rawRound = matching[0];
   const round = normalizeBetKingSnapshot({ rounds: [rawRound] }).rounds[0];
   const candidates = round.fixtures
-    .map((fixture) => ({ fixture, side: determineLiverpoolSide(fixture) }))
+    .map((fixture) => ({ fixture, side: determineArsenalSide(fixture) }))
     .filter(({ side }) => side.status !== SIDE_STATUS.NOT_FOUND);
 
   if (candidates.length === 0) {
     return {
-      status: 'LIVERPOOL_NOT_FOUND',
+      status: 'ARSENAL_NOT_FOUND',
       week: required,
       roundName: round.roundName,
-      reason: `No Liverpool fixture in week ${required}. No other week was considered.`,
+      reason: `No Arsenal fixture in week ${required}. No other week was considered.`,
     };
   }
   if (candidates.length > 1 || candidates[0].side.status === SIDE_STATUS.AMBIGUOUS) {
@@ -324,7 +324,7 @@ function identifyLiverpoolFixtureForWeek({ snapshot, week } = {}) {
       week: required,
       roundName: round.roundName,
       candidates: candidates.map(({ fixture }) => ({ fixtureId: fixture.fixtureId, home: fixture.home, away: fixture.away })),
-      reason: `Week ${required} has ${candidates.length} Liverpool candidates; none was selected.`,
+      reason: `Week ${required} has ${candidates.length} Arsenal candidates; none was selected.`,
     };
   }
 
@@ -340,7 +340,7 @@ function identifyLiverpoolFixtureForWeek({ snapshot, week } = {}) {
       home: fixture.home,
       away: fixture.away,
     },
-    liverpoolSide: side.side,
+    arsenalSide: side.side,
     opponent: side.opponent,
     // The scheduled page exposes no live/finished state. UNKNOWN is reported
     // rather than assuming SCHEDULED.
@@ -407,7 +407,7 @@ function toInstructionRecord(instruction, context) {
     week: context.week,
     fixture: context.fixture,
     opponent: context.opponent,
-    liverpoolSide: context.liverpoolSide,
+    arsenalSide: context.arsenalSide,
     strategyKey: instruction.strategyKey,
     strategyLabel: instruction.strategyLabel,
     canonicalBetType: instruction.canonicalId,
@@ -415,7 +415,7 @@ function toInstructionRecord(instruction, context) {
     betKingMarket: instruction.betKingMarket ?? null,
     betKingCategory: instruction.betKingCategory ?? instruction.betKingMarket ?? null,
     betKingSelection: instruction.betKingSelection ?? null,
-    // For x2 this is the Liverpool-oriented label (X2 home / X1 away). It is a
+    // For x2 this is the Arsenal-oriented label (X2 home / X1 away). It is a
     // label only; it is NOT a verified BetKing selection.
     orientedSelection: instruction.orientedSelection ?? null,
     stake: instruction.stake,
@@ -463,7 +463,7 @@ function buildOperationalPlan({ week, identification, strategyInstructions } = {
     week,
     fixture: { ...identification.fixture },
     opponent: identification.opponent,
-    liverpoolSide: identification.liverpoolSide,
+    arsenalSide: identification.arsenalSide,
   };
   const records = strategyInstructions.instructions.map((instruction) => toInstructionRecord(instruction, context));
 
@@ -487,7 +487,7 @@ function buildOperationalPlan({ week, identification, strategyInstructions } = {
     ),
     allRecords: records,
     opponent: context.opponent,
-    liverpoolSide: context.liverpoolSide,
+    arsenalSide: context.arsenalSide,
     // Stake-eligible options (>= NGN 10 after merging), whatever their mapping status.
     eligible: [...readyForReview, ...unresolved],
     // Eligible options whose BetKing mapping is verified (instruction records).
@@ -524,7 +524,7 @@ function evaluateOptionsForResult({ plan, verifiedResult } = {}) {
 
   const evaluations = evaluable.map((record) => {
     const evaluation = evaluateResultAgainstStrategy(verifiedResult, record.strategyKey, {
-      liverpoolSide: plan.liverpoolSide,
+      arsenalSide: plan.arsenalSide,
     });
     return {
       strategyKey: record.strategyKey,
@@ -790,21 +790,21 @@ function createOperationalWorkflow({ stateMachine, ports } = {}) {
       return fail('WRONG_WEEK_SELECTED', 'VERIFY_SELECTED_WEEK', { reason: after.reason });
     }
 
-    // IDENTIFY_LIVERPOOL_FIXTURE
+    // IDENTIFY_ARSENAL_FIXTURE
     moveTo(STATES.FINDING_MATCH);
-    const identification = identifyLiverpoolFixtureForWeek({ snapshot, week: required });
-    record('IDENTIFY_LIVERPOOL_FIXTURE', identification.status, {
+    const identification = identifyArsenalFixtureForWeek({ snapshot, week: required });
+    record('IDENTIFY_ARSENAL_FIXTURE', identification.status, {
       fixture: identification.fixture ?? null,
       reason: identification.reason ?? null,
     });
     if (identification.status === 'WEEK_NOT_FOUND') {
-      return fail('REQUIRED_WEEK_UNAVAILABLE', 'IDENTIFY_LIVERPOOL_FIXTURE', { reason: identification.reason });
+      return fail('REQUIRED_WEEK_UNAVAILABLE', 'IDENTIFY_ARSENAL_FIXTURE', { reason: identification.reason });
     }
-    if (identification.status === 'LIVERPOOL_NOT_FOUND') {
-      return fail('LIVERPOOL_FIXTURE_NOT_FOUND', 'IDENTIFY_LIVERPOOL_FIXTURE', { reason: identification.reason });
+    if (identification.status === 'ARSENAL_NOT_FOUND') {
+      return fail('ARSENAL_FIXTURE_NOT_FOUND', 'IDENTIFY_ARSENAL_FIXTURE', { reason: identification.reason });
     }
     if (identification.status !== 'IDENTIFIED') {
-      return fail('AMBIGUOUS_LIVERPOOL_FIXTURE', 'IDENTIFY_LIVERPOOL_FIXTURE', {
+      return fail('AMBIGUOUS_ARSENAL_FIXTURE', 'IDENTIFY_ARSENAL_FIXTURE', {
         status: identification.status,
         reason: identification.reason,
         candidates: identification.candidates ?? null,
@@ -917,7 +917,7 @@ module.exports = {
   createOperationalWorkflow,
   createStakeFingerprint,
   evaluateOptionsForResult,
-  identifyLiverpoolFixtureForWeek,
+  identifyArsenalFixtureForWeek,
   planNextWeek,
   verifyFixtureAgainstStrategy,
   weeksFromSnapshot,

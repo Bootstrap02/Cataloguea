@@ -5,10 +5,10 @@ const { checkMappingsAgainstCatalogue } = require('./mappingEvidence');
 const HTFT = { category: 'HT/FT', market: 'HT/FT', status: 'READ', labels: ['1/1', '1/X', '1/2', 'X/1', 'X/X', 'X/2', '2/1', '2/X', '2/2'], odds: ['3.01', '13.30', '58.10', '7.32', '5.94', '12.40', '35.40', '13.30', '6.19'] };
 const GOALS = { category: 'Total Goals', market: 'Total Goals', status: 'READ', labels: ['0', '1', '2', '6'], odds: ['13.90', '8', '5', '20.00'] };
 const SCORES = { category: 'Correct Score', market: 'Correct Score', status: 'READ', labels: ['6-0', '0-6', '4-0', '0-4', '4-1', '1-4'], odds: ['1,431.00', '469.00', '95.30', '47.70', '66.80', '37.50'] };
-const HTSCORE = { category: 'Half Time', market: 'HT Correct Score', status: 'READ', labels: ['2-1', '1-2', '3-0', '0-3'], odds: ['18.50', '16.90', '59.80', '32.70'] };
+const HTSCORE = { category: 'Correct Score', market: 'HT Correct Score', status: 'READ', labels: ['2-1', '1-2', '3-0', '0-3'], odds: ['18.50', '16.90', '59.80', '32.70'] };
 
 function catalogue(...categories) {
-  return { fixtures: [{ roundName: 'Week 16', home: 'LIV', away: 'ARS', side: 'HOME', categories }] };
+  return { fixtures: [{ roundName: 'Week 16', home: 'ARS', away: 'LIV', side: 'HOME', categories }] };
 }
 const find = (results, key) => results.find((result) => result.strategyKey === key);
 

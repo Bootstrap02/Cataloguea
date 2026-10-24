@@ -20,10 +20,10 @@ const mockKingsLeagueSnapshot = {
       timer: '01:53',
       fixtures: [
         {
-          fixtureId: 'IPS-ARS',
-          scheduledMatchId: 'matchup-statistics-button-IPS-ARS',
+          fixtureId: 'IPS-LIV',
+          scheduledMatchId: 'matchup-statistics-button-IPS-LIV',
           home: 'IPS',
-          away: 'ARS',
+          away: 'LIV',
           market: '1X2',
           selections: [
             { label: '1', odds: 7.61 },
@@ -32,9 +32,9 @@ const mockKingsLeagueSnapshot = {
           ],
         },
         {
-          fixtureId: 'LIV-COV',
-          scheduledMatchId: 'matchup-statistics-button-LIV-COV',
-          home: 'LIV',
+          fixtureId: 'ARS-COV',
+          scheduledMatchId: 'matchup-statistics-button-ARS-COV',
+          home: 'ARS',
           away: 'COV',
           market: '1X2',
           selections: [
@@ -53,7 +53,7 @@ test('detects a public King League schedule as READY_READ_ONLY', () => {
 
   assert.equal(result.status, BETKING_STATUSES.READY_READ_ONLY);
   assert.equal(result.snapshot.league.name, 'Kings League');
-  assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'IPS-ARS');
+  assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'IPS-LIV');
   assert.deepEqual(
     result.snapshot.rounds[0].fixtures[0].selections.map(({ label, odds }) => ({ label, odds })),
     [
@@ -96,9 +96,9 @@ test('flags missing market and missing odds states for incomplete page data', ()
     rounds: [{
       roundName: 'Week 20',
       fixtures: [{
-        fixtureId: 'IPS-ARS',
+        fixtureId: 'IPS-LIV',
         home: 'IPS',
-        away: 'ARS',
+        away: 'LIV',
         selections: [],
       }],
     }],
@@ -113,9 +113,9 @@ test('flags missing market and missing odds states for incomplete page data', ()
     rounds: [{
       roundName: 'Week 20',
       fixtures: [{
-        fixtureId: 'IPS-ARS',
+        fixtureId: 'IPS-LIV',
         home: 'IPS',
-        away: 'ARS',
+        away: 'LIV',
         market: '1X2',
         selections: [{ label: '1', odds: null }, { label: 'X', odds: null }, { label: '2', odds: null }],
       }],
@@ -137,10 +137,10 @@ test('supports a Playwright-like page object using the live observed selectors',
           roundName: 'Week 20',
           fixtures: [
             {
-              fixtureId: 'matchup-statistics-button-IPS-ARS',
-              scheduledMatchId: 'matchup-statistics-button-IPS-ARS',
+              fixtureId: 'matchup-statistics-button-IPS-LIV',
+              scheduledMatchId: 'matchup-statistics-button-IPS-LIV',
               home: 'IPS',
-              away: 'ARS',
+              away: 'LIV',
               market: '1X2',
               selections: [
                 { label: '1', odds: 7.61 },
@@ -156,7 +156,7 @@ test('supports a Playwright-like page object using the live observed selectors',
 
   const result = await inspectBetKingPage(page);
   assert.equal(result.status, BETKING_STATUSES.READY_READ_ONLY);
-  assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'matchup-statistics-button-IPS-ARS');
+  assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'matchup-statistics-button-IPS-LIV');
   assert.deepEqual(result.snapshot.rounds[0].fixtures[0].selections.map(({ label, odds }) => ({ label, odds })), [
     { label: '1', odds: 7.61 },
     { label: 'X', odds: 4.67 },
@@ -174,8 +174,8 @@ test('does not infer 1X2 selection names from odds order when labels are missing
       rounds: [{
         roundName: 'Week 20',
         fixtures: [{
-          fixtureId: 'LIV-COV',
-          home: 'LIV',
+          fixtureId: 'ARS-COV',
+          home: 'ARS',
           away: 'COV',
           market: '1X2',
           selections: [{ label: '', odds: 1.37 }, { label: '', odds: 4.88 }, { label: '', odds: 8.61 }],
@@ -199,9 +199,9 @@ test('extracts visible BetKing fixture, round, market, labels, odds, and consent
   });
   const leagueTab = makeElement('Kings League');
   const selectedMarket = makeElement('1X2');
-  const home = makeElement('LIV');
+  const home = makeElement('ARS');
   const away = makeElement('COV');
-  const statsButton = makeElement('', { 'data-testid': 'matchup-statistics-button-LIV-COV' });
+  const statsButton = makeElement('', { 'data-testid': 'matchup-statistics-button-ARS-COV' });
   const labels = ['1', 'X', '2'].map((label) => makeElement(label));
   const odds = ['1.37', '4.88', '8.61'].map((odd) => makeElement(odd));
   const match = {
@@ -246,10 +246,10 @@ test('extracts visible BetKing fixture, round, market, labels, odds, and consent
     assert.equal(result.status, BETKING_STATUSES.READY_READ_ONLY);
     assert.equal(result.snapshot.rounds[0].roundName, 'Week 20');
     assert.equal(result.snapshot.rounds[0].roundId, '');
-    assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'LIV-COV');
+    assert.equal(result.snapshot.rounds[0].fixtures[0].fixtureId, 'ARS-COV');
     assert.equal(
       result.snapshot.rounds[0].fixtures[0].scheduledMatchId,
-      'matchup-statistics-button-LIV-COV',
+      'matchup-statistics-button-ARS-COV',
     );
     assert.equal(result.snapshot.selectedMarketName, '1X2');
     assert.deepEqual(result.snapshot.rounds[0].fixtures[0].selections, [
@@ -269,8 +269,8 @@ test('extracts visible BetKing fixture, round, market, labels, odds, and consent
 test('matches a deterministic Cataloguea fixture to the same Kings League scheduled BetKing fixture', () => {
   const strategyInstruction = {
     fixture: {
-      id: 'livcov',
-      home: 'liv',
+      id: 'arscov',
+      home: 'ars',
       away: 'cov',
     },
     recommendedAction: 'manual_result_entry',
@@ -279,8 +279,8 @@ test('matches a deterministic Cataloguea fixture to the same Kings League schedu
 
   const result = matchCatalogueaFixtureToBetKing(strategyInstruction, mockKingsLeagueSnapshot);
   assert.equal(result.status, BETKING_STATUSES.MATCH_VERIFIED);
-  assert.equal(result.fixture.betking.fixtureId, 'LIV-COV');
-  assert.equal(result.fixture.betking.home, 'LIV');
+  assert.equal(result.fixture.betking.fixtureId, 'ARS-COV');
+  assert.equal(result.fixture.betking.home, 'ARS');
   assert.equal(result.fixture.betking.away, 'COV');
   assert.deepEqual(result.market.odds, {
     '1': 1.37,
@@ -289,14 +289,14 @@ test('matches a deterministic Cataloguea fixture to the same Kings League schedu
   });
   assert.equal(result.match, 'VERIFIED');
   assert.equal(result.readOnly, true);
-  assert.equal(result.strategy.fixtureId, 'livcov');
+  assert.equal(result.strategy.fixtureId, 'arscov');
 });
 
 test('rejects a fixture when home or away teams do not match the strategy fixture', () => {
   const strategyInstruction = {
     fixture: {
-      id: 'livcov',
-      home: 'liv',
+      id: 'arscov',
+      home: 'ars',
       away: 'cov',
     },
     recommendedAction: 'manual_result_entry',
@@ -308,9 +308,9 @@ test('rejects a fixture when home or away teams do not match the strategy fixtur
     rounds: [{
       roundName: 'Week 20',
       fixtures: [{
-        fixtureId: 'LIV-CHE',
-        scheduledMatchId: 'matchup-statistics-button-LIV-CHE',
-        home: 'LIV',
+        fixtureId: 'ARS-CHE',
+        scheduledMatchId: 'matchup-statistics-button-ARS-CHE',
+        home: 'ARS',
         away: 'CHE',
         market: '1X2',
         selections: [{ label: '1', odds: 1.37 }, { label: 'X', odds: 4.88 }, { label: '2', odds: 8.61 }],
@@ -339,8 +339,8 @@ test('rejects a fixture when home or away teams do not match the strategy fixtur
 test('rejects wrong league and ambiguous fixture selections without guessing', () => {
   const strategyInstruction = {
     fixture: {
-      id: 'livcov',
-      home: 'liv',
+      id: 'arscov',
+      home: 'ars',
       away: 'cov',
     },
     recommendedAction: 'manual_result_entry',
@@ -356,8 +356,8 @@ test('rejects wrong league and ambiguous fixture selections without guessing', (
   const ambiguous = matchCatalogueaFixtureToBetKing(strategyInstruction, {
     ...mockKingsLeagueSnapshot,
     rounds: [
-      { roundName: 'Week 20', fixtures: [{ fixtureId: 'LIV-COV', scheduledMatchId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', market: '1X2', selections: [{ label: '1', odds: 1.9 }, { label: 'X', odds: 3.1 }, { label: '2', odds: 4.2 }] }] },
-      { roundName: 'Week 21', fixtures: [{ fixtureId: 'LIV-COV', scheduledMatchId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', market: '1X2', selections: [{ label: '1', odds: 1.8 }, { label: 'X', odds: 3.5 }, { label: '2', odds: 4.1 }] }] },
+      { roundName: 'Week 20', fixtures: [{ fixtureId: 'ARS-COV', scheduledMatchId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', market: '1X2', selections: [{ label: '1', odds: 1.9 }, { label: 'X', odds: 3.1 }, { label: '2', odds: 4.2 }] }] },
+      { roundName: 'Week 21', fixtures: [{ fixtureId: 'ARS-COV', scheduledMatchId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', market: '1X2', selections: [{ label: '1', odds: 1.8 }, { label: 'X', odds: 3.5 }, { label: '2', odds: 4.1 }] }] },
     ],
   });
   assert.equal(ambiguous.status, BETKING_STATUSES.AMBIGUOUS_FIXTURE);
@@ -366,8 +366,8 @@ test('rejects wrong league and ambiguous fixture selections without guessing', (
 test('ensures read-only strategy comparison does not mutate the strategy state', () => {
   const strategyInstruction = {
     fixture: {
-      id: 'livcov',
-      home: 'liv',
+      id: 'arscov',
+      home: 'ars',
       away: 'cov',
     },
     recommendedAction: 'manual_result_entry',
@@ -394,8 +394,8 @@ test('live fixture extraction requires explicit selectors and reads only supplie
     'status',
   ].map((key) => [key, { selector: `[data-test="${key}"]` }]));
   const values = {
-    fixtureId: 'LIV-COV',
-    home: 'LIV',
+    fixtureId: 'ARS-COV',
+    home: 'ARS',
     away: 'COV',
     roundId: '21',
     clock: '45',
@@ -435,8 +435,8 @@ test('live fixture extraction requires explicit selectors and reads only supplie
   );
   const observed = await readLiveFixtureSnapshot(page, selectors);
   assert.deepEqual(observed.fixture, {
-    id: 'LIV-COV',
-    home: 'LIV',
+    id: 'ARS-COV',
+    home: 'ARS',
     away: 'COV',
     roundId: '21',
   });

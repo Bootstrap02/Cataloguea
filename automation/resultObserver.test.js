@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { observeResult, verifyResult } = require('./result/resultObserver');
 
-const expectedFixture = { id: 'livmnu', home: 'liv', away: 'mnu' };
+const expectedFixture = { id: 'arsmnu', home: 'ars', away: 'mnu' };
 
 function mockPage(values) {
   return {
@@ -18,8 +18,8 @@ function mockPage(values) {
 test('observes a pending result without inventing a score', async () => {
   const observation = await observeResult(mockPage({
     'Result status': 'pending',
-    'Result fixture': 'livmnu',
-    'Result home team': 'liv',
+    'Result fixture': 'arsmnu',
+    'Result home team': 'ars',
     'Result away team': 'mnu',
   }), { clock: () => '2026-10-06T12:00:00.000Z' });
 
@@ -35,8 +35,8 @@ test('observes a pending result without inventing a score', async () => {
 test('observes and verifies a complete result from semantic fields', async () => {
   const observation = await observeResult(mockPage({
     'Result status': 'complete',
-    'Result fixture': 'livmnu',
-    'Result home team': 'liv',
+    'Result fixture': 'arsmnu',
+    'Result home team': 'ars',
     'Result away team': 'mnu',
     'Result home score': '2',
     'Result away score': '1',
@@ -53,7 +53,7 @@ test('observes and verifies a complete result from semantic fields', async () =>
 
 test('rejects a result associated with a different fixture', () => {
   assert.throws(() => verifyResult({
-    fixture: { id: 'livche', home: 'liv', away: 'che' },
+    fixture: { id: 'arsche', home: 'ars', away: 'che' },
     status: 'complete',
     result: { homeScore: '2', awayScore: '1' },
   }, expectedFixture), /Result fixture mismatch/);

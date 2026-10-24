@@ -90,7 +90,7 @@ const VALIDATORS = Object.freeze({
   FIXTURE_CONFIRMED(evidence) {
     if (!evidence?.verified) return 'The fixture is not verified.';
     if (!evidence.home || !evidence.away) return 'Home and away teams are required.';
-    if (evidence.liverpoolSide !== 'HOME' && evidence.liverpoolSide !== 'AWAY') return 'Liverpool home/away position is required.';
+    if (evidence.arsenalSide !== 'HOME' && evidence.arsenalSide !== 'AWAY') return 'Arsenal home/away position is required.';
     return null;
   },
   STRATEGY_OPTIONS_RESOLVED(evidence) {
@@ -344,9 +344,9 @@ function compareSlipToExpected({ slip, expected, minSecondsRemaining = MIN_SECON
 
 // The human-readable request shown at the authorization boundary. Submission is not
 // implemented anywhere in this project; this text exists so a person can decide.
-function describeAuthorizationRequest({ week, home, away, liverpoolSide, category, selection, odds, stake, potentialWinnings, expirySeconds }) {
+function describeAuthorizationRequest({ week, home, away, arsenalSide, category, selection, odds, stake, potentialWinnings, expirySeconds }) {
   return [
-    `Week ${week}: ${home} v ${away} (Liverpool ${liverpoolSide === 'HOME' ? 'home' : 'away'})`,
+    `Week ${week}: ${home} v ${away} (Arsenal ${arsenalSide === 'HOME' ? 'home' : 'away'})`,
     `Market: ${category}   Selection: ${selection}   Odds: ${odds}`,
     `Stake: N${stake}   Potential winnings shown: ${potentialWinnings === null || potentialWinnings === undefined ? 'n/a' : `N${potentialWinnings}`}`,
     `Slip expires in ${expirySeconds === null || expirySeconds === undefined ? 'unknown' : `${expirySeconds}s`}.`,

@@ -1,4 +1,4 @@
-# START NOW — STAGE 26: CONNECT THE REAL CATALOGUEA STRATEGY TO LIVERPOOL FIXTURE TRACKING AND RESULT SETTLEMENT
+# START NOW — STAGE 26: CONNECT THE REAL CATALOGUEA STRATEGY TO ARSENAL FIXTURE TRACKING AND RESULT SETTLEMENT
 
 ## Objective
 
@@ -54,7 +54,7 @@ Return a clear instruction list showing:
 
 ## PART C — IMPLEMENT A REAL FIXTURE IDENTITY
 
-Extend the existing BetKing adapter so that a Liverpool fixture can be identified using all reliable identity fields exposed by the site.
+Extend the existing BetKing adapter so that an Arsenal fixture can be identified using all reliable identity fields exposed by the site.
 
 Use, where available:
 - League.
@@ -64,7 +64,7 @@ Use, where available:
 - Stable site fixture identifier.
 - Scheduled kickoff or other distinguishing fields if genuinely available.
 
-Do not identify a fixture by Liverpool's name alone.
+Do not identify a fixture by Arsenal's name alone.
 
 Ensure the same fixture can be tracked across scheduled, live, and results views. If the website does not expose a stable cross-view identifier, implement an explicit confidence check and ambiguity handling.
 
@@ -123,7 +123,7 @@ Respect the actual strategy settlement logic. Do not invent new progression rule
 
 Do not make continuous live-match observation a prerequisite for settlement if verified completed results can supply the necessary HT and FT scores.
 
-However, preserve the ability to inspect a live Liverpool fixture using the actual BetKing Live interface when that view is available.
+However, preserve the ability to inspect a live Arsenal fixture using the actual BetKing Live interface when that view is available.
 
 Do not assume the current scheduled page and live page have the same DOM structure.
 
@@ -155,7 +155,7 @@ Add focused tests for:
 
 - Stake filtering at below, equal to, and above the minimum.
 - All 11 strategy keys.
-- Ambiguous Liverpool fixtures across different rounds.
+- Ambiguous Arsenal fixtures across different rounds.
 - Separate HT and FT score handling.
 - Missing or incomplete results.
 - Results that appear only after repeated polling.

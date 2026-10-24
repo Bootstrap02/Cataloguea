@@ -7,7 +7,7 @@ const {
   settleSoloMatrixState,
 } = require('../src/strategy/soloMatrixSettlement');
 
-const FIXTURE = { id: 'livmnu', home: 'liv', away: 'mnu' };
+const FIXTURE = { id: 'arsmnu', home: 'ars', away: 'mnu' };
 const VERIFIED_RESULT = {
   fixture: FIXTURE,
   status: 'verified',
@@ -106,7 +106,7 @@ test('live-shaped strategy snapshot translates its precomputed stakes unchanged'
   const snapshot = port.getStrategySnapshot();
   const instruction = port.getCurrentInstruction();
 
-  assert.equal(snapshot.fixture.id, 'livmnu');
+  assert.equal(snapshot.fixture.id, 'arsmnu');
   assert.deepEqual(instruction.assets.find(({ key }) => key === 'oneX'), {
     key: 'oneX',
     stake: 217,
@@ -139,7 +139,7 @@ test('verified result runs the existing strategy settlement and persists it exac
 
   assert.equal(first.status, 'settled');
   assert.equal(second.status, 'already_settled');
-  assert.equal(first.resultId, 'livmnu:2-1:op:action-verified-1');
+  assert.equal(first.resultId, 'arsmnu:2-1:op:action-verified-1');
   assert.equal(harness.settlementCalls(), 1);
   assert.equal(harness.strategyState().smallDeficit, 0);
   assert.equal(harness.strategyState().privateDef.oneX, 0);
@@ -158,7 +158,7 @@ test('pending, malformed, and wrong-fixture results are rejected before strategy
     { ...VERIFIED_RESULT, result: { homeScore: 2, awayScore: null } },
     {
       ...VERIFIED_RESULT,
-      fixture: { id: 'livche', home: 'liv', away: 'che' },
+      fixture: { id: 'arsche', home: 'ars', away: 'che' },
     },
   ];
 
@@ -193,7 +193,7 @@ test('verified scores do not invent strategy outcome marks', () => {
 
 test('legacy strategy receipt remains idempotent for its original result', () => {
   const legacyState = createStrategyState({
-    automationSettlements: ['livmnu:2-1'],
+    automationSettlements: ['arsmnu:2-1'],
   });
   const harness = createHarness(legacyState);
   const result = harness.port.settleVerifiedResult({
@@ -220,7 +220,7 @@ test('manual settlement still uses strategy-owned winner marks and existing sett
   assert.equal(settled.smallDeficit, 0);
   assert.equal(settled.bank, 120);
   assert.equal(manualState.winners.size, 2);
-  assert.equal(manualState.fixture.id, 'livmnu');
+  assert.equal(manualState.fixture.id, 'arsmnu');
 });
 
 test('failed strategy persistence is not acknowledged as successful settlement', () => {

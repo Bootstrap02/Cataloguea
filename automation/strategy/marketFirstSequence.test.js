@@ -12,11 +12,11 @@ const {
   parseMoney,
 } = require('./marketFirstSequence');
 
-const FIXTURE_EVIDENCE = { verified: true, home: 'LIV', away: 'AST', liverpoolSide: 'HOME' };
+const FIXTURE_EVIDENCE = { verified: true, home: 'ARS', away: 'AST', arsenalSide: 'HOME' };
 const MAPPING_EVIDENCE = { mappingStatus: 'VERIFIED', category: 'HT/FT', selection: '1/X' };
 const CATEGORY_EVIDENCE = { category: 'HT/FT', observedCategory: 'HT/FT', labelsInFixture: ['1/1', '1/X', '1/2'] };
 const SELECTION_EVIDENCE = {
-  selection: '1/X', matchedLabel: '1/X', home: 'LIV', away: 'AST', expectedHome: 'LIV', expectedAway: 'AST',
+  selection: '1/X', matchedLabel: '1/X', home: 'ARS', away: 'AST', expectedHome: 'ARS', expectedAway: 'AST',
 };
 
 function pipelineThroughOdds() {
@@ -110,7 +110,7 @@ test('submission is never recorded at the authorization stage', () => {
 
 const SLIP_TEXT = [
   'VIRTUALS BETSLIP', 'Clear All', 'Next event will expire in: 00:31', 'Kings League - Week 1',
-  'LIV - AST', '13.30', 'HT/FT - 1/X', 'Total Stake Amount', 'Total Odds', '13.30',
+  'ARS - AST', '13.30', 'HT/FT - 1/X', 'Total Stake Amount', 'Total Odds', '13.30',
   'Net Potential Winnings', '₦1,330.00', 'PLACE BET',
 ].join('\n');
 
@@ -120,7 +120,7 @@ test('parses the betslip text shown in the recording', () => {
   assert.equal(slip.items.length, 1);
   assert.deepEqual(
     { home: slip.items[0].home, away: slip.items[0].away, market: slip.items[0].market, selection: slip.items[0].selection, odds: slip.items[0].odds, week: slip.items[0].week },
-    { home: 'LIV', away: 'AST', market: 'HT/FT', selection: '1/X', odds: 13.3, week: 1 },
+    { home: 'ARS', away: 'AST', market: 'HT/FT', selection: '1/X', odds: 13.3, week: 1 },
   );
   assert.equal(slip.stake, 100);
   assert.equal(slip.totalOdds, 13.3);
@@ -136,7 +136,7 @@ test('money and countdown helpers', () => {
   assert.equal(parseCountdownSeconds('01:02'), 62);
 });
 
-const EXPECTED = { home: 'LIV', away: 'AST', category: 'HT/FT', selection: '1/X', stake: 100, odds: 13.3, week: 1 };
+const EXPECTED = { home: 'ARS', away: 'AST', category: 'HT/FT', selection: '1/X', stake: 100, odds: 13.3, week: 1 };
 
 test('a correct slip passes', () => {
   const slip = parseBetSlipText(SLIP_TEXT, { stakeInputValue: '100' });
@@ -170,7 +170,7 @@ test('inconsistent potential winnings is a warning, not a blocker', () => {
 
 test('the authorization request states that nothing has been submitted', () => {
   const text = describeAuthorizationRequest({
-    week: 1, home: 'LIV', away: 'AST', liverpoolSide: 'HOME', category: 'HT/FT', selection: '1/X',
+    week: 1, home: 'ARS', away: 'AST', arsenalSide: 'HOME', category: 'HT/FT', selection: '1/X',
     odds: 13.3, stake: 100, potentialWinnings: 1330, expirySeconds: 31,
   });
   assert.match(text, /Nothing has been submitted/);
@@ -194,8 +194,8 @@ test('a wager counts as submitted only with explicit authorization, and accepted
 test('the category stage requires the market name when it differs from the category (HT Correct Score inside Half Time)', () => {
   const pipeline = createOptionPipeline({ strategyKey: 'ht21' });
   pipeline.advance('FIXTURE_CONFIRMED', FIXTURE_EVIDENCE);
-  pipeline.advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: 'VERIFIED', category: 'Half Time', selection: '2-1' });
-  const base = { category: 'Half Time', market: 'HT Correct Score', observedCategory: 'Half Time', labelsInFixture: ['2-1', '1-2'] };
+  pipeline.advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: 'VERIFIED', category: 'Correct Score', selection: '2-1' });
+  const base = { category: 'Correct Score', market: 'HT Correct Score', observedCategory: 'Correct Score', labelsInFixture: ['2-1', '1-2'] };
   assert.equal(pipeline.advance('MARKET_CATEGORY_OPENED', { ...base, observedMarkets: ['HT 1X2'] }).ok, false);
   assert.equal(pipeline.advance('MARKET_CATEGORY_OPENED', { ...base, observedMarkets: ['HT Correct Score'] }).ok, true);
 });
@@ -203,13 +203,13 @@ test('the category stage requires the market name when it differs from the categ
 test('parses a multi-selection slip like the owner screenshots and detects extra selections', () => {
   const text = [
     'VIRTUALS BETSLIP', 'Clear All', 'Next event will expire in: 00:56', 'Singles', 'Kings League - Week 16',
-    'LIV - ARS', 'HT/FT - 1/X', '14.70', 'HT/FT - 2/X', '14.70', 'Correct Score - 6-0', '1,431.00',
+    'ARS - LIV', 'HT/FT - 1/X', '14.70', 'HT/FT - 2/X', '14.70', 'Correct Score - 6-0', '1,431.00',
     'Group', 'Com', 'Stake (Min 10)', 'Winnings', 'Singles', '11x', '9.09', 'Total Stake Amount', '100',
   ].join('\n');
   const slip = parseBetSlipText(text, { stakeInputValue: '100' });
   assert.equal(slip.items.length, 3);
   assert.deepEqual(slip.items.map((item) => `${item.market}|${item.selection}|${item.odds}`), ['HT/FT|1/X|14.7', 'HT/FT|2/X|14.7', 'Correct Score|6-0|1431']);
   assert.equal(slip.items[0].week, 16);
-  const check = compareSlipToExpected({ slip, expected: { home: 'LIV', away: 'ARS', market: 'HT/FT', selection: '1/X', stake: 100, odds: 14.7, week: 16 } });
+  const check = compareSlipToExpected({ slip, expected: { home: 'ARS', away: 'LIV', market: 'HT/FT', selection: '1/X', stake: 100, odds: 14.7, week: 16 } });
   assert.ok(check.problems.includes('EXTRA_SELECTIONS'));
 });

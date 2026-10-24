@@ -11,9 +11,9 @@ const {
 
 const NOW = Date.parse('2026-10-08T22:00:00.000Z');
 const EXPECTED_FIXTURE = {
-  id: 'LIV-COV',
-  domId: 'matchup-statistics-button-LIV-COV',
-  home: 'LIV',
+  id: 'ARS-COV',
+  domId: 'matchup-statistics-button-ARS-COV',
+  home: 'ARS',
   away: 'COV',
   roundId: '21',
   roundName: 'Week 20',
@@ -156,10 +156,10 @@ test('stops when fixture identity is ambiguous', () => {
 
 test('rejects results for a different fixture, teams, or round', () => {
   for (const fixture of [
-    { ...EXPECTED_FIXTURE, id: 'LIV-CHE' },
-    { ...EXPECTED_FIXTURE, domId: 'matchup-statistics-button-LIV-CHE' },
+    { ...EXPECTED_FIXTURE, id: 'ARS-CHE' },
+    { ...EXPECTED_FIXTURE, domId: 'matchup-statistics-button-ARS-CHE' },
     { ...EXPECTED_FIXTURE, home: 'CHE' },
-    { ...EXPECTED_FIXTURE, away: 'ARS' },
+    { ...EXPECTED_FIXTURE, away: 'LIV' },
     { ...EXPECTED_FIXTURE, roundId: '22' },
   ]) {
     assert.equal(
@@ -319,7 +319,7 @@ test('an unverified live result cannot be passed to Cataloguea strategy settleme
   assert.equal(observation.verified, false);
   assert.throws(() => createSettlementRequest({
     instruction: {
-      fixture: { id: 'LIV-COV', home: 'LIV', away: 'COV' },
+      fixture: { id: 'ARS-COV', home: 'ARS', away: 'COV' },
       strategyState: { status: 'stakes_available' },
     },
     normalizedResult: observation,

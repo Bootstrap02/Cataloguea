@@ -1,7 +1,7 @@
 // Controller for the REAL BetKing run: one controlled lifecycle per game week.
 //
 //   open BetKing (visible, persistent profile) -> manual sign-in if needed ->
-//   select week -> identify Liverpool fixture -> read strategy -> stakes, merge,
+//   select week -> identify Arsenal fixture -> read strategy -> stakes, merge,
 //   filter, mappings -> prepare instructions (optionally populate the bet slip,
 //   never submit) -> human review -> watch the match -> verified half-time and
 //   full-time result -> settle the strategy once -> next week.
@@ -17,6 +17,7 @@ const { RunStore } = require('./persistence/runStore');
 const { createRunJournal } = require('./betkingRunJournal');
 const { createBetKingPorts } = require('./sportsbook/betkingPorts');
 const { createMarketFlow } = require('./sportsbook/betkingMarketFlow');
+const { createHeadlessStrategyBridge } = require('./strategy/headlessStrategy');
 const {
   PIPELINE_FAILURES,
   compareSlipToExpected,
@@ -46,6 +47,7 @@ async function defaultLaunchContext(config) {
     channel: config.browserChannel,
     timeout: config.browserLaunchTimeoutMs,
     viewport: { width: 1280, height: 800 },
+    slowMo: config.slowMoMs || 0,
   });
 }
 
@@ -59,12 +61,34 @@ async function defaultPrompt(question) {
   }
 }
 
-// The live observer compares the short id ('LIV-COV') and, when both sides have it,
-// the full DOM id ('matchup-statistics-button-LIV-COV').
+// The live observer compares the short id ('ARS-COV') and, when both sides have it,
+// the full DOM id ('matchup-statistics-button-ARS-COV').
 function toObserverFixtureIds(fixtureId) {
   const raw = String(fixtureId ?? '');
   const match = /^matchup-statistics-button-(.+)$/i.exec(raw);
   return match ? { id: match[1], domId: raw } : { id: raw, domId: undefined };
+}
+
+// Plain-language result of every option we bet on, with the rule that decided it, for example
+// "ht21 WON  stake 15  Arsenal 2-1 at half-time  (HT 2-1, FT 3-1)". Scores are home-away as on the site.
+function formatOutcomeSummary(plan, verifiedResult, evaluation) {
+  const { RULE_TEXT } = require('./strategy/winRules');
+  const ft = verifiedResult?.fullTime;
+  const ht = verifiedResult?.halfTime;
+  const fixture = plan?.fixture ? `${String(plan.fixture.home).toUpperCase()} v ${String(plan.fixture.away).toUpperCase()}` : 'fixture';
+  const side = plan?.arsenalSide ? ` (Arsenal ${String(plan.arsenalSide).toLowerCase()})` : '';
+  const lines = [`RESULT ${fixture}${side}: half-time ${ht ? `${ht.home}-${ht.away}` : 'n/a'}, full-time ${ft ? `${ft.home}-${ft.away}` : 'n/a'}`];
+  for (const item of evaluation.evaluations) {
+    const score = (label, value) => (value ? `${label} ${value.home}-${value.away}` : null);
+    const detail = [score('HT', item.htScore), score('FT', item.ftScore)].filter(Boolean).join(', ');
+    lines.push(`  ${item.strategyKey} ${item.outcome}  stake ${item.stake}  [${RULE_TEXT[item.strategyKey] ?? 'rule'}]${detail ? `  (${detail})` : ''}`);
+  }
+  for (const item of evaluation.notPlaced || []) lines.push(`  ${item.strategyKey} NOT PLACED  stake ${item.stake}`);
+  for (const item of evaluation.skipped || []) lines.push(`  ${item.strategyKey} below minimum, not bet  stake ${item.stake}`);
+  const won = evaluation.evaluations.filter((item) => item.outcome === 'WON').map((item) => item.strategyKey);
+  const lost = evaluation.evaluations.filter((item) => item.outcome === 'LOST').map((item) => item.strategyKey);
+  lines.push(`  WON: ${won.join(', ') || 'none'} | LOST: ${lost.join(', ') || 'none'}`);
+  return lines.join('\n');
 }
 
 const sleepFor = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -106,6 +130,7 @@ function createBetKingController({
     let context = null;
     let betKingPage = null;
     let strategyPage = null;
+    const headlessStrategy = config.strategyMode === 'headless';
     let ports = null;
     let flow = null;
     let bridge = null;
@@ -130,6 +155,7 @@ function createBetKingController({
     function rebuildPorts() {
       ports = createBetKingPorts({ page: betKingPage, config, selectors });
       flow = createMarketFlow({ page: betKingPage, config, selectors });
+      if (typeof flow.setCaptureDirectory === 'function') flow.setCaptureDirectory(journal.runDir);
       workflow = createOperationalWorkflow({
         stateMachine: machine,
         ports: {
@@ -207,7 +233,7 @@ function createBetKingController({
 
     // Autonomous strategy wait: polls the Cataloguea tab until a fixture is submitted.
     async function waitForStrategyFixture() {
-      log('Waiting for a Liverpool fixture to be submitted in the Cataloguea tab; the run continues by itself afterwards.');
+      log('Waiting for an Arsenal fixture to be submitted in the Cataloguea tab; the run continues by itself afterwards.');
       journal.append('WAITING_FOR_STRATEGY_FIXTURE', {});
       const deadline = Date.now() + config.strategyWaitTimeoutMs;
       while (Date.now() < deadline) {
@@ -274,11 +300,11 @@ function createBetKingController({
         const needsHuman = ['AUTHENTICATION_REQUIRED', 'SESSION_EXPIRED', 'STRATEGY_STATE_MISSING'].includes(prep.code);
         if (needsHuman && prompts && manualAttempts < config.manualLoginMaxAttempts) {
           manualAttempts += 1;
-          const which = prep.code === 'STRATEGY_STATE_MISSING' ? strategyPage : betKingPage;
+          const which = prep.code === 'STRATEGY_STATE_MISSING' && strategyPage ? strategyPage : betKingPage;
           await which.bringToFront();
           const answer = await prompt(
             prep.code === 'STRATEGY_STATE_MISSING'
-              ? 'In the Cataloguea tab, select and submit the Liverpool fixture, then press Enter (or type stop): '
+              ? 'In the Cataloguea tab, select and submit the Arsenal fixture, then press Enter (or type stop): '
               : 'Sign in manually in the BetKing tab (no credentials are requested here), then press Enter (or type stop): ',
           );
           if (isStop(answer)) return { status: 'STOPPED' };
@@ -355,7 +381,7 @@ function createBetKingController({
         const stopFromStatus = (result) => stop(FAILURE_FOR_STATUS[result.status] ?? PIPELINE_FAILURES.BET_SLIP_MISMATCH, { status: result.status, evidence: result.evidence ?? null });
 
         try {
-          if (!advance('FIXTURE_CONFIRMED', { verified: fixtureCrossCheck?.verified === true, home: plan.fixture.home, away: plan.fixture.away, liverpoolSide: plan.liverpoolSide })) {
+          if (!advance('FIXTURE_CONFIRMED', { verified: fixtureCrossCheck?.verified === true, home: plan.fixture.home, away: plan.fixture.away, arsenalSide: plan.arsenalSide })) {
             stop('FIXTURE_IDENTITY_MISMATCH', { reason: 'fixture not confirmed' }); continue;
           }
           if (!advance('STRATEGY_OPTIONS_RESOLVED', { mappingStatus: record.mappingStatus, category: record.betKingCategory ?? record.betKingMarket, selection: record.betKingSelection })) {
@@ -426,7 +452,7 @@ function createBetKingController({
             week: plan.week,
             home: plan.fixture.home,
             away: plan.fixture.away,
-            liverpoolSide: plan.liverpoolSide,
+            arsenalSide: plan.arsenalSide,
             category: record.betKingMarket,
             selection: record.betKingSelection,
             odds: identified.odds,
@@ -616,7 +642,7 @@ function createBetKingController({
     }
 
     async function pollResultsOnly(prep, operationId) {
-      if (!selectors.configured.results) return { status: 'NOT_CONFIGURED' };
+      // The built-in Results-window reader is used when no results selectors are configured.
       const scheduled = createBetKingFixtureIdentity(
         { ...prep.plan.fixture, market: '' },
         { roundName: prep.identification.roundName, roundId: prep.identification.roundId },
@@ -702,23 +728,33 @@ function createBetKingController({
       // ---- launch ---------------------------------------------------------
       context = await launchContext(config);
       betKingPage = context.pages()[0] || await context.newPage();
-      strategyPage = await context.newPage();
-
-      try {
-        await strategyPage.goto(config.catalogueaUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      } catch (error) {
-        return finish('FAILED', {
-          code: 'STRATEGY_APP_UNREACHABLE',
-          message: `Cataloguea is not reachable at ${config.catalogueaUrl}. Start it with "npm start" and retry.`,
+      if (headlessStrategy) {
+        // No strategy tab: the strategy runs in this program (see strategy/headlessStrategy.js).
+        bridge = createHeadlessStrategyBridge({
+          stateFile: config.strategyStateFile,
+          baseStake: config.baseStake,
+          betKingMarketMappings: mappings,
+          log,
         });
+        log(`Strategy runs without a screen (state file: ${config.strategyStateFile}).`);
+      } else {
+        strategyPage = await context.newPage();
+        try {
+          await strategyPage.goto(config.catalogueaUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (error) {
+          return finish('FAILED', {
+            code: 'STRATEGY_APP_UNREACHABLE',
+            message: `Cataloguea is not reachable at ${config.catalogueaUrl}. Start it with "npm start" and retry.`,
+          });
+        }
+        if (!(await waitForStrategyHook())) {
+          return finish('FAILED', {
+            code: 'STRATEGY_HOOK_MISSING',
+            message: 'window.catalogueaAutomation is missing. The strategy app must run as a development build (npm start).',
+          });
+        }
+        bridge = createStrategyBridge({ page: strategyPage, betKingMarketMappings: mappings });
       }
-      if (!(await waitForStrategyHook())) {
-        return finish('FAILED', {
-          code: 'STRATEGY_HOOK_MISSING',
-          message: 'window.catalogueaAutomation is missing. The strategy app must run as a development build (npm start).',
-        });
-      }
-      bridge = createStrategyBridge({ page: strategyPage, betKingMarketMappings: mappings });
       rebuildPorts();
 
       moveTo(STATES.INITIALIZING);
@@ -730,9 +766,11 @@ function createBetKingController({
 
       await betKingPage.bringToFront();
       if (prompts) {
-        await strategyPage.bringToFront();
+        if (strategyPage) await strategyPage.bringToFront();
         const answer = await prompt(
-          'Two tabs are open: BetKing and Cataloguea. Sign in to BetKing if needed and make sure the Cataloguea tab shows your strategy with the Liverpool fixture submitted. Press Enter to start (or type stop): ',
+          headlessStrategy
+            ? 'BetKing is open. Sign in if needed (the strategy runs inside this program, no strategy tab). Press Enter to start (or type stop): '
+            : 'Two tabs are open: BetKing and Cataloguea. Sign in to BetKing if needed and make sure the Cataloguea tab shows your strategy with the Arsenal fixture submitted. Press Enter to start (or type stop): ',
         );
         if (isStop(answer)) {
           moveTo(STATES.STOPPED);
@@ -830,6 +868,7 @@ function createBetKingController({
         // Evaluate first, so a blocked settlement leaves the strategy untouched.
         const evaluation = evaluateOptionsForResult({ plan: prepared.plan, verifiedResult: result.verifiedResult });
         journal.writeArtifact(`week-${week}-evaluation.json`, `${JSON.stringify(evaluation, null, 2)}\n`);
+        log(formatOutcomeSummary(prepared.plan, result.verifiedResult, evaluation));
         if (!evaluation.settlementReadiness.ready) {
           moveTo(STATES.PAUSED);
           log('Settlement NOT applied: some options cannot be decided automatically:');
@@ -879,9 +918,11 @@ function createBetKingController({
         }
         moveTo(STATES.WAITING_FOR_NEXT_FIXTURE);
         if (prompts) {
-          await strategyPage.bringToFront();
+          if (strategyPage) await strategyPage.bringToFront();
           const answer = await prompt(
-            `Select and submit the next Liverpool fixture in Cataloguea for Week ${nextWeek}, then press Enter (or type stop): `,
+            headlessStrategy
+              ? `Week ${nextWeek} is next; the strategy will be fed automatically. Press Enter to continue (or type stop): `
+              : `Select and submit the next Arsenal fixture in Cataloguea for Week ${nextWeek}, then press Enter (or type stop): `,
           );
           if (isStop(answer)) {
             moveTo(STATES.STOPPED);
@@ -910,4 +951,4 @@ function createBetKingController({
   return Object.freeze({ run });
 }
 
-module.exports = { createBetKingController };
+module.exports = { createBetKingController, formatOutcomeSummary };

@@ -299,8 +299,8 @@ const Homepage = () => {
   // Shared by the Submit button and by the automation hook. The strategy itself
   // (submitSoloMatrixFixture) does every calculation; this only finds the odds row.
   const submitFixtureByTeams = (rawHome, rawAway) => {
-    const home = sanitizeTeam(String(rawHome ?? "")) || "liv";
-    const away = sanitizeTeam(String(rawAway ?? "")) || "liv";
+    const home = sanitizeTeam(String(rawHome ?? "")) || "ars";
+    const away = sanitizeTeam(String(rawAway ?? "")) || "ars";
     const found = odds.find(o => o.home === home && o.away === away);
     if (!found) return { ok: false, reason: `No odds for ${home} vs ${away}`, home, away };
 

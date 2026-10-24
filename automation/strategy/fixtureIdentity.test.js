@@ -22,24 +22,24 @@ test('normalizeTeamCode removes non-alphanumeric and uppercases', () => {
 });
 
 test('normalizeTeamName uppercases and trims', () => {
-  assert.equal(normalizeTeamName('  liverpool  '), 'LIVERPOOL');
+  assert.equal(normalizeTeamName('  arsenal  '), 'ARSENAL');
   assert.equal(normalizeTeamName('Manchester United'), 'MANCHESTER UNITED');
 });
 
 test('extractBetKingFixtureId parses matchup-statistics-button format', () => {
-  const result = extractBetKingFixtureId('matchup-statistics-button-LIV-COV');
-  assert.deepEqual(result, { fullId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV' });
+  const result = extractBetKingFixtureId('matchup-statistics-button-ARS-COV');
+  assert.deepEqual(result, { fullId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV' });
 });
 
 test('extractBetKingFixtureId handles alternative formats', () => {
-  const result = extractBetKingFixtureId('LIV-COV');
-  assert.deepEqual(result, { fullId: 'LIV-COV', home: 'LIV', away: 'COV' });
+  const result = extractBetKingFixtureId('ARS-COV');
+  assert.deepEqual(result, { fullId: 'ARS-COV', home: 'ARS', away: 'COV' });
 });
 
 test('extractBetKingFixtureId returns null for invalid input', () => {
   assert.equal(extractBetKingFixtureId(null), null);
   assert.equal(extractBetKingFixtureId(''), null);
-  assert.equal(extractBetKingFixtureId('LIV'), null);
+  assert.equal(extractBetKingFixtureId('ARS'), null);
 });
 
 test('parseRoundIdentifier extracts week numbers', () => {
@@ -51,28 +51,28 @@ test('parseRoundIdentifier extracts week numbers', () => {
 });
 
 test('createCatalogueaFixtureIdentity builds identity from fixture', () => {
-  const fixture = { id: 'livmnu', home: 'liv', away: 'mnu', winner: 325, oneX: 14.7 };
+  const fixture = { id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325, oneX: 14.7 };
   const identity = createCatalogueaFixtureIdentity(fixture);
   assert.equal(identity.source, 'cataloguea');
-  assert.equal(identity.id, 'livmnu');
-  assert.equal(identity.home, 'LIV');
+  assert.equal(identity.id, 'arsmnu');
+  assert.equal(identity.home, 'ARS');
   assert.equal(identity.away, 'MNU');
 });
 
 test('createBetKingFixtureIdentity builds identity from BetKing fixture', () => {
-  const fixture = { fixtureId: 'matchup-statistics-button-LIV-COV', scheduledMatchId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', market: '1X2' };
+  const fixture = { fixtureId: 'matchup-statistics-button-ARS-COV', scheduledMatchId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', market: '1X2' };
   const roundInfo = { roundName: 'Week 33', roundId: '33', timer: '01:23' };
   const identity = createBetKingFixtureIdentity(fixture, roundInfo);
   assert.equal(identity.source, 'betking');
-  assert.equal(identity.home, 'LIV');
+  assert.equal(identity.home, 'ARS');
   assert.equal(identity.away, 'COV');
   assert.equal(identity.round.type, 'week');
   assert.equal(identity.round.number, 33);
 });
 
 test('calculateIdentityMatch returns HIGH confidence for exact match', () => {
-  const cat = { id: 'livcov', home: 'LIV', away: 'COV', homeName: 'LIVERPOOL', awayName: 'COVENTRY' };
-  const bk = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', homeName: 'LIVERPOOL', awayName: 'COVENTRY' };
+  const cat = { id: 'arscov', home: 'ARS', away: 'COV', homeName: 'ARSENAL', awayName: 'COVENTRY' };
+  const bk = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', homeName: 'ARSENAL', awayName: 'COVENTRY' };
   const match = calculateIdentityMatch(cat, bk);
   assert.equal(match.matched, true);
   assert.equal(match.confidence, FIXTURE_IDENTITY_CONFIDENCE.HIGH);
@@ -80,15 +80,15 @@ test('calculateIdentityMatch returns HIGH confidence for exact match', () => {
 });
 
 test('calculateIdentityMatch returns MEDIUM for team match only', () => {
-  const cat = { id: 'livcov', home: 'LIV', away: 'COV', homeName: 'LIVERPOOL', awayName: 'COVENTRY' };
-  const bk = { fixtureId: 'matchup-statistics-button-LIV-CHE', home: 'LIV', away: 'COV', homeName: 'LIVERPOOL', awayName: 'COVENTRY' };
+  const cat = { id: 'arscov', home: 'ARS', away: 'COV', homeName: 'ARSENAL', awayName: 'COVENTRY' };
+  const bk = { fixtureId: 'matchup-statistics-button-ARS-CHE', home: 'ARS', away: 'COV', homeName: 'ARSENAL', awayName: 'COVENTRY' };
   const match = calculateIdentityMatch(cat, bk);
   assert.equal(match.matched, true);
   assert.equal(match.confidence, FIXTURE_IDENTITY_CONFIDENCE.MEDIUM);
 });
 
 test('calculateIdentityMatch returns AMBIGUOUS for low score', () => {
-  const cat = { id: 'livcov', home: 'LIV', away: 'COV' };
+  const cat = { id: 'arscov', home: 'ARS', away: 'COV' };
   const bk = { fixtureId: 'matchup-statistics-button-MNU-CHE', home: 'MNU', away: 'CHE' };
   const match = calculateIdentityMatch(cat, bk);
   assert.equal(match.matched, false);
@@ -96,8 +96,8 @@ test('calculateIdentityMatch returns AMBIGUOUS for low score', () => {
 });
 
 test('calculateIdentityMatch handles reversed home/away with low confidence', () => {
-  const cat = { id: 'livcov', home: 'LIV', away: 'COV' };
-  const bk = { fixtureId: 'matchup-statistics-button-COV-LIV', home: 'COV', away: 'LIV' };
+  const cat = { id: 'arscov', home: 'ARS', away: 'COV' };
+  const bk = { fixtureId: 'matchup-statistics-button-COV-ARS', home: 'COV', away: 'ARS' };
   const match = calculateIdentityMatch(cat, bk);
   // Reversed teams give 1 point, fixture ID reversed gives 0.5 = 1.5 total (LOW confidence)
   assert.equal(match.matched, false);
@@ -106,31 +106,31 @@ test('calculateIdentityMatch handles reversed home/away with low confidence', ()
 });
 
 test('matchCatalogueaToBetKingFixtures finds exact match in scheduled data', () => {
-  const catalogueaFixture = { id: 'livmnu', home: 'liv', away: 'mnu', winner: 325 };
+  const catalogueaFixture = { id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325 };
   const betKingSnapshot = {
     rounds: [{
       roundName: 'Week 33',
       roundId: '33',
       timer: '01:23',
       fixtures: [
-        { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', market: '1X2' },
+        { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', market: '1X2' },
         { fixtureId: 'matchup-statistics-button-COV-IPS', home: 'COV', away: 'IPS', market: '1X2' },
       ],
     }],
   };
   const result = matchCatalogueaToBetKingFixtures(catalogueaFixture, betKingSnapshot);
   assert.equal(result.status, 'MATCHED_HIGH_CONFIDENCE');
-  assert.equal(result.bestMatch.betKing.home, 'LIV');
+  assert.equal(result.bestMatch.betKing.home, 'ARS');
   assert.equal(result.bestMatch.betKing.away, 'MNU');
   assert.equal(result.ambiguous, false);
 });
 
 test('matchCatalogueaToBetKingFixtures detects ambiguous fixtures across rounds', () => {
-  const catalogueaFixture = { id: 'livcov', home: 'liv', away: 'cov', winner: 325 };
+  const catalogueaFixture = { id: 'arscov', home: 'ars', away: 'cov', winner: 325 };
   const betKingSnapshot = {
     rounds: [
-      { roundName: 'Week 33', roundId: '33', timer: '01:23', fixtures: [{ fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', market: '1X2' }] },
-      { roundName: 'Week 34', roundId: '34', timer: '04:23', fixtures: [{ fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', market: '1X2' }] },
+      { roundName: 'Week 33', roundId: '33', timer: '01:23', fixtures: [{ fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', market: '1X2' }] },
+      { roundName: 'Week 34', roundId: '34', timer: '04:23', fixtures: [{ fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', market: '1X2' }] },
     ],
   };
   const result = matchCatalogueaToBetKingFixtures(catalogueaFixture, betKingSnapshot);
@@ -140,13 +140,13 @@ test('matchCatalogueaToBetKingFixtures detects ambiguous fixtures across rounds'
 });
 
 test('matchCatalogueaToBetKingFixtures returns NO_MATCH when no fixture found', () => {
-  const catalogueaFixture = { id: 'livars', home: 'liv', away: 'ars', winner: 325 };
+  const catalogueaFixture = { id: 'arsars', home: 'ars', away: 'liv', winner: 325 };
   const betKingSnapshot = {
     rounds: [{
       roundName: 'Week 33',
       roundId: '33',
       timer: '01:23',
-      fixtures: [{ fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', market: '1X2' }],
+      fixtures: [{ fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', market: '1X2' }],
     }],
   };
   const result = matchCatalogueaToBetKingFixtures(catalogueaFixture, betKingSnapshot);
@@ -155,13 +155,13 @@ test('matchCatalogueaToBetKingFixtures returns NO_MATCH when no fixture found', 
 });
 
 test('matchCatalogueaToBetKingFixtures respects minConfidence threshold', () => {
-  const catalogueaFixture = { id: 'livmnu', home: 'liv', away: 'mnu', winner: 325 };
+  const catalogueaFixture = { id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325 };
   const betKingSnapshot = {
     rounds: [{
       roundName: 'Week 33',
       roundId: '33',
       timer: '01:23',
-      fixtures: [{ fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', market: '1X2' }],
+      fixtures: [{ fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', market: '1X2' }],
     }],
   };
   // With HIGH minConfidence, a MEDIUM match should not be returned
@@ -171,19 +171,19 @@ test('matchCatalogueaToBetKingFixtures respects minConfidence threshold', () => 
 });
 
 test('createCrossViewFixtureIdentity builds cross-view identity', () => {
-  const scheduled = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', roundName: 'Week 33', roundId: '33' };
-  const live = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', roundName: 'Week 33', roundId: '33' };
-  const results = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', roundName: 'Week 33', roundId: '33' };
+  const scheduled = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', roundName: 'Week 33', roundId: '33' };
+  const live = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', roundName: 'Week 33', roundId: '33' };
+  const results = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', roundName: 'Week 33', roundId: '33' };
   const crossView = createCrossViewFixtureIdentity(scheduled, live, results);
   assert.equal(crossView.confidence, FIXTURE_IDENTITY_CONFIDENCE.HIGH);
-  assert.equal(crossView.id, 'matchup-statistics-button-LIV-COV');
+  assert.equal(crossView.id, 'matchup-statistics-button-ARS-COV');
   assert.ok(crossView.sources.scheduled);
   assert.ok(crossView.sources.live);
   assert.ok(crossView.sources.results);
 });
 
 test('createCrossViewFixtureIdentity handles partial views', () => {
-  const scheduled = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', roundName: 'Week 33', roundId: '33' };
+  const scheduled = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', roundName: 'Week 33', roundId: '33' };
   const crossView = createCrossViewFixtureIdentity(scheduled, null, null);
   assert.equal(crossView.confidence, FIXTURE_IDENTITY_CONFIDENCE.MEDIUM);
   assert.ok(crossView.sources.scheduled);
@@ -192,8 +192,8 @@ test('createCrossViewFixtureIdentity handles partial views', () => {
 });
 
 test('createCrossViewFixtureIdentity detects mismatch between views', () => {
-  const scheduled = { fixtureId: 'matchup-statistics-button-LIV-COV', home: 'LIV', away: 'COV', roundName: 'Week 33', roundId: '33' };
-  const live = { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', roundName: 'Week 33', roundId: '33' };
+  const scheduled = { fixtureId: 'matchup-statistics-button-ARS-COV', home: 'ARS', away: 'COV', roundName: 'Week 33', roundId: '33' };
+  const live = { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', roundName: 'Week 33', roundId: '33' };
   const crossView = createCrossViewFixtureIdentity(scheduled, live, null);
   assert.equal(crossView.confidence, FIXTURE_IDENTITY_CONFIDENCE.LOW);
 });

@@ -2,7 +2,7 @@
 // actually showed in the read-only market catalogue.
 //
 // What this proves: for each strategy option, the exact selection labels are present, with valid
-// odds, inside the mapped category and market for a visible Liverpool fixture. The mappings
+// odds, inside the mapped category and market for a visible Arsenal fixture. The mappings
 // themselves come from the owner; this is the live-page confirmation that the labels exist.
 
 const { OWNER_MAPPINGS, STRATEGY_PRIORITY } = require('../strategy/marketMappings');

@@ -120,8 +120,8 @@ function calculateIdentityMatch(catalogueaIdentity, betKingIdentity) {
   }
 
   if (catalogueaIdentity.id && betKingIdentity.fixtureId) {
-    // Cataloguea ids are concatenated 3-char codes ('livmnu'); BetKing ids look like
-    // 'matchup-statistics-button-LIV-COV' or 'LIV-COV'. Both sides are parsed the same
+    // Cataloguea ids are concatenated 3-char codes ('arsmnu'); BetKing ids look like
+    // 'matchup-statistics-button-ARS-COV' or 'ARS-COV'. Both sides are parsed the same
     // way, so a cross-view identity that already carries a BetKing-style id also scores.
     const catParts = parseFixtureIdCodes(catalogueaIdentity.id);
     const bkParts = parseFixtureIdCodes(betKingIdentity.fixtureId);

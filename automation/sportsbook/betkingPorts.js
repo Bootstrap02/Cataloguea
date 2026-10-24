@@ -12,6 +12,7 @@
 const { inspectBetKingPage, readLiveFixtureSnapshot } = require('./betkingAdapter');
 const { parseWeek } = require('../strategy/seasonWeek');
 const { normalizeTeamCode } = require('../strategy/fixtureIdentity');
+const { createResultsModalReader } = require('./betkingResultsModal');
 
 const ROUND_SWITCHER = '[data-testid^="round-switcher-button-"]';
 
@@ -131,6 +132,10 @@ function createBetKingPorts({ page, config, selectors }) {
   }
 
   async function readResultsPage() {
+    // No results selectors configured: use the built-in reader for the Kings League Results window.
+    if (!selectors.configured || !selectors.configured.results) {
+      return createResultsModalReader({ page, actionTimeoutMs: actionTimeout }).readResultsPage();
+    }
     requireSelectors('results', 'RESULTS_SELECTORS_NOT_CONFIGURED');
     let rows = await readResultsRows();
     const navigate = selectors.results.navigateSelector;

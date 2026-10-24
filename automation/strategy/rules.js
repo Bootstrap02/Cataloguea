@@ -1,12 +1,12 @@
 const { STRATEGY_BET_TYPES } = require('./canonicalBetTypes');
 const { canSelectOdd } = require('./marketFirstSequence');
 const {
-  LIVERPOOL_SIDE,
+  ARSENAL_SIDE,
   ORIENTED_SELECTIONS,
-  determineLiverpoolSide,
+  determineArsenalSide,
   resolveOrientedSelection,
-  toLiverpoolScore,
-} = require('./liverpoolPerspective');
+  toArsenalScore,
+} = require('./arsenalPerspective');
 
 // RULE-001 (Stage 27): a final stake qualifies when it is AT LEAST 10.
 // Stakes below 10 are skipped. 10 itself qualifies. Earlier stages used a
@@ -139,12 +139,12 @@ function getStrategyKeySemantics(strategyKey) {
   };
 }
 
-function resolveLiverpoolSide(context = {}) {
-  if (context.liverpoolSide === LIVERPOOL_SIDE.HOME || context.liverpoolSide === LIVERPOOL_SIDE.AWAY) {
-    return context.liverpoolSide;
+function resolveArsenalSide(context = {}) {
+  if (context.arsenalSide === ARSENAL_SIDE.HOME || context.arsenalSide === ARSENAL_SIDE.AWAY) {
+    return context.arsenalSide;
   }
   if (context.fixture) {
-    return determineLiverpoolSide(context.fixture).side;
+    return determineArsenalSide(context.fixture).side;
   }
   return null;
 }
@@ -153,31 +153,31 @@ function resolveLiverpoolSide(context = {}) {
 //
 // verifiedResult: { status: 'verified', halfTime: {home, away}, fullTime: {home, away} }
 //   (home/away are the website's scores; never a single generic score field)
-// context:        { liverpoolSide: 'HOME'|'AWAY' } or { fixture: {home, away} }
+// context:        { arsenalSide: 'HOME'|'AWAY' } or { fixture: {home, away} }
 //
-// EVERY option is defined from LIVERPOOL's side (owner definitions, Oct 17 2026):
-//   winner  FT_LIV = 6 and FT_OPP = 0
-//   oneX    HT_LIV > HT_OPP and FT_LIV = FT_OPP
-//   twoX    HT_LIV < HT_OPP and FT_LIV = FT_OPP
-//   x2      HT_LIV = HT_OPP and FT_LIV < FT_OPP
-//   tg0     FT_LIV + FT_OPP = 0          tg6   FT_LIV + FT_OPP = 6
-//   ht12    HT_LIV = 1 and HT_OPP = 2    ht21  HT_LIV = 2 and HT_OPP = 1    ht30  HT_LIV = 3 and HT_OPP = 0
-//   ft40    FT_LIV = 4 and FT_OPP = 0    ft41  FT_LIV = 4 and FT_OPP = 1
+// EVERY option is defined from ARSENAL's side (owner definitions, Oct 17 2026):
+//   winner  FT_ARS = 6 and FT_OPP = 0
+//   oneX    HT_ARS > HT_OPP and FT_ARS = FT_OPP
+//   twoX    HT_ARS < HT_OPP and FT_ARS = FT_OPP
+//   x2      HT_ARS = HT_OPP and FT_ARS < FT_OPP
+//   tg0     FT_ARS + FT_OPP = 0          tg6   FT_ARS + FT_OPP = 6
+//   ht12    HT_ARS = 1 and HT_OPP = 2    ht21  HT_ARS = 2 and HT_OPP = 1    ht30  HT_ARS = 3 and HT_OPP = 0
+//   ft40    FT_ARS = 4 and FT_OPP = 0    ft41  FT_ARS = 4 and FT_OPP = 1
 const NEEDS_HALF_TIME = Object.freeze(['oneX', 'twoX', 'x2', 'ht12', 'ht21', 'ht30']);
 const SIDE_INDEPENDENT = Object.freeze(['tg0', 'tg6']);
 
-const LIVERPOOL_CONDITIONS = Object.freeze({
-  winner: ({ ft }) => ft.liverpool === 6 && ft.opponent === 0,
-  oneX: ({ ht, ft }) => ht.liverpool > ht.opponent && ft.liverpool === ft.opponent,
-  twoX: ({ ht, ft }) => ht.liverpool < ht.opponent && ft.liverpool === ft.opponent,
-  x2: ({ ht, ft }) => ht.liverpool === ht.opponent && ft.liverpool < ft.opponent,
-  tg0: ({ ft }) => ft.liverpool + ft.opponent === 0,
-  tg6: ({ ft }) => ft.liverpool + ft.opponent === 6,
-  ht12: ({ ht }) => ht.liverpool === 1 && ht.opponent === 2,
-  ht21: ({ ht }) => ht.liverpool === 2 && ht.opponent === 1,
-  ht30: ({ ht }) => ht.liverpool === 3 && ht.opponent === 0,
-  ft40: ({ ft }) => ft.liverpool === 4 && ft.opponent === 0,
-  ft41: ({ ft }) => ft.liverpool === 4 && ft.opponent === 1,
+const ARSENAL_CONDITIONS = Object.freeze({
+  winner: ({ ft }) => ft.arsenal === 6 && ft.opponent === 0,
+  oneX: ({ ht, ft }) => ht.arsenal > ht.opponent && ft.arsenal === ft.opponent,
+  twoX: ({ ht, ft }) => ht.arsenal < ht.opponent && ft.arsenal === ft.opponent,
+  x2: ({ ht, ft }) => ht.arsenal === ht.opponent && ft.arsenal < ft.opponent,
+  tg0: ({ ft }) => ft.arsenal + ft.opponent === 0,
+  tg6: ({ ft }) => ft.arsenal + ft.opponent === 6,
+  ht12: ({ ht }) => ht.arsenal === 1 && ht.opponent === 2,
+  ht21: ({ ht }) => ht.arsenal === 2 && ht.opponent === 1,
+  ht30: ({ ht }) => ht.arsenal === 3 && ht.opponent === 0,
+  ft40: ({ ft }) => ft.arsenal === 4 && ft.opponent === 0,
+  ft41: ({ ft }) => ft.arsenal === 4 && ft.opponent === 1,
 });
 
 function evaluateResultAgainstStrategy(verifiedResult, strategyKey, context = {}) {
@@ -189,7 +189,7 @@ function evaluateResultAgainstStrategy(verifiedResult, strategyKey, context = {}
       resolved: false,
     };
   }
-  if (!semantics.resolved || !LIVERPOOL_CONDITIONS[strategyKey]) {
+  if (!semantics.resolved || !ARSENAL_CONDITIONS[strategyKey]) {
     return {
       outcome: SETTLEMENT_OUTCOMES.UNRESOLVED_MARKET,
       reason: `Strategy semantics not resolved for ${strategyKey} (${semantics.semanticsStatus}): ${semantics.meaning}`,
@@ -231,29 +231,29 @@ function evaluateResultAgainstStrategy(verifiedResult, strategyKey, context = {}
     ftScore,
   };
 
-  const side = resolveLiverpoolSide(context);
+  const side = resolveArsenalSide(context);
   if (side === null && !SIDE_INDEPENDENT.includes(strategyKey)) {
     return {
       outcome: SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE,
-      reason: `Liverpool home/away position is not established; ${strategyKey} cannot be evaluated.`,
+      reason: `Arsenal home/away position is not established; ${strategyKey} cannot be evaluated.`,
       ...base,
     };
   }
 
-  // Total-goals options do not depend on Liverpool's side; the score is used as given.
-  const ft = side ? toLiverpoolScore(ftScore, side) : { liverpool: ftScore.home, opponent: ftScore.away };
-  const ht = side && htScore ? toLiverpoolScore(htScore, side) : null;
-  const won = LIVERPOOL_CONDITIONS[strategyKey]({ ht, ft });
+  // Total-goals options do not depend on Arsenal's side; the score is used as given.
+  const ft = side ? toArsenalScore(ftScore, side) : { arsenal: ftScore.home, opponent: ftScore.away };
+  const ht = side && htScore ? toArsenalScore(htScore, side) : null;
+  const won = ARSENAL_CONDITIONS[strategyKey]({ ht, ft });
 
   return {
     outcome: won ? SETTLEMENT_OUTCOMES.WON : SETTLEMENT_OUTCOMES.LOST,
-    reason: won ? 'Liverpool-relative condition satisfied.' : 'Liverpool-relative condition not satisfied.',
+    reason: won ? 'Arsenal-relative condition satisfied.' : 'Arsenal-relative condition not satisfied.',
     ...(side ? {
-      liverpoolPerspective: {
+      arsenalPerspective: {
         side,
-        htLiverpool: ht ? ht.liverpool : null,
+        htArsenal: ht ? ht.arsenal : null,
         htOpponent: ht ? ht.opponent : null,
-        ftLiverpool: ft.liverpool,
+        ftArsenal: ft.arsenal,
         ftOpponent: ft.opponent,
       },
     } : {}),
@@ -313,7 +313,7 @@ function createRuleRegistry() {
 
   registerRule('RULE-003', {
     name: 'Evaluate Results Against Strategy Options',
-    description: 'Evaluates a verified result (separate HT and FT scores) against one strategy option, always from Liverpool\'s side. winner: Liverpool wins 6-0. oneX: Liverpool leads at HT and FT is a draw. twoX: Liverpool trails at HT and FT is a draw. x2: HT level and Liverpool loses. tg0/tg6: exactly 0 or 6 total goals. ht12/ht21/ht30: Liverpool-opponent half-time score. ft40/ft41: Liverpool-opponent full-time score. Returns WON, LOST, RESULT_UNVERIFIED, UNRESOLVED_MARKET, or AMBIGUOUS_FIXTURE.',
+    description: 'Evaluates a verified result (separate HT and FT scores) against one strategy option, always from Arsenal\'s side. winner: Arsenal wins 6-0. oneX: Arsenal leads at HT and FT is a draw. twoX: Arsenal trails at HT and FT is a draw. x2: HT level and Arsenal loses. tg0/tg6: exactly 0 or 6 total goals. ht12/ht21/ht30: Arsenal-opponent half-time score. ft40/ft41: Arsenal-opponent full-time score. Returns WON, LOST, RESULT_UNVERIFIED, UNRESOLVED_MARKET, or AMBIGUOUS_FIXTURE.',
     parameters: { strategyKeys: STRATEGY_KEYS },
     evaluate: (verifiedResult, strategyKey, context) => (
       evaluateResultAgainstStrategy(verifiedResult, strategyKey, context)
@@ -321,10 +321,10 @@ function createRuleRegistry() {
   });
 
   registerRule('RULE-004', {
-    name: 'Liverpool Home/Away Orientation',
-    description: 'Selections depend on Liverpool\'s position (marketMappings.js): oneX is 1/X at home and 2/X away, twoX 2/X and 1/X, x2 X/2 and X/1, winner 6-0 and 0-6, and so on. Total-goals options do not depend on the side.',
+    name: 'Arsenal Home/Away Orientation',
+    description: 'Selections depend on Arsenal\'s position (marketMappings.js): oneX is 1/X at home and 2/X away, twoX 2/X and 1/X, x2 X/2 and X/1, winner 6-0 and 0-6, and so on. Total-goals options do not depend on the side.',
     parameters: { orientedKeys: Object.keys(ORIENTED_SELECTIONS) },
-    evaluate: (strategyKey, liverpoolSide) => resolveOrientedSelection(strategyKey, liverpoolSide),
+    evaluate: (strategyKey, arsenalSide) => resolveOrientedSelection(strategyKey, arsenalSide),
   });
 
   registerRule('RULE-005', {

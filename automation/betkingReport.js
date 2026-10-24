@@ -30,7 +30,7 @@ function renderPlanMarkdown(prep) {
   const lines = [
     `# Instructions for Week ${plan.week}`,
     '',
-    `Fixture: ${plan.fixture.home} v ${plan.fixture.away} (Liverpool ${plan.liverpoolSide === 'HOME' ? 'home' : 'away'}, opponent ${plan.opponent})`,
+    `Fixture: ${plan.fixture.home} v ${plan.fixture.away} (Arsenal ${plan.arsenalSide === 'HOME' ? 'home' : 'away'}, opponent ${plan.opponent})`,
     `Round: ${identification.roundName}   Fixture id: ${plan.fixture.fixtureId}`,
     `Market-first pipeline went through: ${plan.pipelineThrough ?? 'not run'}`,
     '',

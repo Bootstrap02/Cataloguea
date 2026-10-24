@@ -16,7 +16,7 @@ async function createStore(t) {
 
 function strategySnapshot() {
   return {
-    fixture: { id: 'livmnu', home: 'liv', away: 'mnu', oneX: 14.7 },
+    fixture: { id: 'arsmnu', home: 'ars', away: 'mnu', oneX: 14.7 },
     gameStakes: { oneX: 2 },
     bigStakes: {},
     winnerStake: 31,
@@ -32,7 +32,7 @@ function strategySnapshot() {
 
 function validObservedSelection() {
   return {
-    fixtureId: 'livmnu',
+    fixtureId: 'arsmnu',
     market: 'oneX',
     assetKey: 'oneX',
     stake: 2,
@@ -44,7 +44,7 @@ function controllerWithSimulation({
   runStore,
   prepareSimulatedSelection,
   observeResult = async () => ({
-    fixture: { id: 'livmnu', home: 'liv', away: 'mnu' },
+    fixture: { id: 'arsmnu', home: 'ars', away: 'mnu' },
     status: 'complete',
     result: { homeScore: '2', awayScore: '1' },
     timestamp: '2026-10-06T12:00:00.000Z',
@@ -83,7 +83,7 @@ test('rejects wrong fixture before simulated action', async (t) => {
   const controller = controllerWithSimulation({
     runStore,
     prepareSimulatedSelection: async () => {
-      throw new Error('Fixture mismatch: strategy expects livmnu, local page shows livche.');
+      throw new Error('Fixture mismatch: strategy expects arsmnu, local page shows arsche.');
     },
   });
 
@@ -177,7 +177,7 @@ test('confirms one simulated operation and persists its lifecycle', async (t) =>
   assert.notEqual(result.settlementOperationId, result.actionOperationId);
   assert.equal(
     result.strategyState.settlement.resultId,
-    `livmnu:2-1:op:${result.actionOperationId}`,
+    `arsmnu:2-1:op:${result.actionOperationId}`,
   );
   assert.equal(store.results.length, 1);
   assert.equal(store.results[0].operationId, store.operations[0].id);
@@ -198,7 +198,7 @@ test('keeps a pending result in WAITING_FOR_RESULT without normalizing it as fin
       execute: async () => ({ confirmation: 'Local simulation confirmed.' }),
     }),
     observeResult: async () => ({
-      fixture: { id: 'livmnu', home: 'liv', away: 'mnu' },
+      fixture: { id: 'arsmnu', home: 'ars', away: 'mnu' },
       status: 'pending',
       result: null,
       timestamp: '2026-10-06T12:00:00.000Z',
@@ -224,7 +224,7 @@ for (const [name, observation, expectedError] of [
   [
     'wrong fixture result',
     {
-      fixture: { id: 'livche', home: 'liv', away: 'che' },
+      fixture: { id: 'arsche', home: 'ars', away: 'che' },
       status: 'complete',
       result: { homeScore: '2', awayScore: '1' },
       timestamp: '2026-10-06T12:00:00.000Z',
@@ -235,7 +235,7 @@ for (const [name, observation, expectedError] of [
   [
     'ambiguous incomplete result',
     {
-      fixture: { id: 'livmnu', home: 'liv', away: 'mnu' },
+      fixture: { id: 'arsmnu', home: 'ars', away: 'mnu' },
       status: 'complete',
       result: { homeScore: '2', awayScore: '' },
       timestamp: '2026-10-06T12:00:00.000Z',

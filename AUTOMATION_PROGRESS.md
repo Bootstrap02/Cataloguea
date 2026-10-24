@@ -43,7 +43,7 @@ container exposes the generic `data-testid="league-round"` rather than a
 distinct round ID, so no stable round ID was claimed. A visible fixture
 identity was `MNU-BHA` with DOM button test ID
 `matchup-statistics-button-MNU-BHA`. As with the known
-`matchup-statistics-button-LIV-COV` example, this is an observed DOM identity,
+`matchup-statistics-button-ARS-COV` example, this is an observed DOM identity,
 not a backend event ID.
 
 The sign-in button was visible, but public schedule and odds remained
@@ -190,7 +190,7 @@ include:
   `[data-testid="teams-away-name"]`
 - Match statistics button / row identity:
   `matchup-statistics-button-<HOME>-<AWAY>`, including the Stage 21
-  `matchup-statistics-button-LIV-COV`
+  `matchup-statistics-button-ARS-COV`
 - Round and scheduled countdown: `[data-testid="round-name"]` and
   `[data-testid="round-timer"]`
 
@@ -652,14 +652,14 @@ Playwright's `chrome` channel.
   deficit/bank values. `handleSubmit` selects the fixture from imported odds
   and calculates the stakes; `markWin`/`markBigWin` record manual selections;
   `handleNext` performs settlement.
-- `src/Scores.js` is the authoritative odds table. For example, `livmnu`
-  contains home `liv`, away `mnu`, winner odd `325`, and the ten asset odds.
+- `src/Scores.js` is the authoritative odds table. For example, `arsmnu`
+  contains home `ars`, away `mnu`, winner odd `325`, and the ten asset odds.
 - The React component exposes no pure strategy function or stable snapshot
   interface. Importing it into Node or refactoring it would couple the
   automation layer to UI/runtime details and risk strategy behavior. Stage 7
   therefore adds a read-only adapter for a validated snapshot of the existing
   hook-state fields. The POC snapshot is deterministic and uses the inspected
-  `livmnu` row and precomputed strategy outputs; the adapter does not calculate
+  `arsmnu` row and precomputed strategy outputs; the adapter does not calculate
   stakes or claim to read live React state.
 - A future UI-observation bridge remains coupled to the React component; this
   stage deliberately does not add UI data attributes, globals, or localStorage
@@ -841,7 +841,7 @@ Playwright's `chrome` channel.
 - `npm run build` — passed; CRA emitted the existing stale Browserslist data
   warning.
 - `npm run automation:poc` — passed. The visible local simulation reached
-  `RESULT_VERIFIED` and `COMPLETED` with the normalized result `livmnu 2–1`;
+  `RESULT_VERIFIED` and `COMPLETED` with the normalized result `arsmnu 2–1`;
   pending stayed in `WAITING_FOR_RESULT`; wrong-fixture and incomplete
   observations were rejected; duplicate result observation was recognized as
   already known. Existing Stage 1–8 local flows also passed, and the
@@ -1714,22 +1714,22 @@ Main reference: `automation/BETKING_WORKFLOW.md`.
 ### Business rules changed or added
 
 - RULE-001 minimum stake is now **at least 10 qualifies; below 10 is skipped** (was strict `> 10`). The decision adapter now uses the rules module instead of its own comparison.
-- RULE-003: `oneX` = Liverpool leads at HT and FT is a draw; `twoX` = Liverpool trails at HT and FT is a draw. Evaluated from Liverpool's perspective with separate HT and FT scores; never from the final score alone.
-- RULE-004: Liverpool home maps `x2` to selection X2, away to X1 (label only). Settlement for `x2` stays UNRESOLVED.
+- RULE-003: `oneX` = Arsenal leads at HT and FT is a draw; `twoX` = Arsenal trails at HT and FT is a draw. Evaluated from Arsenal's perspective with separate HT and FT scores; never from the final score alone.
+- RULE-004: Arsenal home maps `x2` to selection X2, away to X1 (label only). Settlement for `x2` stays UNRESOLVED.
 - Removed from `rules.js` the earlier invented conditions for `oneX`/`twoX`/`x2`/`tg0`/`tg6`/`winner`, and removed the duplicated, conventional-market settlement logic from `resultPoller.js` (it now delegates to `rules.js`).
 
 ### Files created
 
 - `automation/BETKING_WORKFLOW.md`
 - `automation/strategy/seasonWeek.js`, `seasonWeek.test.js`
-- `automation/strategy/liverpoolPerspective.js`
+- `automation/strategy/arsenalPerspective.js`
 - `automation/strategy/operationalWorkflow.js`, `operationalWorkflow.test.js`
 
 ### Files modified
 
 - `automation/strategy/rules.js`, `rules.test.js`
 - `automation/strategy/canonicalBetTypes.js` (semantics status, oneX/twoX conditions, `STRATEGY_1X` id with legacy alias `DOUBLE_CHANCE_1X`, x2 orientation)
-- `automation/strategy/strategyDecisionAdapter.js` (uses rules; reads `winnerStake` from the strategy; reads flat or nested odds; adds stake components, eligibility, Liverpool side, oriented selection)
+- `automation/strategy/strategyDecisionAdapter.js` (uses rules; reads `winnerStake` from the strategy; reads flat or nested odds; adds stake components, eligibility, Arsenal side, oriented selection)
 - `automation/strategy/resultPoller.js`, `resultPoller.test.js` (settlement delegated to rules; tests encoding invented semantics replaced)
 - `automation/stateMachine.js` (additive transitions and `WAITING_FOR_NEXT_FIXTURE`)
 - `AUTOMATION_PROGRESS.md`
@@ -1779,7 +1779,7 @@ Pure-logic automation tests (no browser) were run in the sandbox against the del
 Fixed (all pre-existing defects exposed by the 14 failures):
 
 - `resultPoller.js`: `pollOnce` was not exported (8 tests). Confidence levels were compared alphabetically as strings, which rejected HIGH matches; now ranked. Results entries use `id` or fall back to `fixtureId` so a result identity can be created. Results from a different round are ignored. Default minimum confidence is LOW (exact team orientation) with duplicate detection; the real-site controller requires MEDIUM.
-- `fixtureIdentity.js`: ids in the `matchup-statistics-button-LIV-MNU` form were not parsed on the Cataloguea/cross-view side, so cross-view identities never earned the id score; both sides are now parsed the same way.
+- `fixtureIdentity.js`: ids in the `matchup-statistics-button-ARS-MNU` form were not parsed on the Cataloguea/cross-view side, so cross-view identities never earned the id score; both sides are now parsed the same way.
 - `resultPoller.js`: an option skipped for a stake below the minimum is reported as SKIPPED_BELOW_MINIMUM before its mapping status (RULE-005).
 - `resultPoller.test.js`: the conflict test mutated a copy of the state and could never pass; rewritten with one poller; two round-check tests added.
 - `betkingController.js`: live observer ids split into short id and DOM id; poller threshold MEDIUM.
@@ -1809,17 +1809,17 @@ Status: IMPLEMENTED AND DOCUMENTED, NOT RUN. No test, build, Playwright run, ins
 - New `sportsbook/betkingMarketFlow.js`: open category, identify selection, select odd (slip must be empty, odds re-read, observable summary bar), open slip, enter stake, read slip, read-only category catalogue. No submission and no "PLACE BET" locator.
 - `rules.js`: RULE-006 (market-first gate) and RULE-007 (one selection per slip).
 - `canonicalBetTypes.js`: visible-in-video market proposals (`MARKET_PROPOSALS`, `getMarketProposal`), never VERIFIED.
-- `strategyDecisionAdapter.js`: mappings may name the selection per Liverpool side (`selectionBySide`) and a `category`; every instruction carries its proposal.
+- `strategyDecisionAdapter.js`: mappings may name the selection per Arsenal side (`selectionBySide`) and a `category`; every instruction carries its proposal.
 - `sportsbook/betkingSelectors.js`: loader accepts `category` and `selectionBySide`; `betking-market-mappings.example.json` holds the HT/FT proposals for oneX, twoX, x2 (not verified).
 - `betkingController.js`: replaced the old selection check and slip population with the market-first pipeline; `betkingLiveConfig.js` / `betkingRun.js`: `--through identify|select|slip` (default read only).
 - `operationalWorkflow.js`: market-first workflow steps and ten new failure policies.
 - `sportsbook/betkingPorts.js`: superseded selection/slip functions removed (now in the market flow).
 - `sportsbook/betkingProbe.js`: failed clicks now record what covers the control, its box, classes, and state.
-- New `betkingMarkets.js` (`automation:betking:markets`): read-only catalogue of what each category offers for the Liverpool fixture.
+- New `betkingMarkets.js` (`automation:betking:markets`): read-only catalogue of what each category offers for the Arsenal fixture.
 - Tests written (not run): `strategy/marketFirstSequence.test.js`; additions to `rules.test.js` and `betkingController.test.js`.
 
 ### Behaviors demonstrated by the video (not DOM-verified)
-More Markets panel with 12 categories; HT/FT 3x3 grid with labels above odds; tapping an odd highlights it and shows "N Selection / Odds"; another outcome in the same market replaces the first; Betslip page with item "LIV - AST / HT/FT - 1/X / 13.30", stake box prefilled 100, chips, Total Odds, Net Potential Winnings (= stake x odds), expiry countdown (orange at 00:20), PLACE BET (not pressed).
+More Markets panel with 12 categories; HT/FT 3x3 grid with labels above odds; tapping an odd highlights it and shows "N Selection / Odds"; another outcome in the same market replaces the first; Betslip page with item "ARS - AST / HT/FT - 1/X / 13.30", stake box prefilled 100, chips, Total Odds, Net Potential Winnings (= stake x odds), expiry countdown (orange at 00:20), PLACE BET (not pressed).
 
 ### Verified against the live DOM
 Only the Stage 31 probe findings (owner-run): round switchers, market tabs ("HT/FT", "1X2 & GG"), matches, and odds buttons exist and most were clickable; `matchup-statistics-button-*` ids are absent; "Week 35" click timed out.
@@ -1858,7 +1858,7 @@ None new. Still only the Stage 31 probe.
 
 ## Stage 34 — Fixes After the First Live Markets Run
 
-Evidence from the owner-run `automation:betking:markets` (Oct 16, real site): all 17 Stage 33 files were in place; `npm run build` compiled; `npm run automation:test` 319 passed; `npm start` served HTTP 200. The markets run opened the real page and found the round and fixture rows (Week 23 ARS v LIV, Week 24 LIV v BRE), but "Favourites" was reported not opened, later categories reported the fixture row unavailable, and a FreeToPlay `.dialog__backdrop` intercepted the More Markets click. No mappings were written (correct: no evidence was gathered).
+Evidence from the owner-run `automation:betking:markets` (Oct 16, real site): all 17 Stage 33 files were in place; `npm run build` compiled; `npm run automation:test` 319 passed; `npm start` served HTTP 200. The markets run opened the real page and found the round and fixture rows (Week 23 LIV v ARS, Week 24 ARS v BRE), but "Favourites" was reported not opened, later categories reported the fixture row unavailable, and a FreeToPlay `.dialog__backdrop` intercepted the More Markets click. No mappings were written (correct: no evidence was gathered).
 
 ### Code changes (the browser code has NOT been run against the live site)
 - `sportsbook/betkingMarketFlow.js`: overlay detection and safe dismissal (Escape, then only a control clearly labelled close, dismiss, not now, or skip; never play, join, claim, deposit, bet, accept; cookie or consent dialogs never accepted); navigation clicks retry once after an overlay is cleared or a person closes it; category chips are found INSIDE the More Markets panel (not by page-wide text, which could hit the favourites star); the active category is also read from the title beside the More Markets toggle, since the `selected-market-name` test id may be absent on the mobile layout; `captureDiagnostics` added.
@@ -1871,17 +1871,17 @@ Whether the header text detection reads the active category; whether the panel c
 
 ## Stage 35 — Owner Definitions, Priority Order, and the Guarded Place-Bet Step
 
-Status: implemented; the full unit suite passes (339 tests, no browser, nothing that can place a wager). NOT run on the live site. The owner supplied two slip screenshots (Week 16 LIV - ARS, Liverpool home; Week 17 SUN - LIV, Liverpool away), the market where each option is found, the order of play, and confirmation that BetKing allows the automation.
+Status: implemented; the full unit suite passes (339 tests, no browser, nothing that can place a wager). NOT run on the live site. The owner supplied two slip screenshots (Week 16 ARS - LIV, Arsenal home; Week 17 SUN - ARS, Arsenal away), the market where each option is found, the order of play, and confirmation that BetKing allows the automation.
 
 ### Decisions and definitions (owner)
-- All eleven options are defined from Liverpool's side (see `BETKING_WORKFLOW.md` section C). `winner` = Liverpool 6-0; `x2` = HT/FT X/2 at home and X/1 away (HT level, then Liverpool loses); `tg0`/`tg6` = exactly 0 / 6 total goals; `ht21`/`ht12`/`ht30` = Liverpool-opponent half-time score (HT Correct Score); `ft40`/`ft41` = Liverpool-opponent full-time score (Correct Score).
+- All eleven options are defined from Arsenal's side (see `BETKING_WORKFLOW.md` section C). `winner` = Arsenal 6-0; `x2` = HT/FT X/2 at home and X/1 away (HT level, then Arsenal loses); `tg0`/`tg6` = exactly 0 / 6 total goals; `ht21`/`ht12`/`ht30` = Arsenal-opponent half-time score (HT Correct Score); `ft40`/`ft41` = Arsenal-opponent full-time score (Correct Score).
 - Order of play: winner, oneX, twoX, x2, tg0, tg6, ht21, ht12, ht30, ft40, ft41.
 - Internal keys are NOT renamed (persisted state, odds table, UI use them). Display names and the full mapping live in the workflow document and `strategy/marketMappings.js`.
 
 ### Code changes
-- New `strategy/marketMappings.js`: owner-confirmed category, market, and selection per option and Liverpool side; priority order.
-- `rules.js`: all eleven win conditions evaluated from Liverpool's side; the former unresolved state is gone, so a verified result now settles automatically; `NOT_PLACED` outcome.
-- `canonicalBetTypes.js`, `liverpoolPerspective.js`, `strategyDecisionAdapter.js`: derive from the mapping table; options listed in priority order; category and market carried separately.
+- New `strategy/marketMappings.js`: owner-confirmed category, market, and selection per option and Arsenal side; priority order.
+- `rules.js`: all eleven win conditions evaluated from Arsenal's side; the former unresolved state is gone, so a verified result now settles automatically; `NOT_PLACED` outcome.
+- `canonicalBetTypes.js`, `arsenalPerspective.js`, `strategyDecisionAdapter.js`: derive from the mapping table; options listed in priority order; category and market carried separately.
 - `sportsbook/betkingMarketFlow.js`: market inside a category (for example HT Correct Score inside Half Time) with its title checked; `closeBetSlip`; `placeBet`, the single function that can submit a wager (one click, never retried, result judged only from new page text, screenshots saved).
 - `strategy/marketFirstSequence.js`: stages `WAGER_SUBMITTED` and `WAGER_ACCEPTED` (accepted only with the site's confirmation text); slip parser understands the multi-selection Singles layout.
 - `betkingController.js` / `betkingRun.js` / `betkingLiveConfig.js`: `--through place`, `--auto-confirm`, `AUTOMATION_ALLOW_REAL_MONEY`, `AUTOMATION_MAX_STAKE`; built-in owner mappings (your file overrides per key); odds comparison against the strategy table; in place mode only accepted bets can receive a winning mark; unconfirmed click pauses the run.
@@ -1889,7 +1889,7 @@ Status: implemented; the full unit suite passes (339 tests, no browser, nothing 
 - Tests: updated for the new definitions; new tests for all place-bet safeguards.
 
 ### Findings
-- BetKing's current odds differ from the strategy odds table (for example LIV - ARS oneX 14.70 vs 13.7; winner 1,431.00 vs 563). Stakes use the table.
+- BetKing's current odds differ from the strategy odds table (for example ARS - LIV oneX 14.70 vs 13.7; winner 1,431.00 vs 563). Stakes use the table.
 - The slip's Singles group applies one stake to every selection, with a minimum of 10 per bet, so options with different stakes are placed one at a time.
 - The account balance shown in the screenshots was N0.09; real bets will be rejected until it is funded.
 

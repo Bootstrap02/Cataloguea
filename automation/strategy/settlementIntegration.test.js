@@ -9,7 +9,7 @@ const {
   settlePlannedFixture,
 } = require('./settlementIntegration');
 
-const STRATEGY_FIXTURE = { id: 'livmnu', home: 'liv', away: 'mnu' };
+const STRATEGY_FIXTURE = { id: 'arsmnu', home: 'ars', away: 'mnu' };
 
 function record(strategyKey, normal, big, extra = {}) {
   return {
@@ -31,14 +31,14 @@ function createPlan({ week = 5 } = {}) {
   const all = [oneX, twoX, ht12];
   return {
     week,
-    fixture: { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU' },
+    fixture: { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU' },
     strategyFixture: STRATEGY_FIXTURE,
-    liverpoolSide: 'HOME',
+    arsenalSide: 'HOME',
     observedAt: '2026-10-12T10:00:00.000Z',
     allRecords: all,
     eligible: [oneX, twoX],
     skipped: [ht12],
-    stakeFingerprint: createStakeFingerprint('livmnu', all.map((r) => ({
+    stakeFingerprint: createStakeFingerprint('arsmnu', all.map((r) => ({
       strategyKey: r.strategyKey, normal: r.stakeComponents.normal, big: r.stakeComponents.bigDeficit,
     }))),
   };
@@ -86,10 +86,10 @@ function createFakeStrategy({ manualWinners = [] } = {}) {
 const VERIFIED = { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: { home: 2, away: 2 } };
 
 test('createOperationId is deterministic and needs every part', () => {
-  const input = { week: 5, fixtureId: 'livmnu', planObservedAt: '2026-10-12T10:00:00.000Z' };
+  const input = { week: 5, fixtureId: 'arsmnu', planObservedAt: '2026-10-12T10:00:00.000Z' };
   assert.equal(createOperationId(input), createOperationId({ ...input }));
   assert.notEqual(createOperationId(input), createOperationId({ ...input, week: 6 }));
-  assert.throws(() => createOperationId({ week: 5, fixtureId: 'livmnu' }));
+  assert.throws(() => createOperationId({ week: 5, fixtureId: 'arsmnu' }));
 });
 
 test('buildNormalizedResult keeps half time separate from the full-time score fields', () => {

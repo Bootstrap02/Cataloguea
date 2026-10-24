@@ -12,7 +12,7 @@ const { prepareSimulatedSelection, verifyObservedSelection } = require('../sport
 const { STATES } = require('../stateMachine');
 const { createFaultInjector } = require('./faultInjection');
 
-const FIXTURE = { id: 'livmnu', home: 'liv', away: 'mnu' };
+const FIXTURE = { id: 'arsmnu', home: 'ars', away: 'mnu' };
 const TIMESTAMP = '2026-10-07T00:00:00.000Z';
 const EXPECTED_SUCCESS_STATES = [
   STATES.INITIALIZING,
@@ -130,7 +130,7 @@ function createMockController({
           throw new Error(`Expected market "${assetKey}" is unavailable.`);
         }
         const selection = {
-          fixtureId: selectionOverride.wrongFixture ? 'livche' : instruction.fixture.id,
+          fixtureId: selectionOverride.wrongFixture ? 'arsche' : instruction.fixture.id,
           market: assetKey,
           assetKey,
           stake: instruction.assets.find(({ key }) => key === assetKey).stake,
@@ -453,7 +453,7 @@ test('Stage 11 deterministic end-to-end chaos matrix', async (t) => {
   for (const [scenario, observation, pattern] of [
     [
       'wrong result fixture',
-      completeObservation({ fixture: { id: 'livche', home: 'liv', away: 'che' } }),
+      completeObservation({ fixture: { id: 'arsche', home: 'ars', away: 'che' } }),
       /Result fixture mismatch/,
     ],
     [

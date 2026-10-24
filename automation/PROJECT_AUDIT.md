@@ -11,7 +11,7 @@ on BetKing in an earlier stage, historical), **DESIGNED** (not implemented),
 ## 1. What Cataloguea currently does
 
 A Create React App (React 19, JavaScript) application, `src/Catalogued.js`
-(706 lines), that runs the Solo Matrix strategy: the user selects a Liverpool
+(706 lines), that runs the Solo Matrix strategy: the user selects an Arsenal
 fixture, the app computes a winner (6-0) stake and ten asset stakes, the user
 marks which options won, and "Next" settles the state. `src/Trash.js` (1158
 lines) is a second, older component that also imports the odds table and a
@@ -34,18 +34,18 @@ test file.
 
 | Key | Source of meaning | Status |
 | --- | --- | --- |
-| `oneX` | User instruction (Stage 27): Liverpool leads at HT and FT is a draw | USER_SPECIFIED |
-| `twoX` | User instruction: Liverpool trails at HT and FT is a draw | USER_SPECIFIED |
-| `x2` | User instruction: Liverpool home -> X2, away -> X1 (label only) | ORIENTATION_ONLY, settlement UNRESOLVED |
+| `oneX` | User instruction (Stage 27): Arsenal leads at HT and FT is a draw | USER_SPECIFIED |
+| `twoX` | User instruction: Arsenal trails at HT and FT is a draw | USER_SPECIFIED |
+| `x2` | User instruction: Arsenal home -> X2, away -> X1 (label only) | ORIENTATION_ONLY, settlement UNRESOLVED |
 | `winner` | "the 6-0 option"; exact condition not defined in code | UNRESOLVED |
 | `tg0`, `tg6` | UI labels only | UNRESOLVED |
-| `ht12`, `ht21`, `ht30`, `ft40`, `ft41` | Earlier-stage inference from the key names | ASSUMED_FROM_LABEL (home-away order, not confirmed Liverpool-relative) |
+| `ht12`, `ht21`, `ht30`, `ft40`, `ft41` | Earlier-stage inference from the key names | ASSUMED_FROM_LABEL (home-away order, not confirmed Arsenal-relative) |
 
-Observation, not a conclusion: `winner` odds in `Scores.js` are lower for Liverpool-home rows than for Liverpool-away rows, which is consistent with "Liverpool wins 6-0", but the code does not say so.
+Observation, not a conclusion: `winner` odds in `Scores.js` are lower for Arsenal-home rows than for Arsenal-away rows, which is consistent with "Arsenal wins 6-0", but the code does not say so.
 
 ## 5. Business rules (IMPL-TEST, not run)
 
-RULE-001 minimum stake (10 or more qualifies), RULE-002 merge normal and big-deficit of the same option, RULE-003 per-option evaluation, RULE-004 Liverpool orientation for `x2`, RULE-005 skipped options settle as non-winning and receive no marks (confirmed by the user). All in `automation/strategy/rules.js`.
+RULE-001 minimum stake (10 or more qualifies), RULE-002 merge normal and big-deficit of the same option, RULE-003 per-option evaluation, RULE-004 Arsenal orientation for `x2`, RULE-005 skipped options settle as non-winning and receive no marks (confirmed by the user). All in `automation/strategy/rules.js`.
 
 ## 6. Automation modules and status
 
@@ -56,7 +56,7 @@ RULE-001 minimum stake (10 or more qualifies), RULE-002 merge normal and big-def
 | `strategy/strategyDecisionAdapter.js` | IMPL-TEST. Now reuses `rules.js` and the strategy's own `winnerStake`. |
 | `strategy/fixtureIdentity.js` | IMPL-TEST. Confidence scoring; workflow requires HIGH. |
 | `strategy/canonicalBetTypes.js` | IMPL-TEST. Every BetKing mapping is UNRESOLVED. |
-| `strategy/seasonWeek.js`, `liverpoolPerspective.js`, `operationalWorkflow.js` | New in Stage 27, tests written, not run. |
+| `strategy/seasonWeek.js`, `arsenalPerspective.js`, `operationalWorkflow.js` | New in Stage 27, tests written, not run. |
 | `strategy/settlementIntegration.js` | New in Stage 28, tests written, not run. |
 | `betkingController.js`, `betkingRun.js`, `sportsbook/betkingPorts.js`, `sportsbook/betkingSelectors.js`, `strategy/strategyBridge.js` | New in Stage 29: real-site controller and ports. Implemented, **no tests, never run**; live/results/bet-slip selectors are user-supplied and unverified. |
 | `strategy/resultPoller.js`, `result/liveResultObserver.js` | Logic implemented against mocks; no verified real live/results selector. `resultPoller` previously held a second, conventional-market settlement definition; it now delegates to `rules.js`. |
@@ -64,7 +64,7 @@ RULE-001 minimum stake (10 or more qualifies), RULE-002 merge normal and big-def
 
 ## 7. Verified against the real BetKing site (historical, re-verify)
 
-Scheduled Kings League page opened in a visible Chromium session; rounds, fixtures (ids like `matchup-statistics-button-LIV-COV`), 1X2 selections, and market-tab categories (Double Chance, O/U 2.5, GG/NG, Correct Score) observed; other tab labels rendered blank. Not established: live score or clock selectors, halftime or full-time score source, Results history route, selection-level market mappings, bet-slip behaviour.
+Scheduled Kings League page opened in a visible Chromium session; rounds, fixtures (ids like `matchup-statistics-button-ARS-COV`), 1X2 selections, and market-tab categories (Double Chance, O/U 2.5, GG/NG, Correct Score) observed; other tab labels rendered blank. Not established: live score or clock selectors, halftime or full-time score source, Results history route, selection-level market mappings, bet-slip behaviour.
 
 ## 8. Test inventory (not run)
 

@@ -22,7 +22,7 @@ const { OWNER_MAPPINGS } = require('./strategy/marketMappings');
 const { createResultId } = require('./result/resultIdentity');
 
 const STRATEGY_FIXTURE = {
-  id: 'livmnu', home: 'liv', away: 'mnu', winner: 325, oneX: 14.7, twoX: 14.7, x2: 14.6, tg0: 15.1,
+  id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325, oneX: 14.7, twoX: 14.7, x2: 14.6, tg0: 15.1,
   tg6: 16.9, ht12: 22.4, ht21: 13.4, ht30: 26.2, ft40: 35.8, ft41: 30,
 };
 
@@ -48,7 +48,7 @@ function fakePage(name) {
 }
 
 function liveFrames() {
-  const fixture = { id: 'LIV-MNU', domId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', roundId: '5' };
+  const fixture = { id: 'ARS-MNU', domId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', roundId: '5' };
   const frame = (clock, homeScore, awayScore, status = 'IN_PROGRESS') => ({
     fixture, clock, homeScore, awayScore, status, observedAt: new Date().toISOString(),
   });
@@ -59,7 +59,7 @@ function setup({
   answers = null, frames = liveFrames(), authFirstReads = 0, strategyReadyAfter = 0,
   mappings = {}, bigDeficits = {}, through = 'identify', flowOverrides = {},
   strategyFeedable = false, feedStrategy = true, lastSettledWeek = null, env = {},
-  feedResult = { ok: true, fixture: { id: 'livmnu', home: 'liv', away: 'mnu' } },
+  feedResult = { ok: true, fixture: { id: 'arsmnu', home: 'ars', away: 'mnu' } },
 } = {}) {
   const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'betking-run-'));
   const config = createBetKingLiveConfig({
@@ -71,6 +71,7 @@ function setup({
     AUTOMATION_PIPELINE_THROUGH: through,
     ...env,
     AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
+    AUTOMATION_STRATEGY_MODE: 'page',
     AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS: '5000',
@@ -91,7 +92,7 @@ function setup({
         url: config.targetUrl,
         rounds: [{
           roundName: 'Week 5', roundId: '5',
-          fixtures: [{ fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', market: '1X2', selections: [{ name: '1', odds: 1.5 }] }],
+          fixtures: [{ fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', market: '1X2', selections: [{ name: '1', odds: 1.5 }] }],
         }],
       },
     }),
@@ -110,7 +111,7 @@ function setup({
   const track = (name, result) => async (...args) => { calls.flow.push({ name, args }); return typeof result === 'function' ? result(...args) : result; };
   injected.flow = {
     openMarketCategory: track('openMarketCategory', { status: 'MARKET_CATEGORY_OPENED', evidence: { category: 'HT/FT', observedCategory: 'HT/FT', labelsInFixture: ['1/1', '1/X', '1/2'], via: 'test' } }),
-    identifyMarketSelection: track('identifyMarketSelection', (selection) => ({ status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'LIV', away: 'MNU', expectedHome: 'LIV', expectedAway: 'MNU', index: 1, labels: [selection] } })),
+    identifyMarketSelection: track('identifyMarketSelection', (selection) => ({ status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'ARS', away: 'MNU', expectedHome: 'ARS', expectedAway: 'MNU', index: 1, labels: [selection] } })),
     selectOdd: track('selectOdd', { status: 'SELECTION_ADDED', evidence: { selectedStateObserved: true, slipCountBefore: 0, slipCountAfter: 1 } }),
     openBetSlip: track('openBetSlip', { status: 'BET_SLIP_OPEN' }),
     enterStake: track('enterStake', { status: 'STAKE_NOT_ACCEPTED', evidence: {} }),
@@ -188,7 +189,7 @@ test('a full week is prepared, watched, evaluated, and settled once through the 
   const evaluation = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'week-5-evaluation.json'), 'utf8'));
   const oneX = evaluation.evaluations.find((entry) => entry.strategyKey === 'oneX');
   if (oneX) {
-    // HT 1-0 (Liverpool home leads) and FT 1-1: oneX condition is met.
+    // HT 1-0 (Arsenal home leads) and FT 1-1: oneX condition is met.
     assert.equal(oneX.outcome, 'WON');
   }
 });
@@ -247,7 +248,7 @@ test('market-first (identify): opens the category, identifies the selection, ver
   const names = calls.flow.map((call) => call.name);
   assert.deepEqual(names.slice(0, 2), ['openMarketCategory', 'identifyMarketSelection']);
   assert.ok(!names.includes('selectOdd'));
-  // Liverpool is the home team, so oneX resolves to HT/FT 1/X.
+  // Arsenal is the home team, so oneX resolves to HT/FT 1/X.
   assert.equal(calls.flow[0].args[0], 'HT/FT');
   assert.equal(calls.flow[1].args[0], '1/X');
   const oneX = readPlan(outcome).instructions.find((record) => record.strategyKey === 'oneX');
@@ -307,10 +308,10 @@ test('the pipeline depth must be identify, select, or slip', () => {
 });
 
 
-test('the identified Liverpool fixture is fed to the strategy when it has none (team codes in lower case)', async () => {
+test('the identified Arsenal fixture is fed to the strategy when it has none (team codes in lower case)', async () => {
   const { controller, calls } = setup({ strategyFeedable: true });
   const outcome = await controller.run({ requiredWeek: 5 });
-  assert.deepEqual(calls.feed, [{ home: 'liv', away: 'mnu' }]);
+  assert.deepEqual(calls.feed, [{ home: 'ars', away: 'mnu' }]);
   assert.equal(outcome.status, 'COMPLETED');
   const journal = JSON.parse(fs.readFileSync(path.join(outcome.runDir, 'journal.json'), 'utf8'));
   assert.ok(journal.events.some((event) => event.type === 'CHECKPOINT' && event.details.step === 'FEED_STRATEGY_FIXTURE'));
@@ -320,7 +321,7 @@ test('a fixture the strategy has no odds for stops the run instead of inventing 
   const { controller } = setup({
     strategyFeedable: true,
     feedStrategy: true,
-    feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for liv vs mnu' },
+    feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for ars vs mnu' },
   });
   const outcome = await controller.run({ requiredWeek: 5, prompts: true });
   // With prompts the controller offers a manual retry first; typing stop ends the run.
@@ -379,12 +380,12 @@ function slipFlow(overrides = {}) {
     },
     identifyMarketSelection: (selection) => {
       current.selection = selection;
-      return { status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'LIV', away: 'MNU', expectedHome: 'LIV', expectedAway: 'MNU', index: 0, labels: [selection] } };
+      return { status: 'MARKET_SELECTION_IDENTIFIED', odds: 13.3, evidence: { selection, matchedLabel: selection, home: 'ARS', away: 'MNU', expectedHome: 'ARS', expectedAway: 'MNU', index: 0, labels: [selection] } };
     },
     enterStake: (stake) => { current.stake = stake; return { status: 'STAKE_ENTERED' }; },
     readSlipPage: () => ({
       isBetSlipPage: true,
-      items: [{ home: 'LIV', away: 'MNU', market: current.market, selection: current.selection, odds: 13.3, week: 5 }],
+      items: [{ home: 'ARS', away: 'MNU', market: current.market, selection: current.selection, odds: 13.3, week: 5 }],
       stake: current.stake,
       totalOdds: 13.3,
       potentialWinnings: current.stake * 13.3,
@@ -403,7 +404,7 @@ test('every option is resolved from the owner mappings and processed in the owne
   const { controller, calls } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'identify', flowOverrides: slipFlow() });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.equal(outcome.status, 'COMPLETED');
-  // Liverpool is home: winner 6-0, then oneX 1/X, then twoX 2/X.
+  // Arsenal is home: winner 6-0, then oneX 1/X, then twoX 2/X.
   assert.deepEqual(identifiedSelections(calls), ['6-0', '1/X', '2/X']);
   const categories = calls.flow.filter((call) => call.name === 'openMarketCategory').map((call) => call.args[0]);
   assert.deepEqual(categories, ['Correct Score', 'HT/FT', 'HT/FT']);
@@ -514,4 +515,33 @@ test('the place depth is accepted by the configuration and is the only one that 
   assert.equal(config.allowRealMoney, false);
   assert.equal(config.autoConfirm, false);
   assert.equal(config.maxStake, 1000);
+});
+
+test('the strategy runs without a screen by default, and the old tab mode is opt-in', () => {
+  const live = createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' });
+  assert.equal(live.strategyMode, 'headless');
+  assert.equal(live.baseStake, 10000);
+  assert.ok(live.slowMoMs > 0, 'clicks are slowed so they can be watched');
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_STRATEGY_MODE: 'page' }).strategyMode, 'page');
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_SLOW_MO_MS: '0' }).slowMoMs, 0);
+});
+
+test('the outcome summary says which options won and lost, with the half-time and full-time scores', () => {
+  const { formatOutcomeSummary } = require('./betkingController');
+  const text = formatOutcomeSummary(
+    { fixture: { home: 'ars', away: 'new' } },
+    { halfTime: { home: 2, away: 1 }, fullTime: { home: 3, away: 1 } },
+    {
+      evaluations: [
+        { strategyKey: 'ht21', outcome: 'WON', stake: 15, htScore: { home: 2, away: 1 }, ftScore: { home: 3, away: 1 } },
+        { strategyKey: 'tg0', outcome: 'LOST', stake: 12, htScore: null, ftScore: { home: 3, away: 1 } },
+      ],
+      notPlaced: [],
+      skipped: [{ strategyKey: 'oneX', stake: 7 }],
+    },
+  );
+  assert.match(text, /ARS v NEW: half-time 2-1, full-time 3-1/);
+  assert.match(text, /ht21 WON {2}stake 15 {2}\[Arsenal 2-1 at half-time\] {2}\(HT 2-1, FT 3-1\)/);
+  assert.match(text, /tg0 LOST/);
+  assert.match(text, /WON: ht21 \| LOST: tg0/);
 });

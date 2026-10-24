@@ -124,7 +124,7 @@ async function runRealStrategyCycle({
 }
 
 test('Stage 14 local end-to-end cycles settle and persist through the real Cataloguea strategy', async (t) => {
-  const fixture = await fixtureById('livmnu');
+  const fixture = await fixtureById('arsmnu');
   const complexRuntime = createLocalCatalogueaRuntime({
     fixture,
     financialState: {
@@ -191,7 +191,7 @@ test('Stage 14 local end-to-end cycles settle and persist through the real Catal
   assert.equal(complexRun.settlements[0].status, 'confirmed');
   assert.equal(complexRun.checkpoint.state, STATES.COMPLETED);
 
-  const lossFixture = await fixtureById('livmnu');
+  const lossFixture = await fixtureById('arsmnu');
   const lossRuntime = createLocalCatalogueaRuntime({
     fixture: lossFixture,
     financialState: {
@@ -275,7 +275,7 @@ test('Stage 14 local end-to-end cycles settle and persist through the real Catal
   });
   assert.equal(firstCycle.result.state, STATES.COMPLETED);
 
-  const secondFixture = await fixtureById('livche');
+  const secondFixture = await fixtureById('arsche');
   const secondCycleStore = await createStore(t, 'repeat-second');
   const secondCycle = await runRealStrategyCycle({
     runtime: repeatedRuntime,
@@ -300,7 +300,7 @@ test('Stage 14 local end-to-end cycles settle and persist through the real Catal
 });
 
 test('Stage 14 failures do not silently alter real strategy state or localStorage', async (t) => {
-  const fixture = await fixtureById('livmnu');
+  const fixture = await fixtureById('arsmnu');
   const scenarios = [
     {
       name: 'unknown action',
@@ -376,7 +376,7 @@ test('Stage 14 failures do not silently alter real strategy state or localStorag
 });
 
 test('Stage 14 duplicate results, restart-before-settlement, and unknown settlement remain idempotent', async (t) => {
-  const fixture = await fixtureById('livmnu');
+  const fixture = await fixtureById('arsmnu');
   const runtime = createLocalCatalogueaRuntime({ fixture });
   runtime.submitFixture(fixture);
   const instruction = runtime.getCurrentInstruction();

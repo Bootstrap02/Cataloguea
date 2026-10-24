@@ -10,7 +10,7 @@ The goal is a deterministic, locally runnable system that does not depend on pai
 
 ## 2. Existing Project — Source of Truth
 
-Cataloguea is a React sports-betting strategy application focused on virtual EPL matches and Liverpool-related match odds.
+Cataloguea is a React sports-betting strategy application focused on virtual EPL matches and Arsenal-related match odds.
 
 Existing technology:
 

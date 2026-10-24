@@ -35,8 +35,8 @@ test('strategy decision adapter rejects when no fixture is submitted', () => {
 
 test('strategy decision adapter calculates stakes for all assets when fixture is submitted', () => {
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 14.7,
@@ -59,7 +59,7 @@ test('strategy decision adapter calculates stakes for all assets when fixture is
   });
   const result = adapter.getCurrentInstructions();
   assert.equal(result.status, 'OK');
-  assert.equal(result.fixture.id, 'livmnu');
+  assert.equal(result.fixture.id, 'arsmnu');
   assert.equal(result.instructions.length, 11); // winner + 10 assets
   assert.equal(result.instructions[0].strategyKey, 'winner');
   assert.ok(result.instructions[0].stake >= 10); // winner stake minimum is 10
@@ -73,8 +73,8 @@ test('strategy decision adapter marks stakes below minimum as SKIPPED_BELOW_MINI
   // To get stake between 1-9: need smallDeficit / (odd-1) to be 1-9
   // e.g., odd=3 -> 10/(3-1)=5 (below 10), odd=2.5 -> 10/1.5=6.67->7, odd=2.2 -> 10/1.2=8.33->8
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 3.0,
@@ -115,8 +115,8 @@ test('strategy decision adapter marks stakes below minimum as SKIPPED_BELOW_MINI
 test('strategy decision adapter marks NO_STAKE_CALCULATED when stake is zero', () => {
   // Use a state where all deficits and private defs are zero and odds are very high
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 1000, // Very high odds
@@ -156,8 +156,8 @@ test('strategy decision adapter marks NO_STAKE_CALCULATED when stake is zero', (
 
 test('strategy decision adapter preserves stake amounts without rounding them up', () => {
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 14.7,
@@ -191,8 +191,8 @@ test('strategy decision adapter preserves stake amounts without rounding them up
 
 test('strategy decision adapter includes all 11 strategy keys in output', () => {
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 14.7,
@@ -221,8 +221,8 @@ test('strategy decision adapter includes all 11 strategy keys in output', () => 
 
 test('strategy decision adapter does not mutate the strategy snapshot', () => {
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 14.7,
@@ -256,8 +256,8 @@ test('strategy decision adapter does not mutate the strategy snapshot', () => {
 test('strategy decision adapter reports NO_STAKE_CALCULATED for assets with zero stake', () => {
   // Use a state where all deficits and private defs are zero and odds are high
   const fixture = {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     winner: 325,
     oneX: 1000, // Very high odds

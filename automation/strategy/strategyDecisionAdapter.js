@@ -9,9 +9,9 @@ const {
   mergeNormalAndBigDeficitStakes,
 } = require('./rules');
 const {
-  determineLiverpoolSide,
+  determineArsenalSide,
   resolveOrientedSelection,
-} = require('./liverpoolPerspective');
+} = require('./arsenalPerspective');
 
 const OUTCOME_STATUSES = Object.freeze({
   QUALIFYING: 'QUALIFYING',
@@ -70,9 +70,9 @@ function createStrategyDecisionAdapter({
     };
   }
 
-  // A verified mapping may name the selection per Liverpool position (selectionBySide). If
+  // A verified mapping may name the selection per Arsenal position (selectionBySide). If
   // the position is unknown the option stays unresolved; nothing is guessed.
-  function getBetKingMarketInfo(assetKey, liverpoolSide = null) {
+  function getBetKingMarketInfo(assetKey, arsenalSide = null) {
     const betType = STRATEGY_BET_TYPES.find((bt) => bt.strategyKey === assetKey);
     if (!betType) return { status: UNRESOLVED_MARKET, market: null, selection: null };
 
@@ -83,7 +83,7 @@ function createStrategyDecisionAdapter({
     let selection = mapping.selection ?? null;
     let status = mapping.status;
     if (mapping.selectionBySide) {
-      selection = mapping.selectionBySide[liverpoolSide] ?? null;
+      selection = mapping.selectionBySide[arsenalSide] ?? null;
       if (!selection) status = UNRESOLVED_MARKET;
     }
     return {
@@ -170,14 +170,14 @@ function createStrategyDecisionAdapter({
     };
 
     const submitted = evaluateStakes(state, fixture);
-    const liverpool = determineLiverpoolSide(fixture);
+    const arsenal = determineArsenalSide(fixture);
 
     // Options are listed in the owner's order of play (winner first, ft41 last).
     const instructions = STRATEGY_PRIORITY.map((assetKey) => {
       const stakeInfo = getStakeForAsset(submitted, assetKey);
-      const betKingInfo = getBetKingMarketInfo(assetKey, liverpool.side);
+      const betKingInfo = getBetKingMarketInfo(assetKey, arsenal.side);
       const decision = determineInstructionStatus(stakeInfo, betKingInfo);
-      const oriented = resolveOrientedSelection(assetKey, liverpool.side);
+      const oriented = resolveOrientedSelection(assetKey, arsenal.side);
 
       return {
         strategyKey: assetKey,
@@ -192,7 +192,7 @@ function createStrategyDecisionAdapter({
         betKingCategory: betKingInfo.category ?? null,
         betKingSelection: betKingInfo.selection,
         orientedSelection: oriented.oriented ? oriented.selection : null,
-        liverpoolSide: liverpool.side,
+        arsenalSide: arsenal.side,
         stakeQualification: decision.stakeQualification,
         stakeEligible: decision.stakeEligible,
         ruleIds: STAKE_RULE_IDS,
@@ -200,7 +200,7 @@ function createStrategyDecisionAdapter({
         reason: decision.reason,
         betKingMappingStatus: betKingInfo.status,
         // Visible-in-video proposal (never verified): shown for review, never acted on.
-        marketProposal: getMarketProposal(assetKey, liverpool.side),
+        marketProposal: getMarketProposal(assetKey, arsenal.side),
       };
     });
 
@@ -211,7 +211,7 @@ function createStrategyDecisionAdapter({
         home: fixture.home,
         away: fixture.away,
       },
-      liverpool,
+      arsenal,
       winnerStake: submitted.winnerStake,
       instructions,
       recommendedAction: snapshot.recommendedAction,

@@ -65,7 +65,7 @@ async function prepareSimulatedSelection(page, instruction, {
   const fixtureLocator = page.getByLabel('Fixture', { exact: true });
   await fixtureLocator.selectOption(
     failureMode === 'wrong_fixture'
-      ? (instruction.fixture.id === 'livmnu' ? 'livche' : 'livmnu')
+      ? (instruction.fixture.id === 'arsmnu' ? 'arsche' : 'arsmnu')
       : instruction.fixture.id,
     { timeout: actionTimeoutMs },
   );
@@ -132,7 +132,7 @@ async function prepareSimulatedSelection(page, instruction, {
       await page.locator('body').evaluate((body, { scenario, fixtureId }) => {
         body.dataset.resultMode = scenario;
         body.dataset.resultFixtureId =
-          scenario === 'wrong_fixture' ? 'livche' : fixtureId;
+          scenario === 'wrong_fixture' ? 'arsche' : fixtureId;
       }, { scenario: resultScenario, fixtureId: instruction.fixture.id });
       await clickElement(page.getByRole('button', { name: 'Simulate selection' }));
       const actionCount = await readSimulatedActionCount(page);

@@ -109,52 +109,52 @@ test('every one of the 11 strategy keys now has a defined win condition', () => 
   }
 });
 
-test('winner wins only when Liverpool wins 6-0, at home or away', () => {
+test('winner wins only when Arsenal wins 6-0, at home or away', () => {
   const home = { status: 'verified', halfTime: { home: 3, away: 0 }, fullTime: { home: 6, away: 0 } };
   const away = { status: 'verified', halfTime: { home: 0, away: 3 }, fullTime: { home: 0, away: 6 } };
-  assert.equal(evaluateResultAgainstStrategy(home, 'winner', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(away, 'winner', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(away, 'winner', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(home, 'winner', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(away, 'winner', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(away, 'winner', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
   const fiveNil = { status: 'verified', halfTime: { home: 2, away: 0 }, fullTime: { home: 5, away: 0 } };
-  assert.equal(evaluateResultAgainstStrategy(fiveNil, 'winner', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(fiveNil, 'winner', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('x2 wins when half time is level and Liverpool then loses', () => {
+test('x2 wins when half time is level and Arsenal then loses', () => {
   const homeLoss = { status: 'verified', halfTime: { home: 0, away: 0 }, fullTime: { home: 0, away: 1 } };
   const awayLoss = { status: 'verified', halfTime: { home: 1, away: 1 }, fullTime: { home: 2, away: 1 } };
-  assert.equal(evaluateResultAgainstStrategy(homeLoss, 'x2', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(awayLoss, 'x2', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(homeLoss, 'x2', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(awayLoss, 'x2', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
   const ledAtHalfTime = { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: { home: 1, away: 2 } };
-  assert.equal(evaluateResultAgainstStrategy(ledAtHalfTime, 'x2', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(ledAtHalfTime, 'x2', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
   const drew = { status: 'verified', halfTime: { home: 0, away: 0 }, fullTime: { home: 1, away: 1 } };
-  assert.equal(evaluateResultAgainstStrategy(drew, 'x2', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(drew, 'x2', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('tg0 and tg6 are exact total goals and do not depend on which side Liverpool is', () => {
+test('tg0 and tg6 are exact total goals and do not depend on which side Arsenal is', () => {
   const goalless = { status: 'verified', halfTime: { home: 0, away: 0 }, fullTime: { home: 0, away: 0 } };
   const sixGoals = { status: 'verified', halfTime: { home: 3, away: 1 }, fullTime: { home: 4, away: 2 } };
   const sevenGoals = { status: 'verified', halfTime: { home: 3, away: 1 }, fullTime: { home: 5, away: 2 } };
   assert.equal(evaluateResultAgainstStrategy(goalless, 'tg0').outcome, SETTLEMENT_OUTCOMES.WON);
   assert.equal(evaluateResultAgainstStrategy(sixGoals, 'tg6').outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(sixGoals, 'tg6', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(sixGoals, 'tg6', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
   assert.equal(evaluateResultAgainstStrategy(sevenGoals, 'tg6').outcome, SETTLEMENT_OUTCOMES.LOST);
   assert.equal(evaluateResultAgainstStrategy(sixGoals, 'tg0').outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('the half-time and correct-score options are read from Liverpool\'s side when she is away', () => {
-  // Away at half time Liverpool leads 2-1: the site shows it as 1-2 (home-away).
+test('the half-time and correct-score options are read from Arsenal\'s side when she is away', () => {
+  // Away at half time Arsenal leads 2-1: the site shows it as 1-2 (home-away).
   const result = { status: 'verified', halfTime: { home: 1, away: 2 }, fullTime: { home: 2, away: 4 } };
-  assert.equal(evaluateResultAgainstStrategy(result, 'ht21', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(result, 'ht21', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.LOST);
   const thirty = { status: 'verified', halfTime: { home: 0, away: 3 }, fullTime: { home: 0, away: 4 } };
-  assert.equal(evaluateResultAgainstStrategy(thirty, 'ht30', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(thirty, 'ft40', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(thirty, 'ht30', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(thirty, 'ft40', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
   const fourOne = { status: 'verified', halfTime: { home: 0, away: 2 }, fullTime: { home: 1, away: 4 } };
-  assert.equal(evaluateResultAgainstStrategy(fourOne, 'ft41', { liverpoolSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(fourOne, 'ft41', { liverpoolSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(fourOne, 'ft41', { arsenalSide: 'AWAY' }).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(fourOne, 'ft41', { arsenalSide: 'HOME' }).outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('a key with no Liverpool side is ambiguous (except total goals)', () => {
+test('a key with no Arsenal side is ambiguous (except total goals)', () => {
   const result = { status: 'verified', halfTime: { home: 3, away: 0 }, fullTime: { home: 6, away: 0 } };
   assert.equal(evaluateResultAgainstStrategy(result, 'winner').outcome, SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE);
   assert.equal(evaluateResultAgainstStrategy(result, 'ht30').outcome, SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE);
@@ -162,61 +162,61 @@ test('a key with no Liverpool side is ambiguous (except total goals)', () => {
 
 test('evaluateResultAgainstStrategy returns RESULT_UNVERIFIED when result not verified', () => {
   const result = { status: 'observing', halfTime: { home: 1, away: 0 }, fullTime: { home: 2, away: 1 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
 test('evaluateResultAgainstStrategy returns RESULT_UNVERIFIED when fullTime missing', () => {
   const result = { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: null };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
 test('evaluateResultAgainstStrategy returns RESULT_UNVERIFIED when fullTime invalid', () => {
   const result = { status: 'verified', halfTime: { home: 1, away: 0 }, fullTime: { home: 2 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
 test('evaluateResultAgainstStrategy returns RESULT_UNVERIFIED when HT required but missing', () => {
   const result = { status: 'verified', halfTime: null, fullTime: { home: 2, away: 1 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
 test('evaluateResultAgainstStrategy WON for ht12 with HT 1-2', () => {
   const result = { status: 'verified', halfTime: { home: 1, away: 2 }, fullTime: { home: 2, away: 3 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('evaluateResultAgainstStrategy LOST for ht12 with different HT', () => {
   const result = { status: 'verified', halfTime: { home: 2, away: 1 }, fullTime: { home: 3, away: 2 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
 test('evaluateResultAgainstStrategy WON for ht21 with HT 2-1', () => {
   const result = { status: 'verified', halfTime: { home: 2, away: 1 }, fullTime: { home: 3, away: 2 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht21', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht21', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('evaluateResultAgainstStrategy WON for ht30 with HT 3-0', () => {
   const result = { status: 'verified', halfTime: { home: 3, away: 0 }, fullTime: { home: 4, away: 1 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht30', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht30', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('evaluateResultAgainstStrategy WON for ft40 with FT 4-0', () => {
   const result = { status: 'verified', halfTime: { home: 2, away: 0 }, fullTime: { home: 4, away: 0 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ft40', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ft40', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('evaluateResultAgainstStrategy WON for ft41 with FT 4-1', () => {
   const result = { status: 'verified', halfTime: { home: 2, away: 0 }, fullTime: { home: 4, away: 1 } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ft41', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ft41', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
@@ -262,7 +262,7 @@ test('RULE-002 evaluate qualifies when combined is at least 10', () => {
 test('RULE-003 evaluate delegates to evaluateResultAgainstStrategy', () => {
   const rule3 = ruleRegistry.getRule('RULE-003');
   const result = { status: 'verified', halfTime: { home: 1, away: 2 }, fullTime: { home: 2, away: 3 } };
-  const outcome = rule3.evaluate(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = rule3.evaluate(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
@@ -283,7 +283,7 @@ test('ruleRegistry getAllRules returns all rules', () => {
 
 test('evaluateResultAgainstStrategy handles verified flag correctly', () => {
   const result = { status: 'verified', halfTime: { home: 1, away: 2, verified: true }, fullTime: { home: 2, away: 3, verified: true } };
-  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { liverpoolSide: 'HOME' });
+  const outcome = evaluateResultAgainstStrategy(result, 'ht12', { arsenalSide: 'HOME' });
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
   assert.ok(outcome.resolved);
   assert.deepEqual(outcome.htScore, { home: 1, away: 2 });
@@ -302,81 +302,81 @@ test('RULE-002 combines a normal 150 and big-deficit 1050 into one 1200 amount',
   assert.deepEqual(merged, { normal: 150, big: 1050, combined: 1200 });
 });
 
-const LIV_HOME = { liverpoolSide: 'HOME' };
-const LIV_AWAY = { liverpoolSide: 'AWAY' };
+const ARS_HOME = { arsenalSide: 'HOME' };
+const ARS_AWAY = { arsenalSide: 'AWAY' };
 const verified = (halfTime, fullTime) => ({ status: 'verified', halfTime, fullTime });
 
-test('oneX WON when Liverpool (home) leads at HT and FT is a draw', () => {
-  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'oneX', LIV_HOME);
+test('oneX WON when Arsenal (home) leads at HT and FT is a draw', () => {
+  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'oneX', ARS_HOME);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.deepEqual(outcome.liverpoolPerspective, {
-    side: 'HOME', htLiverpool: 1, htOpponent: 0, ftLiverpool: 1, ftOpponent: 1,
+  assert.deepEqual(outcome.arsenalPerspective, {
+    side: 'HOME', htArsenal: 1, htOpponent: 0, ftArsenal: 1, ftOpponent: 1,
   });
 });
 
-test('oneX WON for Liverpool away leading 0-2 at HT with a 2-2 draw', () => {
-  const outcome = evaluateResultAgainstStrategy(verified({ home: 0, away: 2 }, { home: 2, away: 2 }), 'oneX', LIV_AWAY);
+test('oneX WON for Arsenal away leading 0-2 at HT with a 2-2 draw', () => {
+  const outcome = evaluateResultAgainstStrategy(verified({ home: 0, away: 2 }, { home: 2, away: 2 }), 'oneX', ARS_AWAY);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('oneX accepts other qualifying scorelines (2-1 and 3-0 HT, 3-3 FT)', () => {
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 2, away: 1 }, { home: 3, away: 3 }), 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 3, away: 0 }, { home: 3, away: 3 }), 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 2, away: 1 }, { home: 3, away: 3 }), 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 3, away: 0 }, { home: 3, away: 3 }), 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('oneX LOST when full time is not a draw even if Liverpool led at HT', () => {
-  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 2, away: 1 }), 'oneX', LIV_HOME);
+test('oneX LOST when full time is not a draw even if Arsenal led at HT', () => {
+  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 2, away: 1 }), 'oneX', ARS_HOME);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('oneX LOST when HT is level or Liverpool trails, even with an FT draw', () => {
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 0 }, { home: 1, away: 1 }), 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 1, away: 1 }), 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
+test('oneX LOST when HT is level or Arsenal trails, even with an FT draw', () => {
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 0 }, { home: 1, away: 1 }), 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 1, away: 1 }), 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('oneX is evaluated from Liverpool perspective, not home/away', () => {
-  // Home team leads at HT, but Liverpool is away, so Liverpool trails.
-  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'oneX', LIV_AWAY);
+test('oneX is evaluated from Arsenal perspective, not home/away', () => {
+  // Home team leads at HT, but Arsenal is away, so Arsenal trails.
+  const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'oneX', ARS_AWAY);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('twoX WON when Liverpool trails at HT and FT is a draw', () => {
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 1, away: 1 }), 'twoX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 2, away: 0 }, { home: 2, away: 2 }), 'twoX', LIV_AWAY).outcome, SETTLEMENT_OUTCOMES.WON);
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 1, away: 2 }, { home: 3, away: 3 }), 'twoX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
+test('twoX WON when Arsenal trails at HT and FT is a draw', () => {
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 1, away: 1 }), 'twoX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 2, away: 0 }, { home: 2, away: 2 }), 'twoX', ARS_AWAY).outcome, SETTLEMENT_OUTCOMES.WON);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 1, away: 2 }, { home: 3, away: 3 }), 'twoX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('twoX LOST when Liverpool leads at HT or FT is not a draw', () => {
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'twoX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
-  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 0, away: 2 }), 'twoX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
+test('twoX LOST when Arsenal leads at HT or FT is not a draw', () => {
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'twoX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
+  assert.equal(evaluateResultAgainstStrategy(verified({ home: 0, away: 1 }, { home: 0, away: 2 }), 'twoX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
 test('oneX and twoX are never evaluated from the final score alone', () => {
   const noHalfTime = verified(null, { home: 1, away: 1 });
-  assert.equal(evaluateResultAgainstStrategy(noHalfTime, 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
-  assert.equal(evaluateResultAgainstStrategy(noHalfTime, 'twoX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
+  assert.equal(evaluateResultAgainstStrategy(noHalfTime, 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
+  assert.equal(evaluateResultAgainstStrategy(noHalfTime, 'twoX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
 test('oneX/twoX stay unresolved when the full-time score is missing', () => {
   const noFullTime = verified({ home: 1, away: 0 }, null);
-  assert.equal(evaluateResultAgainstStrategy(noFullTime, 'oneX', LIV_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
+  assert.equal(evaluateResultAgainstStrategy(noFullTime, 'oneX', ARS_HOME).outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
-test('oneX is AMBIGUOUS_FIXTURE when Liverpool home/away position is unknown', () => {
+test('oneX is AMBIGUOUS_FIXTURE when Arsenal home/away position is unknown', () => {
   const outcome = evaluateResultAgainstStrategy(verified({ home: 1, away: 0 }, { home: 1, away: 1 }), 'oneX');
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE);
 });
 
-test('Liverpool side can be derived from a fixture', () => {
+test('Arsenal side can be derived from a fixture', () => {
   const outcome = evaluateResultAgainstStrategy(
     verified({ home: 0, away: 1 }, { home: 1, away: 1 }),
     'oneX',
-    { fixture: { home: 'mnu', away: 'liv' } },
+    { fixture: { home: 'mnu', away: 'ars' } },
   );
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('RULE-004 orients each option by Liverpool home/away position', () => {
+test('RULE-004 orients each option by Arsenal home/away position', () => {
   const rule4 = ruleRegistry.getRule('RULE-004');
   assert.equal(rule4.evaluate('x2', 'HOME').selection, 'X/2');
   assert.equal(rule4.evaluate('x2', 'AWAY').selection, 'X/1');

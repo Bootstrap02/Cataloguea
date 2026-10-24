@@ -1,9 +1,9 @@
-// Market catalogue for the Liverpool fixture(s) on the REAL BetKing page:
+// Market catalogue for the Arsenal fixture(s) on the REAL BetKing page:
 //   npm run automation:betking:markets [-- --week N]
 //
 // Waits for you to sign in (no Enter needed), then, for each market category in the More
 // Markets panel, opens the category and records the selection labels and odds shown for each
-// visible Liverpool fixture. It is READ ONLY: it opens categories (navigation) but never clicks
+// visible Arsenal fixture. It is READ ONLY: it opens categories (navigation) but never clicks
 // an odd, never touches the bet slip, and never places a bet. The saved report is the evidence
 // you need to confirm the owner's strategy-to-market mappings: for every option it reports
 // whether the exact labels were seen with valid odds in the mapped category and market.
@@ -16,7 +16,7 @@ const { createBetKingLiveConfig } = require('./betkingLiveConfig');
 const { loadBetKingSelectors } = require('./sportsbook/betkingSelectors');
 const { createMarketFlow } = require('./sportsbook/betkingMarketFlow');
 const { distinctMarkets } = require('./strategy/marketMappings');
-const { determineLiverpoolSide } = require('./strategy/liverpoolPerspective');
+const { determineArsenalSide } = require('./strategy/arsenalPerspective');
 const { parseWeek } = require('./strategy/seasonWeek');
 const { waitForAccess } = require('./betkingProbe');
 const { checkMappingsAgainstCatalogue } = require('./sportsbook/mappingEvidence');
@@ -38,7 +38,7 @@ function renderCatalogueMarkdown(catalogue, proposalResults = []) {
     '',
   ];
   for (const fixture of catalogue.fixtures) {
-    lines.push(`## ${fixture.roundName}: ${fixture.home} v ${fixture.away} (Liverpool ${fixture.side === 'HOME' ? 'home' : 'away'})`, '');
+    lines.push(`## ${fixture.roundName}: ${fixture.home} v ${fixture.away} (Arsenal ${fixture.side === 'HOME' ? 'home' : 'away'})`, '');
     for (const row of fixture.categories) {
       if (row.status !== 'READ') {
         const why = row.evidence?.error ?? row.evidence?.reason ?? '';
@@ -89,18 +89,19 @@ async function main() {
       const week = parseWeek(String(round.roundName ?? ''));
       if (onlyWeek !== null && week !== onlyWeek) continue;
       for (const fixture of round.fixtures ?? []) {
-        const side = determineLiverpoolSide(fixture);
+        const side = determineArsenalSide(fixture);
         if (side.side) targets.push({ roundName: round.roundName, home: fixture.home, away: fixture.away, side: side.side });
       }
     }
     if (targets.length === 0) {
-      console.log('No Liverpool fixture is visible in the selected rounds.');
+      console.log('No Arsenal fixture is visible in the selected rounds.');
       process.exitCode = 1;
       return;
     }
 
     const directory = path.join(config.runsDir, `markets-${new Date().toISOString().replace(/[:.]/g, '-')}`);
     fs.mkdirSync(directory, { recursive: true });
+    flow.setCaptureDirectory(directory);
 
     const cleared = await flow.clearOverlays();
     console.log(`Overlay check: ${cleared.status}${cleared.via ? ` (${cleared.via})` : ''}`);

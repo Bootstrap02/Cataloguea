@@ -7,7 +7,7 @@ process.env.AUTOMATION_MODE = 'betking-live';
 
 const { createBetKingLiveConfig } = require('./betkingLiveConfig');
 const { inspectBetKingPage } = require('./sportsbook/betkingAdapter');
-const { determineLiverpoolSide } = require('./strategy/liverpoolPerspective');
+const { determineArsenalSide } = require('./strategy/arsenalPerspective');
 const { parseWeek } = require('./strategy/seasonWeek');
 
 async function waitForEnter(message) {
@@ -50,9 +50,9 @@ async function main() {
     for (const round of rounds) {
       const week = parseWeek(String(round.roundName ?? ''));
       for (const fixture of round.fixtures ?? []) {
-        const side = determineLiverpoolSide(fixture);
+        const side = determineArsenalSide(fixture);
         if (side.side) {
-          console.log(`  ${round.roundName}${week ? '' : ' (no week number)'}: ${fixture.home} v ${fixture.away} (Liverpool ${side.side === 'HOME' ? 'home' : 'away'}), id ${fixture.fixtureId}`);
+          console.log(`  ${round.roundName}${week ? '' : ' (no week number)'}: ${fixture.home} v ${fixture.away} (Arsenal ${side.side === 'HOME' ? 'home' : 'away'}), id ${fixture.fixtureId}`);
         }
       }
     }

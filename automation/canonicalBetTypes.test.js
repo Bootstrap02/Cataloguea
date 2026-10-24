@@ -41,7 +41,7 @@ test('records observed BetKing market and selection identifiers without claiming
   assert.deepEqual(OBSERVED_BETKING_MARKET_CONTRACT.selectionNames, ['1', 'X', '2']);
   assert.equal(
     OBSERVED_BETKING_MARKET_CONTRACT.fixtureIdExample,
-    'matchup-statistics-button-LIV-COV',
+    'matchup-statistics-button-ARS-COV',
   );
   assert.ok(OBSERVED_BETKING_MARKET_LABELS.includes('Correct Score'));
   assert.ok(OBSERVED_BETKING_MARKET_LABELS.includes('Double Chance'));

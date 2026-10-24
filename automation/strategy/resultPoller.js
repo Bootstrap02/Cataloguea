@@ -1,7 +1,7 @@
 const { RESULT_STATUSES } = require('../result/liveResultObserver');
 const { createResultId } = require('../result/resultIdentity');
 const { evaluateResultAgainstStrategy } = require('./rules');
-const { determineLiverpoolSide } = require('./liverpoolPerspective');
+const { determineArsenalSide } = require('./arsenalPerspective');
 const { parseWeek } = require('./seasonWeek');
 const { createCrossViewFixtureIdentity, calculateIdentityMatch, FIXTURE_IDENTITY_CONFIDENCE } = require('./fixtureIdentity');
 
@@ -274,9 +274,9 @@ function determineSettlementOutcome(verifiedResult, instruction) {
 
   // Strategy semantics live in rules.js (single definition). Nothing about what a
   // strategy option means is decided here.
-  const liverpoolSide = instruction.liverpoolSide
-    ?? determineLiverpoolSide(instruction.fixture).side;
-  const evaluation = evaluateResultAgainstStrategy(verifiedResult, strategyKey, { liverpoolSide });
+  const arsenalSide = instruction.arsenalSide
+    ?? determineArsenalSide(instruction.fixture).side;
+  const evaluation = evaluateResultAgainstStrategy(verifiedResult, strategyKey, { arsenalSide });
 
   const outcome = { outcome: evaluation.outcome, reason: evaluation.reason };
   if (evaluation.htScore !== undefined) outcome.htScore = evaluation.htScore;

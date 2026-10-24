@@ -1,21 +1,21 @@
 {
-  "_readme": "Copy to ~/.cataloguea/betking-market-mappings.json (or set AUTOMATION_BETKING_MAPPINGS_FILE). An entry is used ONLY when status is exactly VERIFIED and it names a market category, a selection (or selectionBySide for options that depend on whether Liverpool is HOME or AWAY), and your evidence. Everything below is a PROPOSAL read from your screen recording and is NOT verified in the page DOM: change the status to VERIFIED yourself only after the first controlled trial (npm run automation:betking:markets) shows these exact labels for the Liverpool fixture. market must be the category name BetKing shows in its More Markets panel.",
+  "_readme": "Copy to ~/.cataloguea/betking-market-mappings.json (or set AUTOMATION_BETKING_MAPPINGS_FILE). An entry is used ONLY when status is exactly VERIFIED and it names a market category, a selection (or selectionBySide for options that depend on whether Arsenal is HOME or AWAY), and your evidence. Everything below is a PROPOSAL read from your screen recording and is NOT verified in the page DOM: change the status to VERIFIED yourself only after the first controlled trial (npm run automation:betking:markets) shows these exact labels for the Arsenal fixture. market must be the category name BetKing shows in its More Markets panel.",
   "oneX": {
     "status": "REPLACE_WITH_VERIFIED_AFTER_YOU_CHECK",
     "market": "HT/FT",
     "selectionBySide": { "HOME": "1/X", "AWAY": "2/X" },
-    "evidence": "oneX = Liverpool leads at half time and the match is drawn. HT/FT symbols are written from the home team's side: Liverpool home = 1/X, Liverpool away = 2/X. Recording Oct 15: HT/FT grid with 1/X shown for LIV - AST; slip showed HT/FT - 1/X."
+    "evidence": "oneX = Arsenal leads at half time and the match is drawn. HT/FT symbols are written from the home team's side: Arsenal home = 1/X, Arsenal away = 2/X. Recording Oct 15: HT/FT grid with 1/X shown for ARS - AST; slip showed HT/FT - 1/X."
   },
   "twoX": {
     "status": "REPLACE_WITH_VERIFIED_AFTER_YOU_CHECK",
     "market": "HT/FT",
     "selectionBySide": { "HOME": "2/X", "AWAY": "1/X" },
-    "evidence": "twoX = Liverpool trails at half time and the match is drawn. Liverpool home = 2/X, Liverpool away = 1/X. Recording Oct 15: 2/X visible in the HT/FT grid for LIV - AST."
+    "evidence": "twoX = Arsenal trails at half time and the match is drawn. Arsenal home = 2/X, Arsenal away = 1/X. Recording Oct 15: 2/X visible in the HT/FT grid for ARS - AST."
   },
   "x2": {
     "status": "REPLACE_WITH_VERIFIED_AFTER_YOU_CHECK",
     "market": "HT/FT",
     "selectionBySide": { "HOME": "X/2", "AWAY": "X/1" },
-    "evidence": "OWNER MUST CONFIRM FIRST: this reads 'Liverpool home -> X2, away -> X1' as HT/FT X/2 and X/1 (half-time draw, then the opponent wins). The x2 win condition is not yet defined, so settlement for x2 stays unresolved even after this is verified."
+    "evidence": "OWNER MUST CONFIRM FIRST: this reads 'Arsenal home -> X2, away -> X1' as HT/FT X/2 and X/1 (half-time draw, then the opponent wins). The x2 win condition is not yet defined, so settlement for x2 stays unresolved even after this is verified."
   }
 }

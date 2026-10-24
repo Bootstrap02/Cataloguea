@@ -12,7 +12,7 @@ const {
 const { AutomationController } = require('./controller');
 const { STATES } = require('./stateMachine');
 
-const fixture = { id: 'livmnu', home: 'liv', away: 'mnu' };
+const fixture = { id: 'arsmnu', home: 'ars', away: 'mnu' };
 const instruction = {
   fixture,
   strategyState: { status: 'stakes_available', financialState: { bank: 0 } },
@@ -55,7 +55,7 @@ async function createStore(t) {
 }
 
 test('creates deterministic result identity independent of observation timestamp', () => {
-  assert.equal(createResultId(verifiedResult()), 'livmnu:2-1');
+  assert.equal(createResultId(verifiedResult()), 'arsmnu:2-1');
   assert.equal(
     createResultId(verifiedResult(2, 1, '2026-10-07T12:00:00.000Z')),
     createResultId(verifiedResult()),
@@ -63,7 +63,7 @@ test('creates deterministic result identity independent of observation timestamp
   assert.notEqual(createResultId(verifiedResult(2, 0)), createResultId(verifiedResult()));
   assert.equal(
     createResultId(verifiedResult(), 'action-1'),
-    'livmnu:2-1:op:action-1',
+    'arsmnu:2-1:op:action-1',
   );
   assert.notEqual(
     createResultId(verifiedResult(), 'action-1'),
@@ -80,7 +80,7 @@ test('creates deterministic result identity independent of observation timestamp
 });
 
 test('settlement request requires a verified result matching the instruction fixture', () => {
-  assert.equal(createRequest().resultId, 'livmnu:2-1:op:action-1');
+  assert.equal(createRequest().resultId, 'arsmnu:2-1:op:action-1');
   assert.throws(
     () => createRequest({ ...verifiedResult(), status: 'pending' }),
     /Only a verified result/,
@@ -88,7 +88,7 @@ test('settlement request requires a verified result matching the instruction fix
   assert.throws(
     () => createRequest({
       ...verifiedResult(),
-      fixture: { id: 'livche', home: 'liv', away: 'che' },
+      fixture: { id: 'arsche', home: 'ars', away: 'che' },
     }),
     /does not match/,
   );
@@ -120,7 +120,7 @@ test('strategy port applies state update without duplicating strategy calculatio
     };
   });
   assert.equal(portCalls, 1);
-  assert.equal(update.strategyState.settlement.resultId, 'livmnu:2-1:op:action-1');
+  assert.equal(update.strategyState.settlement.resultId, 'arsmnu:2-1:op:action-1');
   await assert.rejects(
     applySettlementRequest(createRequest(), undefined),
     /No strategy-owned settlement port/,
@@ -191,7 +191,7 @@ test('different verified score creates a distinct result identity and settlement
   const claim = await store.beginSettlement('run-1', createRequest(changed, changedAction.id));
   assert.equal(claim.disposition, 'started');
   assert.equal((await store.snapshot()).settlements.length, 1);
-  assert.equal(claim.settlement.resultId, 'livmnu:1-0:op:'.concat(changedAction.id));
+  assert.equal(claim.settlement.resultId, 'arsmnu:1-0:op:'.concat(changedAction.id));
 });
 
 test('identical fixture and score under a new confirmed operation has a distinct settlement identity', async (t) => {

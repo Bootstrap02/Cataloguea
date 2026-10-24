@@ -17,9 +17,9 @@ const FIXTURE_IDENTITY_CONFIDENCE = {
 
 function createMockFixture() {
   return {
-    scheduled: { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', roundName: 'Week 33' },
-    live: { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', roundName: 'Week 33' },
-    results: { fixtureId: 'matchup-statistics-button-LIV-MNU', home: 'LIV', away: 'MNU', roundName: 'Week 33' },
+    scheduled: { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', roundName: 'Week 33' },
+    live: { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', roundName: 'Week 33' },
+    results: { fixtureId: 'matchup-statistics-button-ARS-MNU', home: 'ARS', away: 'MNU', roundName: 'Week 33' },
   };
 }
 
@@ -55,7 +55,7 @@ test('pollOnce returns RESULTS_NOT_FOUND when no results array', async () => {
 test('pollOnce returns RESULTS_NOT_FOUND when no matching fixture', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'ARS', away: 'CHE' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
+      { fixture: { home: 'LIV', away: 'CHE' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -67,8 +67,8 @@ test('pollOnce returns RESULTS_NOT_FOUND when no matching fixture', async () => 
 test('pollOnce returns RESULTS_AMBIGUOUS when multiple matches', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
-      { fixture: { home: 'LIV', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
+      { fixture: { home: 'ARS', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
+      { fixture: { home: 'ARS', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -80,7 +80,7 @@ test('pollOnce returns RESULTS_AMBIGUOUS when multiple matches', async () => {
 test('pollOnce returns RESULTS_MISMATCH when status not FINISHED', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU' }, status: 'LIVE', fullTime: { home: 2, away: 1 } },
+      { fixture: { home: 'ARS', away: 'MNU' }, status: 'LIVE', fullTime: { home: 2, away: 1 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -93,7 +93,7 @@ test('pollOnce returns RESULTS_MISMATCH when status not FINISHED', async () => {
 test('pollOnce returns INCOMPLETE_SCORE when FT score missing', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2 } },
+      { fixture: { home: 'ARS', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -105,7 +105,7 @@ test('pollOnce returns INCOMPLETE_SCORE when FT score missing', async () => {
 test('pollOnce returns INCOMPLETE_SCORE when HT score incomplete', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1 } },
+      { fixture: { home: 'ARS', away: 'MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -117,7 +117,7 @@ test('pollOnce returns INCOMPLETE_SCORE when HT score incomplete', async () => {
 test('pollOnce returns verified result when complete', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
-      { fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } },
+      { fixture: { home: 'ARS', away: 'MNU', fixtureId: 'matchup-statistics-button-ARS-MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } },
     ]),
     getExpectedFixture: () => createMockFixture(),
     getActionOperationId: () => 'op-123',
@@ -132,7 +132,7 @@ test('pollOnce returns verified result when complete', async () => {
 
 test('pollOnce detects CONFLICTING_RESULT when the same poller later sees a different score', async () => {
   let entry = {
-    fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' },
+    fixture: { home: 'ARS', away: 'MNU', fixtureId: 'matchup-statistics-button-ARS-MNU' },
     status: 'FINISHED',
     fullTime: { home: 2, away: 1 },
     halfTime: { home: 1, away: 0 },
@@ -153,7 +153,7 @@ test('pollOnce ignores results entries from a different round', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
       {
-        fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU', roundName: 'Week 32' },
+        fixture: { home: 'ARS', away: 'MNU', fixtureId: 'matchup-statistics-button-ARS-MNU', roundName: 'Week 32' },
         status: 'FINISHED',
         fullTime: { home: 2, away: 1 },
         halfTime: { home: 1, away: 0 },
@@ -170,7 +170,7 @@ test('pollOnce accepts a results entry for the expected round', async () => {
   const poller = createResultPoller({
     readResultsPage: async () => createMockResultsSnapshot([
       {
-        fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU', roundName: '33' },
+        fixture: { home: 'ARS', away: 'MNU', fixtureId: 'matchup-statistics-button-ARS-MNU', roundName: '33' },
         status: 'FINISHED',
         fullTime: { home: 2, away: 1 },
         halfTime: { home: 1, away: 0 },
@@ -189,7 +189,7 @@ test('startPolling waits initial delay and polls until verified', async () => {
       pollCount++;
       if (pollCount < 3) return createMockResultsSnapshot([]);
       return createMockResultsSnapshot([
-        { fixture: { home: 'LIV', away: 'MNU', fixtureId: 'matchup-statistics-button-LIV-MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } },
+        { fixture: { home: 'ARS', away: 'MNU', fixtureId: 'matchup-statistics-button-ARS-MNU' }, status: 'FINISHED', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } },
       ]);
     },
     getExpectedFixture: () => createMockFixture(),
@@ -234,16 +234,16 @@ test('determineSettlementOutcome returns RESULT_UNVERIFIED when result not verif
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.RESULT_UNVERIFIED);
 });
 
-test('determineSettlementOutcome WON for winner (Liverpool wins 6-0)', () => {
-  const instruction = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+test('determineSettlementOutcome WON for winner (Arsenal wins 6-0)', () => {
+  const instruction = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 6, away: 0 }, halfTime: { home: 3, away: 0 } };
   assert.equal(determineSettlementOutcome(result, instruction).outcome, SETTLEMENT_OUTCOMES.WON);
-  const away = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED', liverpoolSide: 'AWAY' };
+  const away = { strategyKey: 'winner', betKingMappingStatus: 'MATCHED', arsenalSide: 'AWAY' };
   assert.equal(determineSettlementOutcome({ status: 'verified', fullTime: { home: 0, away: 6 }, halfTime: { home: 0, away: 2 } }, away).outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('determineSettlementOutcome WON for oneX (Liverpool leads at HT, FT draw)', () => {
-  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+test('determineSettlementOutcome WON for oneX (Arsenal leads at HT, FT draw)', () => {
+  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 1, away: 1 }, halfTime: { home: 1, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
@@ -252,65 +252,65 @@ test('determineSettlementOutcome WON for oneX (Liverpool leads at HT, FT draw)',
 });
 
 test('determineSettlementOutcome LOST for oneX (FT not a draw)', () => {
-  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 2, away: 1 }, halfTime: { home: 1, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.LOST);
 });
 
-test('determineSettlementOutcome derives Liverpool side from the instruction fixture', () => {
-  const instruction = { strategyKey: 'twoX', betKingMappingStatus: 'MATCHED', fixture: { home: 'mnu', away: 'liv' } };
+test('determineSettlementOutcome derives Arsenal side from the instruction fixture', () => {
+  const instruction = { strategyKey: 'twoX', betKingMappingStatus: 'MATCHED', fixture: { home: 'mnu', away: 'ars' } };
   const result = { status: 'verified', fullTime: { home: 2, away: 2 }, halfTime: { home: 2, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
-test('determineSettlementOutcome is AMBIGUOUS_FIXTURE for oneX when Liverpool side is unknown', () => {
+test('determineSettlementOutcome is AMBIGUOUS_FIXTURE for oneX when Arsenal side is unknown', () => {
   const instruction = { strategyKey: 'oneX', betKingMappingStatus: 'MATCHED' };
   const result = { status: 'verified', fullTime: { home: 1, away: 1 }, halfTime: { home: 1, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.AMBIGUOUS_FIXTURE);
 });
 
-test('determineSettlementOutcome settles x2, tg0, and tg6 from Liverpool\'s side', () => {
-  const x2 = { strategyKey: 'x2', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+test('determineSettlementOutcome settles x2, tg0, and tg6 from Arsenal\'s side', () => {
+  const x2 = { strategyKey: 'x2', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   assert.equal(determineSettlementOutcome({ status: 'verified', fullTime: { home: 0, away: 2 }, halfTime: { home: 0, away: 0 } }, x2).outcome, SETTLEMENT_OUTCOMES.WON);
-  const tg6 = { strategyKey: 'tg6', betKingMappingStatus: 'MATCHED', liverpoolSide: 'AWAY' };
+  const tg6 = { strategyKey: 'tg6', betKingMappingStatus: 'MATCHED', arsenalSide: 'AWAY' };
   assert.equal(determineSettlementOutcome({ status: 'verified', fullTime: { home: 2, away: 4 }, halfTime: { home: 1, away: 2 } }, tg6).outcome, SETTLEMENT_OUTCOMES.WON);
-  const tg0 = { strategyKey: 'tg0', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const tg0 = { strategyKey: 'tg0', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   assert.equal(determineSettlementOutcome({ status: 'verified', fullTime: { home: 0, away: 0 }, halfTime: { home: 0, away: 0 } }, tg0).outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('determineSettlementOutcome WON for ht12 (HT 1-2)', () => {
-  const instruction = { strategyKey: 'ht12', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'ht12', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 2, away: 3 }, halfTime: { home: 1, away: 2 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('determineSettlementOutcome WON for ht21 (HT 2-1)', () => {
-  const instruction = { strategyKey: 'ht21', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'ht21', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 3, away: 2 }, halfTime: { home: 2, away: 1 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('determineSettlementOutcome WON for ht30 (HT 3-0)', () => {
-  const instruction = { strategyKey: 'ht30', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'ht30', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 4, away: 1 }, halfTime: { home: 3, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('determineSettlementOutcome WON for ft40 (FT 4-0)', () => {
-  const instruction = { strategyKey: 'ft40', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'ft40', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 4, away: 0 }, halfTime: { home: 2, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);
 });
 
 test('determineSettlementOutcome WON for ft41 (FT 4-1)', () => {
-  const instruction = { strategyKey: 'ft41', betKingMappingStatus: 'MATCHED', liverpoolSide: 'HOME' };
+  const instruction = { strategyKey: 'ft41', betKingMappingStatus: 'MATCHED', arsenalSide: 'HOME' };
   const result = { status: 'verified', fullTime: { home: 4, away: 1 }, halfTime: { home: 2, away: 0 } };
   const outcome = determineSettlementOutcome(result, instruction);
   assert.equal(outcome.outcome, SETTLEMENT_OUTCOMES.WON);

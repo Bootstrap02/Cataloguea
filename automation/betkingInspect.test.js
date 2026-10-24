@@ -38,9 +38,9 @@ const readySnapshot = {
       roundId: '21',
       timer: '01:53',
       fixtures: [{
-        fixtureId: 'LIV-COV',
-        scheduledMatchId: 'matchup-statistics-button-LIV-COV',
-        home: 'LIV',
+        fixtureId: 'ARS-COV',
+        scheduledMatchId: 'matchup-statistics-button-ARS-COV',
+        home: 'ARS',
         away: 'COV',
         market: '1X2',
         selections: [{ label: '1', odds: 1.37 }, { label: 'X', odds: 4.88 }, { label: '2', odds: 8.61 }],
@@ -98,7 +98,7 @@ test('real inspection explicitly navigates to BetKing using the existing page ad
   assert.notEqual(BETKING_TARGET_URL, fixtureUrl);
   assert.equal(report.status, BETKING_STATUSES.READY_READ_ONLY);
   assert.equal(report.page.league.name, 'Kings League');
-  assert.equal(report.rounds[0].fixtures[0].fixtureId, 'LIV-COV');
+  assert.equal(report.rounds[0].fixtures[0].fixtureId, 'ARS-COV');
   assert.equal(report.markets[0].marketName, '1X2');
   assert.deepEqual(report.markets[0].selections, readySnapshot.snapshot.rounds[0].fixtures[0].selections);
   assert.equal(report.readOnly, true);
@@ -242,9 +242,9 @@ test('fixture-detail inspection activates only the visible matchup-statistics id
       },
     }),
   });
-  assert.equal(activated, 'matchup-statistics-button-LIV-COV');
+  assert.equal(activated, 'matchup-statistics-button-ARS-COV');
   assert.equal(detail.status, 'DETAIL_VIEW_OPENED');
-  assert.equal(detail.fixture.fixtureId, 'LIV-COV');
+  assert.equal(detail.fixture.fixtureId, 'ARS-COV');
 
   activated = undefined;
   const blocked = await inspectScheduledFixtureDetails(page, {

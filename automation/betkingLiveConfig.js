@@ -71,8 +71,15 @@ function createBetKingLiveConfig(environment = process.env) {
     loginWaitTimeoutMs: readInteger(environment, 'AUTOMATION_LOGIN_WAIT_TIMEOUT_MS', 900_000),
     strategyWaitTimeoutMs: readInteger(environment, 'AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS', 900_000),
     manualLoginMaxAttempts: readInteger(environment, 'AUTOMATION_MANUAL_LOGIN_MAX_ATTEMPTS', 3, { maximum: 20 }),
-    // Feed the identified Liverpool fixture to the strategy automatically (set AUTOMATION_FEED_STRATEGY=false to type it into Cataloguea yourself).
+    // Feed the identified Arsenal fixture to the strategy automatically (set AUTOMATION_FEED_STRATEGY=false to type it into Cataloguea yourself).
     feedStrategy: environment.AUTOMATION_FEED_STRATEGY !== 'false',
+    // 'headless' (default): the strategy runs inside this program from src/Scores.js and a state file;
+    // no strategy tab is opened. 'page' keeps the old behaviour (a Cataloguea tab on npm start).
+    strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
+    strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', 'strategy-state.json')),
+    baseStake: readInteger(environment, 'AUTOMATION_BASE_STAKE', 10000, { maximum: 100_000_000 }),
+    // Milliseconds between browser actions so you can watch every click (0 = full speed).
+    slowMoMs: readInteger(environment, 'AUTOMATION_SLOW_MO_MS', 150, { minimum: 0, maximum: 5000 }),
     progressFile: readAbsolutePath(environment, 'AUTOMATION_BETKING_PROGRESS_FILE', path.join(HOME_DIR, 'betking-progress.json')),
     marketWaitTimeoutMs: readInteger(environment, 'AUTOMATION_MARKET_WAIT_MS', 4000),
     // How far the market-first pipeline may go. identify = open category, find selection and

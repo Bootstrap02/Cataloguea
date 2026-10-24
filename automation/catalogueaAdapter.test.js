@@ -40,12 +40,12 @@ test('reports no active fixture without proposing a betting action', () => {
 
 test('distinguishes a submitted fixture from calculated stake output', () => {
   const instruction = adaptCatalogueaState(strategySnapshot({
-    fixture: { id: 'livmnu', home: 'liv', away: 'mnu', winner: 325 },
+    fixture: { id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325 },
   }));
 
   assert.deepEqual(instruction.fixture, {
-    id: 'livmnu',
-    home: 'liv',
+    id: 'arsmnu',
+    home: 'ars',
     away: 'mnu',
     odds: { winner: 325 },
   });
@@ -56,8 +56,8 @@ test('distinguishes a submitted fixture from calculated stake output', () => {
 test('passes through precomputed multi-asset stakes without calculating them', () => {
   const instruction = adaptCatalogueaState(strategySnapshot({
     fixture: {
-      id: 'livmnu',
-      home: 'liv',
+      id: 'arsmnu',
+      home: 'ars',
       away: 'mnu',
       winner: 325,
       oneX: 14.7,
@@ -84,8 +84,8 @@ test('passes through precomputed multi-asset stakes without calculating them', (
 test('translates a real post-submit strategy-shaped snapshot without recalculating stakes', () => {
   const snapshot = strategySnapshot({
     fixture: {
-      id: 'livmnu',
-      home: 'liv',
+      id: 'arsmnu',
+      home: 'ars',
       away: 'mnu',
       winner: 325,
       oneX: 14.7,
@@ -115,7 +115,7 @@ test('translates a real post-submit strategy-shaped snapshot without recalculati
 
 test('reports manual marks without claiming an observed match result', () => {
   const instruction = adaptCatalogueaState(strategySnapshot({
-    fixture: { id: 'livmnu', home: 'liv', away: 'mnu' },
+    fixture: { id: 'arsmnu', home: 'ars', away: 'mnu' },
     gameStakes: { oneX: 2 },
     winners: new Set(['oneX']),
   }));
@@ -133,7 +133,7 @@ test('rejects malformed or incomplete state instead of inventing defaults', () =
     /gameStakes.*must be an object/,
   );
   assert.throws(
-    () => adaptCatalogueaState(strategySnapshot({ fixture: { id: 'bad', home: 'liv' } })),
+    () => adaptCatalogueaState(strategySnapshot({ fixture: { id: 'bad', home: 'ars' } })),
     /fixture\.away/,
   );
   assert.throws(
@@ -148,7 +148,7 @@ test('rejects malformed or incomplete state instead of inventing defaults', () =
 
 test('does not mutate the supplied strategy snapshot', () => {
   const snapshot = strategySnapshot({
-    fixture: { id: 'livmnu', home: 'liv', away: 'mnu', winner: 325 },
+    fixture: { id: 'arsmnu', home: 'ars', away: 'mnu', winner: 325 },
     gameStakes: { oneX: 2 },
     winners: new Set(['oneX']),
   });

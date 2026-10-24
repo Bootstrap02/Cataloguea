@@ -10,14 +10,14 @@ const {
   buildOperationalPlan,
   createOperationalWorkflow,
   evaluateOptionsForResult,
-  identifyLiverpoolFixtureForWeek,
+  identifyArsenalFixtureForWeek,
   planNextWeek,
   verifyFixtureAgainstStrategy,
 } = require('./operationalWorkflow');
 
 const STRATEGY_FIXTURE = {
-  id: 'livmnu',
-  home: 'liv',
+  id: 'arsmnu',
+  home: 'ars',
   away: 'mnu',
   winner: 325,
   oneX: 14.7,
@@ -65,8 +65,8 @@ function createSchedule() {
     url: 'https://m.betking.com/en-ng/virtuals/scheduled/leagues/kings-league',
     title: 'Kings League',
     rounds: [
-      { roundName: 'Week 5', roundId: '5', fixtures: [betKingFixture('ARS', 'CHE'), betKingFixture('LIV', 'MNU')] },
-      { roundName: 'Week 6', roundId: '6', fixtures: [betKingFixture('EVE', 'LIV')] },
+      { roundName: 'Week 5', roundId: '5', fixtures: [betKingFixture('LIV', 'CHE'), betKingFixture('ARS', 'MNU')] },
+      { roundName: 'Week 6', roundId: '6', fixtures: [betKingFixture('EVE', 'ARS')] },
     ],
   };
 }
@@ -108,7 +108,7 @@ test('workflow definition covers the whole flow and maps onto existing machine s
 test('every failure condition has a policy that never falls back to simulation', () => {
   const required = [
     'BETKING_UNAVAILABLE', 'AUTHENTICATION_REQUIRED', 'REQUIRED_WEEK_UNAVAILABLE', 'WRONG_WEEK_SELECTED',
-    'LIVERPOOL_FIXTURE_NOT_FOUND', 'AMBIGUOUS_LIVERPOOL_FIXTURE', 'STRATEGY_STATE_MISSING', 'STAKE_NOT_CALCULATED',
+    'ARSENAL_FIXTURE_NOT_FOUND', 'AMBIGUOUS_ARSENAL_FIXTURE', 'STRATEGY_STATE_MISSING', 'STAKE_NOT_CALCULATED',
     'STAKE_BELOW_MINIMUM', 'UNRESOLVED_MARKET_MAPPING', 'MISSING_MARKET_SELECTION', 'MISSING_ODDS',
     'FIXTURE_STARTS_LATER', 'LIVE_FIXTURE_NOT_LOCATED', 'HALFTIME_SCORE_UNAVAILABLE', 'FULLTIME_RESULT_UNAVAILABLE',
     'INTERNET_DISCONNECTED', 'BROWSER_CRASH', 'SESSION_EXPIRED', 'DUPLICATE_RESULT', 'DUPLICATE_SETTLEMENT',
@@ -128,56 +128,56 @@ test('instruction lifecycle stages are distinct and only the first three are eve
   ]);
 });
 
-test('identifyLiverpoolFixtureForWeek identifies the single Liverpool fixture of the required week', () => {
-  const result = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 5 });
+test('identifyArsenalFixtureForWeek identifies the single Arsenal fixture of the required week', () => {
+  const result = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 5 });
   assert.equal(result.status, 'IDENTIFIED');
-  assert.equal(result.liverpoolSide, 'HOME');
+  assert.equal(result.arsenalSide, 'HOME');
   assert.equal(result.opponent, 'MNU');
-  assert.equal(result.fixture.home, 'LIV');
+  assert.equal(result.fixture.home, 'ARS');
   assert.equal(result.matchState, 'UNKNOWN');
 });
 
-test('identifyLiverpoolFixtureForWeek reports Liverpool as the away team in another week', () => {
-  const result = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 6 });
+test('identifyArsenalFixtureForWeek reports Arsenal as the away team in another week', () => {
+  const result = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 6 });
   assert.equal(result.status, 'IDENTIFIED');
-  assert.equal(result.liverpoolSide, 'AWAY');
+  assert.equal(result.arsenalSide, 'AWAY');
   assert.equal(result.opponent, 'EVE');
 });
 
-test('identifyLiverpoolFixtureForWeek never switches to another week', () => {
-  const result = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 7 });
+test('identifyArsenalFixtureForWeek never switches to another week', () => {
+  const result = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 7 });
   assert.equal(result.status, 'WEEK_NOT_FOUND');
   assert.equal(result.fixture, undefined);
 });
 
-test('identifyLiverpoolFixtureForWeek reports a week without Liverpool', () => {
-  const schedule = { rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('ARS', 'CHE')] }] };
-  assert.equal(identifyLiverpoolFixtureForWeek({ snapshot: schedule, week: 5 }).status, 'LIVERPOOL_NOT_FOUND');
+test('identifyArsenalFixtureForWeek reports a week without Arsenal', () => {
+  const schedule = { rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('LIV', 'CHE')] }] };
+  assert.equal(identifyArsenalFixtureForWeek({ snapshot: schedule, week: 5 }).status, 'ARSENAL_NOT_FOUND');
 });
 
-test('identifyLiverpoolFixtureForWeek refuses to pick between several Liverpool fixtures', () => {
+test('identifyArsenalFixtureForWeek refuses to pick between several Arsenal fixtures', () => {
   const schedule = {
-    rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('LIV', 'MNU'), betKingFixture('EVE', 'LIV')] }],
+    rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('ARS', 'MNU'), betKingFixture('EVE', 'ARS')] }],
   };
-  const result = identifyLiverpoolFixtureForWeek({ snapshot: schedule, week: 5 });
+  const result = identifyArsenalFixtureForWeek({ snapshot: schedule, week: 5 });
   assert.equal(result.status, 'AMBIGUOUS_FIXTURE');
   assert.equal(result.candidates.length, 2);
 });
 
-test('identifyLiverpoolFixtureForWeek does not invent weeks from unlabelled rounds', () => {
-  const schedule = { rounds: [{ fixtures: [betKingFixture('LIV', 'MNU')] }] };
-  assert.equal(identifyLiverpoolFixtureForWeek({ snapshot: schedule, week: 1 }).status, 'WEEK_NOT_FOUND');
+test('identifyArsenalFixtureForWeek does not invent weeks from unlabelled rounds', () => {
+  const schedule = { rounds: [{ fixtures: [betKingFixture('ARS', 'MNU')] }] };
+  assert.equal(identifyArsenalFixtureForWeek({ snapshot: schedule, week: 1 }).status, 'WEEK_NOT_FOUND');
 });
 
 test('verifyFixtureAgainstStrategy requires a HIGH-confidence match in the same orientation', () => {
-  const identified = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 5 });
+  const identified = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 5 });
   assert.equal(verifyFixtureAgainstStrategy({ identified, strategyFixture: STRATEGY_FIXTURE }).verified, true);
   assert.equal(
-    verifyFixtureAgainstStrategy({ identified, strategyFixture: { id: 'livcov', home: 'liv', away: 'cov' } }).verified,
+    verifyFixtureAgainstStrategy({ identified, strategyFixture: { id: 'arscov', home: 'ars', away: 'cov' } }).verified,
     false,
   );
   assert.equal(
-    verifyFixtureAgainstStrategy({ identified, strategyFixture: { id: 'mnuliv', home: 'mnu', away: 'liv' } }).verified,
+    verifyFixtureAgainstStrategy({ identified, strategyFixture: { id: 'mnuliv', home: 'mnu', away: 'ars' } }).verified,
     false,
   );
   assert.equal(verifyFixtureAgainstStrategy({ identified, strategyFixture: null }).status, 'NO_STRATEGY_FIXTURE');
@@ -211,7 +211,7 @@ test('prepareWeek produces a plan for the required week through the existing sta
   assert.equal(result.state, STATES.READY_FOR_ACTION);
   assert.equal(machine.getState(), STATES.READY_FOR_ACTION);
   assert.equal(result.plan.week, 5);
-  assert.equal(result.plan.liverpoolSide, 'HOME');
+  assert.equal(result.plan.arsenalSide, 'HOME');
   assert.equal(ports.calls.selectWeek.length, 0);
   // No BetKing mapping is verified yet, so nothing is ready as a prepared instruction.
   assert.equal(result.plan.instructions.length, 0);
@@ -269,21 +269,21 @@ test('prepareWeek reports BetKing unavailable instead of using simulated data', 
   assert.equal(result.plan, undefined);
 });
 
-test('prepareWeek stops the whole fixture when Liverpool is ambiguous', async () => {
+test('prepareWeek stops the whole fixture when Arsenal is ambiguous', async () => {
   const machine = new StateMachine();
   const schedule = {
     url: 'https://m.betking.com/x',
-    rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('LIV', 'MNU'), betKingFixture('EVE', 'LIV')] }],
+    rounds: [{ roundName: 'Week 5', fixtures: [betKingFixture('ARS', 'MNU'), betKingFixture('EVE', 'ARS')] }],
   };
   const result = await createOperationalWorkflow({ stateMachine: machine, ports: createPorts({ schedule }) })
     .prepareWeek({ requiredWeek: 5 });
-  assert.equal(result.code, 'AMBIGUOUS_LIVERPOOL_FIXTURE');
+  assert.equal(result.code, 'AMBIGUOUS_ARSENAL_FIXTURE');
   assert.equal(machine.getState(), STATES.ERROR);
 });
 
 test('prepareWeek stops when the strategy fixture does not match the website fixture', async () => {
   const machine = new StateMachine();
-  const ports = createPorts({ strategyFixture: { ...STRATEGY_FIXTURE, id: 'livcov', away: 'cov' } });
+  const ports = createPorts({ strategyFixture: { ...STRATEGY_FIXTURE, id: 'arscov', away: 'cov' } });
   const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
   assert.equal(result.code, 'FIXTURE_IDENTITY_MISMATCH');
   assert.equal(machine.getState(), STATES.ERROR);
@@ -315,7 +315,7 @@ test('evaluateOptionsForResult keeps strategy outcomes separate from execution s
 
 test('an option with an unknown strategy key still blocks settlement', () => {
   const plan = {
-    liverpoolSide: 'HOME',
+    arsenalSide: 'HOME',
     eligible: [{ strategyKey: 'mystery', stake: 50, stakeComponents: { normal: 50, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'X', lifecycle: { accepted: false } }],
     skipped: [],
   };
@@ -327,9 +327,9 @@ test('an option with an unknown strategy key still blocks settlement', () => {
 test('in place mode only options whose bet the site accepted can win', () => {
   const accepted = { strategyKey: 'oneX', stake: 100, stakeComponents: { normal: 100, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'OWNER_DEFINED', lifecycle: { accepted: true } };
   const unplaced = { strategyKey: 'twoX', stake: 100, stakeComponents: { normal: 100, bigDeficit: 0 }, mappingStatus: 'VERIFIED', semanticsStatus: 'OWNER_DEFINED', lifecycle: { accepted: false } };
-  const plan = { liverpoolSide: 'HOME', placedOnly: true, eligible: [accepted, unplaced], skipped: [] };
+  const plan = { arsenalSide: 'HOME', placedOnly: true, eligible: [accepted, unplaced], skipped: [] };
   const evaluation = evaluateOptionsForResult({ plan, verifiedResult: { status: 'verified', halfTime: { home: 0, away: 1 }, fullTime: { home: 1, away: 1 } } });
-  // twoX would have won (Liverpool trailed at half time, then drew) but its bet was never placed.
+  // twoX would have won (Arsenal trailed at half time, then drew) but its bet was never placed.
   assert.deepEqual(evaluation.evaluations.map((entry) => entry.strategyKey), ['oneX']);
   assert.equal(evaluation.notPlaced.length, 1);
   assert.equal(evaluation.notPlaced[0].strategyKey, 'twoX');
@@ -339,7 +339,7 @@ test('in place mode only options whose bet the site accepted can win', () => {
 
 test('evaluateOptionsForResult proposes marks only when every eligible option is decidable', () => {
   const plan = {
-    liverpoolSide: 'HOME',
+    arsenalSide: 'HOME',
     eligible: [
       { strategyKey: 'oneX', stake: 1200, stakeComponents: { normal: 150, bigDeficit: 1050 }, mappingStatus: 'UNRESOLVED_MARKET', semanticsStatus: 'USER_SPECIFIED', lifecycle: { accepted: false } },
       { strategyKey: 'twoX', stake: 40, stakeComponents: { normal: 40, bigDeficit: 0 }, mappingStatus: 'UNRESOLVED_MARKET', semanticsStatus: 'USER_SPECIFIED', lifecycle: { accepted: false } },
@@ -355,7 +355,7 @@ test('evaluateOptionsForResult proposes marks only when every eligible option is
 
 test('evaluateOptionsForResult does not settle on an unverified result', () => {
   const plan = {
-    liverpoolSide: 'HOME',
+    arsenalSide: 'HOME',
     eligible: [
       { strategyKey: 'oneX', stake: 50, stakeComponents: { normal: 50, bigDeficit: 0 }, mappingStatus: 'UNRESOLVED_MARKET', semanticsStatus: 'USER_SPECIFIED', lifecycle: { accepted: false } },
     ],
@@ -374,7 +374,7 @@ test('buildOperationalPlan keeps original stake components and merges them for t
     }),
   });
   const instructions = adapter.getCurrentInstructions();
-  const identification = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 5 });
+  const identification = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 5 });
   const plan = buildOperationalPlan({ week: 5, identification, strategyInstructions: instructions });
   const oneX = plan.eligible.find((record) => record.strategyKey === 'oneX');
   assert.ok(oneX, 'oneX should be stake-eligible with a big-deficit component');
@@ -386,9 +386,9 @@ test('buildOperationalPlan keeps original stake components and merges them for t
 
 test('buildOperationalPlan rejects an invalid week or unidentified fixture', () => {
   const instructions = createStrategyDecisionAdapter({ readStrategySnapshot: () => createStrategySnapshot() }).getCurrentInstructions();
-  const identification = identifyLiverpoolFixtureForWeek({ snapshot: createSchedule(), week: 5 });
+  const identification = identifyArsenalFixtureForWeek({ snapshot: createSchedule(), week: 5 });
   assert.throws(() => buildOperationalPlan({ week: 39, identification, strategyInstructions: instructions }), RangeError);
-  assert.throws(() => buildOperationalPlan({ week: 5, identification: { status: 'LIVERPOOL_NOT_FOUND' }, strategyInstructions: instructions }));
+  assert.throws(() => buildOperationalPlan({ week: 5, identification: { status: 'ARSENAL_NOT_FOUND' }, strategyInstructions: instructions }));
 });
 
 
@@ -419,13 +419,13 @@ test('prepareWeek feeds the identified fixture to a strategy that has none, then
   const { ports, calls } = createFeedablePorts();
   const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
   assert.equal(result.status, 'PREPARED');
-  assert.deepEqual(calls.feed, [{ home: 'LIV', away: 'MNU', week: 5 }]);
+  assert.deepEqual(calls.feed, [{ home: 'ARS', away: 'MNU', week: 5 }]);
   assert.ok(result.trace.some((entry) => entry.step === 'FEED_STRATEGY_FIXTURE' && entry.status === 'SUBMITTED'));
 });
 
 test('prepareWeek stops when the strategy refuses the fixture (for example no odds row)', async () => {
   const machine = new StateMachine();
-  const { ports } = createFeedablePorts({ feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for liv vs mnu' } });
+  const { ports } = createFeedablePorts({ feedResult: { ok: false, code: 'NO_ODDS_FOR_FIXTURE', reason: 'No odds for ars vs mnu' } });
   const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
   assert.equal(result.code, 'STRATEGY_FEED_FAILED');
   assert.equal(machine.getState(), STATES.PAUSED);
@@ -440,7 +440,7 @@ test('prepareWeek does not continue when the strategy never reports the fed fixt
 
 test('an active strategy fixture is never replaced by the fed one', async () => {
   const machine = new StateMachine();
-  const base = createPorts({ strategyFixture: { ...STRATEGY_FIXTURE, id: 'livcov', away: 'cov' } });
+  const base = createPorts({ strategyFixture: { ...STRATEGY_FIXTURE, id: 'arscov', away: 'cov' } });
   let fed = 0;
   const ports = { ...base, submitFixtureToStrategy: async () => { fed += 1; return { ok: true }; } };
   const result = await createOperationalWorkflow({ stateMachine: machine, ports }).prepareWeek({ requiredWeek: 5 });
