@@ -213,3 +213,22 @@ test('parses a multi-selection slip like the owner screenshots and detects extra
   const check = compareSlipToExpected({ slip, expected: { home: 'ARS', away: 'LIV', market: 'HT/FT', selection: '1/X', stake: 100, odds: 14.7, week: 16 } });
   assert.ok(check.problems.includes('EXTRA_SELECTIONS'));
 });
+
+test('the live slip layout "market · selection" is read (it was read as an empty slip before)', () => {
+  const { parseBetSlipText, compareSlipToExpected } = require('./marketFirstSequence');
+  const text = [
+    'VIRTUALS BETSLIP', 'Clear All', 'Next event will expire in: 00:30',
+    'Kings League - Week 3', 'ARS - BHA', '143.00', 'Correct Score · 6-0',
+    'Total Stake Amount', 'Total Odds 143.00', 'Net Potential Winnings ₦10,010.00', 'PLACE BET',
+  ].join('\n');
+  const slip = parseBetSlipText(text, { stakeInputValue: '70' });
+  assert.equal(slip.items.length, 1);
+  assert.deepEqual([slip.items[0].home, slip.items[0].away, slip.items[0].market, slip.items[0].selection, slip.items[0].odds, slip.items[0].week],
+    ['ARS', 'BHA', 'Correct Score', '6-0', 143, 3]);
+  assert.equal(slip.stake, 70);
+  const comparison = compareSlipToExpected({ slip, expected: { home: 'ARS', away: 'BHA', market: 'Correct Score', selection: '6-0', stake: 70, odds: 143, week: 3 } });
+  assert.equal(comparison.ok, true, JSON.stringify(comparison.problems));
+  // the older dash layout still works
+  const older = parseBetSlipText('ARS - BHA\n143.00\nCorrect Score - 6-0', { stakeInputValue: '70' });
+  assert.equal(older.items[0].selection, '6-0');
+});

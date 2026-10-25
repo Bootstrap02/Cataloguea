@@ -109,7 +109,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
         // document order and pair each odd with the nearest label before it. Older layouts that
         // use data-testid="selection-name" are still read the same way.
         ...(() => {
-          if (!row) return { labels: [], odds: [], oddsCount: 0, expanded: false };
+          if (!row) return { labels: [], odds: [], oddsCount: 0, expanded: false, bodyOpen: false };
           const nodes = [...row.querySelectorAll('[data-testid="selection-name"], [data-testid="typography-caption--inherit"], [data-testid="match-odd-value"]')];
           const labels = [];
           const odds = [];
@@ -125,7 +125,10 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
               if (value && value.length <= 12) pending = value;
             }
           }
-          return { labels: labels.every((label) => label === '') ? [] : labels, odds, oddsCount: odds.length, expanded: odds.length > 0 };
+          // bodyOpen: the fixture's accordion is open even while its odds are still loading (grey
+          // empty cells); such a row must be waited for, never clicked, or the click would close it.
+          const bodyOpen = !!row.querySelector('[data-testid="accordion-body-inner"], [data-testid="accordion-body"]');
+          return { labels: labels.every((label) => label === '') ? [] : labels, odds, oddsCount: odds.length, expanded: odds.length > 0, bodyOpen };
         })(),
       };
     }, {
@@ -445,7 +448,12 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       }
 
       // Step 4: the fixture row must be open to show its selections.
-      if (state.labels.length === 0 && !state.expanded) {
+      if (state.labels.length === 0 && state.bodyOpen) {
+        // Already open, odds still loading (owner's Week 3 Total Goals run): wait, do not click.
+        state = await pollUntil(() => readMarketState(fixture), (current) => current.labels.length > 0, 8000);
+        attempts.push({ via: 'wait-for-odds', labels: state.labels.length });
+        await snap(`${category}-wait-for-odds`);
+      } else if (state.labels.length === 0 && !state.expanded) {
         const expanded = await expandFixture(fixture);
         attempts.push({ via: 'expand-fixture', clicked: expanded });
         await snap(`${category}-expand-fixture`);
@@ -643,6 +651,34 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       : { status: 'BET_SLIP_CLOSED' };
   }
 
+  // Clears the slip with the "Clear All" control at its top (visible in the recording). Only that
+  // control is clicked, and only while the slip page is open.
+  async function clearBetSlip() {
+    const slip = await readSlipPage();
+    if (!slip.isBetSlipPage) return { status: 'BET_SLIP_NOT_OPEN' };
+    if (slip.items.length === 0) return { status: 'BET_SLIP_CLEARED' };
+    const control = page.getByText(/^\s*Clear All\s*$/i).first();
+    if (await control.count() === 0) return { status: 'CLEAR_CONTROL_NOT_FOUND' };
+    await safeClick(control);
+    const after = await pollUntil(readSlipPage, (parsed) => parsed.items.length === 0, 3000);
+    return after.items.length === 0 ? { status: 'BET_SLIP_CLEARED' } : { status: 'BET_SLIP_NOT_CLEARED' };
+  }
+
+  // Leaves the slip behind after an expiry, an error or a dry run: open it if needed, clear it,
+  // close it, and confirm the summary bar shows no selections. The run never waits on the slip.
+  async function resetBetSlip() {
+    const steps = [];
+    const summary = await readSlipSummary();
+    let slip = await readSlipPage();
+    if (!slip.isBetSlipPage && summary.count === 0) return { status: 'ALREADY_CLEAN', steps };
+    if (!slip.isBetSlipPage) steps.push((await openBetSlip()).status);
+    steps.push((await clearBetSlip()).status);
+    steps.push((await closeBetSlip()).status);
+    slip = await readSlipPage();
+    const after = await readSlipSummary();
+    return { status: !slip.isBetSlipPage && after.count === 0 ? 'BET_SLIP_RESET' : 'BET_SLIP_NOT_RESET', steps };
+  }
+
   const CONFIRMED_PATTERN = /(bet\s*(slip)?\s*(has\s*been\s*)?(successfully\s*)?(placed|accepted)|successfully\s*placed|bet\s*placed|placed\s*successfully|you'?re\s*in\s*the\s*game)/i;
   const REJECTED_PATTERN = /(insufficient|not\s*enough|failed|error|rejected|declined|unable|invalid|expired|not\s*allowed|exceeds?)/i;
 
@@ -753,6 +789,8 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     captureDiagnostics,
     openMarketCategory,
     setCaptureDirectory,
+    clearBetSlip,
+    resetBetSlip,
     identifyMarketSelection,
     readSlipSummary,
     selectOdd,

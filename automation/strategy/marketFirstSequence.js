@@ -262,7 +262,8 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
         }
         continue;
       }
-      const split = /^(.+?)\s+-\s+(.+)$/.exec(line);
+      // The live slip prints "HT/FT · 1/X" (owner recording, Oct 23 2026); older slips used "HT/FT - 1/X".
+      const split = /^(.+?)\s*[\u00b7\u2022]\s*(.+)$/.exec(line) || /^(.+?)\s+-\s+(.+)$/.exec(line);
       if (split) {
         items.push({
           home: fixture[1].toUpperCase(),

@@ -75,6 +75,11 @@ function createBetKingLiveConfig(environment = process.env) {
     feedStrategy: environment.AUTOMATION_FEED_STRATEGY !== 'false',
     // 'headless' (default): the strategy runs inside this program from src/Scores.js and a state file;
     // no strategy tab is opened. 'page' keeps the old behaviour (a Cataloguea tab on npm start).
+    // 'off' (default): use the upcoming round shown on the BetKing page, whatever its number.
+    // 'strict': the old safety gate (first run needs --week; jumps and repeats stop the run).
+    // How long a filled slip stays on screen in a --through slip dry run before it is cleared.
+    slipReviewMs: readInteger(environment, 'AUTOMATION_SLIP_REVIEW_MS', 3000, { minimum: 0, maximum: 30000 }),
+    weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
     strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', 'strategy-state.json')),
     baseStake: readInteger(environment, 'AUTOMATION_BASE_STAKE', 10000, { maximum: 100_000_000 }),

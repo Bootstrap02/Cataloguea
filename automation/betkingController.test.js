@@ -72,6 +72,8 @@ function setup({
     ...env,
     AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
     AUTOMATION_STRATEGY_MODE: 'page',
+    AUTOMATION_WEEK_CHECK: 'strict',
+    AUTOMATION_SLIP_REVIEW_MS: '0',
     AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
     AUTOMATION_STRATEGY_WAIT_TIMEOUT_MS: '5000',
@@ -393,6 +395,7 @@ function slipFlow(overrides = {}) {
     }),
     placeBet: { status: 'ACCEPTED_BY_SITE_TEXT', evidence: { clickedAt: '2026-10-17T10:00:00Z', siteConfirmationText: 'Bet placed successfully', newLines: [] } },
     closeBetSlip: { status: 'BET_SLIP_CLOSED' },
+    resetBetSlip: { status: 'BET_SLIP_RESET', steps: [] },
     ...overrides,
   };
 }
@@ -455,17 +458,44 @@ test('a typed confirmation of the exact stake is accepted and anything else is r
   assert.equal(outcome.status, 'COMPLETED');
 });
 
-test('a stake above the cap is not placed and stops the remaining options', async () => {
+test('a stake above the cap is skipped and the remaining options are still attempted', async () => {
   const { controller, calls } = setup({
     mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'place',
     env: { ...PLACE_ENV, AUTOMATION_MAX_STAKE: '100' }, flowOverrides: slipFlow(),
   });
   const outcome = await controller.run({ requiredWeek: 5 });
-  // The winner stake (31) is within the cap and is placed; oneX (over the cap) is refused and twoX is never attempted.
+  // The winner stake (31) is within the cap and is placed; oneX and twoX are over the cap and refused,
+  // but being refused does not stop the run: every option is still looked at.
   assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
   const plan = readPlan(outcome);
-  assert.equal(plan.halted.strategyKey, 'oneX');
-  assert.ok(plan.deferred.some((record) => record.strategyKey === 'twoX'));
+  assert.equal(plan.halted, null);
+  assert.ok(plan.pipelineFailed.some((record) => record.strategyKey === 'oneX'));
+  assert.ok(plan.pipelineFailed.some((record) => record.strategyKey === 'twoX'));
+});
+
+test('a failed option leaves the slip and the next option is still tried', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'place', env: PLACE_ENV,
+    flowOverrides: slipFlow({ placeBet: { status: 'SLIP_EXPIRING', evidence: { expirySeconds: 3 } } }),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const attempts = calls.flow.filter((call) => call.name === 'placeBet').length;
+  assert.ok(attempts >= 2, 'every option is attempted, not just the first');
+  assert.ok(calls.flow.filter((call) => call.name === 'resetBetSlip').length >= 2, 'the slip is left after each failure');
+  assert.equal(outcome.status, 'NO_BETS_PLACED');
+});
+
+test('a --through slip dry run leaves the slip, then finishes without waiting for a match', async () => {
+  const { controller, calls } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'slip', flowOverrides: slipFlow() });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(outcome.status, 'DRY_RUN_COMPLETE');
+  assert.ok(calls.flow.some((call) => call.name === 'resetBetSlip'));
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 0);
+});
+
+test('the week on the page is used without --week unless AUTOMATION_WEEK_CHECK=strict', () => {
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).weekCheck, 'off');
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_WEEK_CHECK: 'strict' }).weekCheck, 'strict');
 });
 
 test('a click with no confirmation from the site pauses the run and nothing is settled', async () => {
@@ -480,14 +510,15 @@ test('a click with no confirmation from the site pauses the run and nothing is s
   assert.equal(calls.settle.length, 0);
 });
 
-test('a bet the site rejects is not counted as placed and stops the run before settlement', async () => {
+test('a bet the site rejects is not counted as placed; the other options are still tried and nothing is settled', async () => {
   const { controller, calls } = setup({
     mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000 }, through: 'place', env: PLACE_ENV,
     flowOverrides: slipFlow({ placeBet: { status: 'REJECTED_BY_SITE_TEXT', evidence: { clickedAt: '2026-10-17T10:00:00Z', newLines: ['Insufficient balance'] } } }),
   });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.equal(outcome.status, 'NO_BETS_PLACED');
-  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  assert.ok(calls.flow.filter((call) => call.name === 'placeBet').length >= 1);
+  assert.ok(calls.flow.some((call) => call.name === 'resetBetSlip'), 'the slip is left after a rejection');
   assert.equal(calls.settle.length, 0);
 });
 

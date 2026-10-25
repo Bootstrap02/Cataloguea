@@ -266,6 +266,11 @@ function createBetKingController({
       const reconciliation = reconcileWeek({ detectedWeek: detected.week, lastSettledWeek: progress.lastSettledWeek });
       journal.append('WEEK_DETECTED', { detected, lastSettledWeek: progress.lastSettledWeek, reconciliation });
       log(`Upcoming round: ${detected.roundName}${detected.timer ? ` (countdown ${detected.timer})` : ''}; weeks visible: ${detected.visibleWeeks.join(', ')}. ${reconciliation.reason}`);
+      if (config.weekCheck !== 'strict') {
+        // Take the round that is on the page now. The comparison with the last settled week is only logged.
+        if (!reconciliation.ok) log(`Note: ${reconciliation.reason} Continuing with ${detected.roundName} because the page shows it as the upcoming round.`);
+        return { ok: true, week: detected.week };
+      }
       if (!reconciliation.ok) {
         return { ok: false, code: `WEEK_${reconciliation.status}`, reason: `${reconciliation.reason} Run with --week N to choose the week yourself.` };
       }
@@ -333,6 +338,18 @@ function createBetKingController({
       const deferred = [];
       let slipHolder = null;
       let halted = null;
+
+      // Leave the slip behind (clear + close) so the run never sits on it and the next option can use it.
+      const recoverSlip = async () => {
+        if (typeof flow.resetBetSlip !== 'function') return;
+        try {
+          const reset = await flow.resetBetSlip();
+          journal.append('SLIP_RESET', reset);
+          if (reset.status === 'BET_SLIP_RESET' || reset.status === 'ALREADY_CLEAN') slipHolder = null;
+        } catch (error) {
+          journal.append('SLIP_RESET_FAILED', { message: error.message });
+        }
+      };
 
       const FAILURE_FOR_STATUS = {
         MARKET_CATEGORY_NOT_OPENED: PIPELINE_FAILURES.MARKET_CATEGORY_NOT_OPENED,
@@ -469,7 +486,7 @@ function createBetKingController({
             record.reason = `Not placed: ${code} (${reason}).`;
             journal.append('WAGER_NOT_PLACED', { strategyKey: record.strategyKey, code, reason });
             failed.push(record);
-            halted = { code, strategyKey: record.strategyKey, severe };
+            if (severe || code === PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED && !config.allowRealMoney) halted = { code, strategyKey: record.strategyKey, severe };
           };
           if (!config.allowRealMoney) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, 'AUTOMATION_ALLOW_REAL_MONEY=yes is not set'); continue; }
           if (record.stake > config.maxStake) { refuse(PIPELINE_FAILURES.WAGER_NOT_AUTHORIZED, `stake ${record.stake} is above the stake cap ${config.maxStake} (AUTOMATION_MAX_STAKE)`); continue; }
@@ -489,7 +506,6 @@ function createBetKingController({
           });
           if (!finalCheck.ok) {
             stop(finalCheck.problems.includes('SLIP_EXPIRING') ? PIPELINE_FAILURES.SLIP_EXPIRING : PIPELINE_FAILURES.BET_SLIP_MISMATCH, { problems: finalCheck.problems });
-            halted = { code: finalCheck.problems.join(','), strategyKey: record.strategyKey, severe: false };
             continue;
           }
           const placed = await flow.placeBet({
@@ -527,7 +543,6 @@ function createBetKingController({
             record.pipelineStatus = 'WAGER_REJECTED';
             record.reason = `The site rejected the bet: ${(placed.evidence.newLines ?? []).join(' | ').slice(0, 160)}`;
             failed.push(record);
-            halted = { code: PIPELINE_FAILURES.WAGER_REJECTED, strategyKey: record.strategyKey, severe: false };
             continue;
           }
           // No confirmation (or no click happened). A click without confirmation is severe: a bet may exist.
@@ -538,12 +553,21 @@ function createBetKingController({
             ? 'The place-bet control was used but the site showed no confirmation. Check My Bets before doing anything else.'
             : `The bet was not placed (${placed.status}).`;
           failed.push(record);
-          halted = { code: severe ? PIPELINE_FAILURES.WAGER_UNCONFIRMED : placed.status, strategyKey: record.strategyKey, severe };
+          if (severe) halted = { code: PIPELINE_FAILURES.WAGER_UNCONFIRMED, strategyKey: record.strategyKey, severe };
         } catch (error) {
           stop(PIPELINE_FAILURES.BET_SLIP_MISMATCH, { reason: error.message });
         } finally {
           record.pipeline = pipeline.snapshot();
           journal.append('PIPELINE_TIMING', { strategyKey: record.strategyKey, elapsedMs: Date.now() - optionStartedAt, reachedStage: pipeline.stage });
+          // After an error, an expiry, a rejection or a dry run, leave the slip. A bet that may exist
+          // without confirmation is never touched.
+          const dryRunDone = through === 'slip' && record.pipelineStatus === 'AWAITING_AUTHORIZATION';
+          const needsReset = slipHolder === record.strategyKey && !(halted && halted.severe)
+            && (['PIPELINE_FAILED', 'NOT_PLACED', 'WAGER_REJECTED'].includes(record.pipelineStatus) || dryRunDone);
+          if (needsReset) {
+            if (dryRunDone && config.slipReviewMs > 0) await sleepFor(config.slipReviewMs);
+            await recoverSlip();
+          }
         }
       }
 
@@ -812,7 +836,11 @@ function createBetKingController({
           }
           if (accepted.length === 0) {
             moveTo(STATES.PAUSED);
-            return finish('NO_BETS_PLACED', { code: prepared.plan.halted?.code ?? 'NOTHING_TO_PLACE', week });
+            return finish('NO_BETS_PLACED', {
+              code: prepared.plan.halted?.code ?? 'NOTHING_TO_PLACE',
+              week,
+              failures: (prepared.plan.pipelineFailed ?? []).map((record) => ({ strategyKey: record.strategyKey, reason: record.reason })),
+            });
           }
         }
         const markdown = renderPlanMarkdown(prepared);
@@ -825,6 +853,12 @@ function createBetKingController({
           unresolved: prepared.plan.unresolved.length,
           skipped: prepared.plan.skipped.length,
         });
+
+        if (config.pipelineThrough === 'select' || config.pipelineThrough === 'slip') {
+          // A dry run places nothing, so there is no match to wait for.
+          moveTo(STATES.STOPPED);
+          return finish('DRY_RUN_COMPLETE', { week, through: config.pipelineThrough, verified: prepared.plan.instructions.map((record) => record.strategyKey) });
+        }
 
         const snapshotBefore = await bridge.strategyPort.getStrategySnapshot();
         const operationId = createOperationId({
