@@ -72,7 +72,7 @@ function setup({
     ...env,
     AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
     AUTOMATION_STRATEGY_MODE: 'page',
-    AUTOMATION_WEEK_CHECK: 'strict',
+    AUTOMATION_WEEK_CHECK: env.AUTOMATION_WEEK_CHECK ?? 'strict',
     AUTOMATION_SLIP_REVIEW_MS: '0',
     AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
     AUTOMATION_LOGIN_WAIT_TIMEOUT_MS: '5000',
@@ -610,4 +610,38 @@ test('a selection left in the slip by an earlier run is cleared before the next 
   const names = calls.flow.map((call) => call.name);
   assert.ok(names.indexOf('resetBetSlip') !== -1 && names.indexOf('resetBetSlip') < names.indexOf('selectOdd'), 'the stale slip is cleared before selecting');
   assert.equal(names.filter((name) => name === 'placeBet').length, 1);
+});
+
+test('place mode waits for a round with enough time left instead of racing the clock', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place',
+    env: { ...PLACE_ENV, AUTOMATION_ONLY_OPTIONS: 'winner', AUTOMATION_WEEK_CHECK: 'off', AUTOMATION_MIN_START_SECONDS: '60' },
+    flowOverrides: slipFlow(),
+  });
+  const original = injected.ports.readSchedule;
+  let reads = 0;
+  injected.ports.readSchedule = async () => {
+    const result = await original();
+    reads += 1;
+    result.snapshot.rounds[0].timer = reads < 3 ? '00:10' : '02:20';
+    return result;
+  };
+  await controller.run({});
+  assert.ok(reads >= 3, 'it kept reading the schedule until a round with enough time appeared');
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+});
+
+test('time limits have sensible defaults: wait for 75s in place mode, retry two more rounds', () => {
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_PIPELINE_THROUGH: 'place' }).minStartSeconds, 75);
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).minStartSeconds, 0);
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).retryRounds, 2);
+});
+
+test('a failed option says why, for example the slip problems', async () => {
+  const { controller } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, AUTOMATION_ONLY_OPTIONS: 'winner' },
+    flowOverrides: slipFlow({ enterStake: { status: 'STAKE_NOT_ACCEPTED', evidence: { expected: 31, found: 100 } } }),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.match(outcome.failures[0].reason, /BET_SLIP_MISMATCH \(STAKE_NOT_ACCEPTED\)/);
 });

@@ -92,6 +92,10 @@ function createBetKingLiveConfig(environment = process.env) {
     // Trial mode: only these options are bet, for example AUTOMATION_ONLY_OPTIONS=winner. Uses its own
     // strategy state file so a trial never changes your real strategy state.
     onlyOptions: readOnlyOptions(environment),
+    // Minimum seconds left on the upcoming round before bets are started (place mode only). 0 = never wait.
+    minStartSeconds: readInteger(environment, 'AUTOMATION_MIN_START_SECONDS', environment.AUTOMATION_PIPELINE_THROUGH === 'place' ? 75 : 0, { minimum: 0, maximum: 600 }),
+    // After a round was missed (time ran out before any bet was placed), try this many more rounds.
+    retryRounds: readInteger(environment, 'AUTOMATION_RETRY_ROUNDS', 2, { minimum: 0, maximum: 10 }),
     weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
     strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', readOnlyOptions(environment) ? 'strategy-state.trial.json' : 'strategy-state.json')),

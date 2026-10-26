@@ -230,6 +230,9 @@ function parseCountdownSeconds(text) {
 //   several selections (owner screenshots): fixture line, then repeated
 //     "<market> - <selection>" followed by its odds, then the Singles / Stake rows.
 // The stake input value is supplied separately because it is not part of the page text.
+// Market names as BetKing prints them on the slip; longest first so "HT Correct Score" wins over "Correct Score".
+const KNOWN_SLIP_MARKETS = ['HT Correct Score', 'Correct Score', 'HT/FT', 'Total Goals', 'Half Time', 'Double Chance', '1X2'];
+
 function parseBetSlipText(text, { stakeInputValue = null } = {}) {
   const source = String(text ?? '');
   const lines = source.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
@@ -250,6 +253,8 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
     const week = league ? Number((/week\s*(\d+)/i.exec(league) || [])[1]) || null : null;
     let pendingOdds = null;
     let cursor = index + 1;
+    const descriptor = [];
+    const itemsBefore = items.length;
     for (; cursor < lines.length; cursor += 1) {
       const line = lines[cursor];
       if (fixturePattern.test(line) || stopPattern.test(line) || (leaguePattern.test(line) && /league/i.test(line))) break;
@@ -264,6 +269,7 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
       }
       // The live slip prints "HT/FT · 1/X" (owner recording, Oct 23 2026); older slips used "HT/FT - 1/X".
       const split = /^(.+?)\s*[\u00b7\u2022]\s*(.+)$/.exec(line) || /^(.+?)\s+-\s+(.+)$/.exec(line);
+      if (!split && !/^[\u00b7\u2022|:\-\u2013]+$/.test(line)) descriptor.push(line);
       if (split) {
         items.push({
           home: fixture[1].toUpperCase(),
@@ -277,6 +283,24 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
         pendingOdds = null;
       }
     }
+    // The market and the pick may be printed on separate lines, or with no visible separator
+    // ("Correct Score" / "6-0", or "Correct Score 6-0"). Read them from the known market names.
+    if (items.length === itemsBefore && descriptor.length > 0) {
+      const joined = descriptor.join(' ').replace(/^[\u00b7\u2022|:\-\u2013\s]+/, '');
+      const known = KNOWN_SLIP_MARKETS.find((name) => joined.toUpperCase().startsWith(name.toUpperCase()));
+      const rest = known ? joined.slice(known.length).replace(/^[\u00b7\u2022|:\-\u2013\s]+/, '').trim() : '';
+      if (known && rest) {
+        items.push({
+          home: fixture[1].toUpperCase(),
+          away: fixture[2].toUpperCase(),
+          market: known,
+          selection: rest,
+          odds: pendingOdds,
+          league,
+          week,
+        });
+      }
+    }
     index = cursor - 1;
   }
 
@@ -285,7 +309,7 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
     return match ? match[1] : null;
   };
   const expiryText = find(/Next event will expire in:\s*([\d:]+)/i);
-  return {
+  const parsed = {
     items,
     stake: stakeInputValue === null || stakeInputValue === '' ? null : parseMoney(stakeInputValue),
     totalOdds: parseMoney(find(/Total Odds\s*([\d.,]+)/i)),
@@ -293,6 +317,10 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
     expirySeconds: expiryText ? parseCountdownSeconds(expiryText) : null,
     isBetSlipPage: /VIRTUALS BETSLIP/i.test(source),
   };
+  // The raw page text travels with the result (not enumerable, so comparisons ignore it) so a failed
+  // verification can be saved and inspected.
+  Object.defineProperty(parsed, 'rawText', { value: source.slice(0, 8000), enumerable: false });
+  return parsed;
 }
 
 // Compares the slip with what the strategy intends. Blocking problems make ok=false;

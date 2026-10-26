@@ -232,3 +232,22 @@ test('the live slip layout "market · selection" is read (it was read as an empt
   const older = parseBetSlipText('ARS - BHA\n143.00\nCorrect Score - 6-0', { stakeInputValue: '70' });
   assert.equal(older.items[0].selection, '6-0');
 });
+
+test('the slip is read whether the market and the pick are on one line, two lines or have no separator', () => {
+  const { parseBetSlipText } = require('./marketFirstSequence');
+  const wrap = (middle) => ['VIRTUALS BETSLIP', 'Clear All', 'Next event will expire in: 00:30', 'Kings League - Week 9', 'ARS - LEE', '65.60', ...middle, 'Total Stake Amount', 'Total Odds 65.60', 'PLACE BET'].join('\n');
+  for (const middle of [
+    ['Correct Score · 6-0'],
+    ['Correct Score', '6-0'],
+    ['Correct Score', '·', '6-0'],
+    ['Correct Score 6-0'],
+    ['Correct Score - 6-0'],
+  ]) {
+    const slip = parseBetSlipText(wrap(middle), { stakeInputValue: '152' });
+    assert.equal(slip.items.length, 1, JSON.stringify(middle));
+    assert.deepEqual([slip.items[0].market, slip.items[0].selection, slip.items[0].odds], ['Correct Score', '6-0', 65.6], JSON.stringify(middle));
+  }
+  const half = parseBetSlipText(wrap(['HT Correct Score', '2-1']), { stakeInputValue: '30' });
+  assert.deepEqual([half.items[0].market, half.items[0].selection], ['HT Correct Score', '2-1']);
+  assert.ok(typeof parseBetSlipText(wrap(['Correct Score · 6-0'])).rawText === 'string');
+});

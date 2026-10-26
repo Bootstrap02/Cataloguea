@@ -64,13 +64,23 @@ async function main() {
   for (const problem of selectors.problems) console.log(`  selectors problem: ${problem}`);
   for (const rejected of mappingFile.rejected) console.log(`  mapping ignored: ${rejected.key ?? '(file)'}: ${rejected.reason}`);
 
-  const controller = createBetKingController({ config: effectiveConfig, selectors, mappings });
-  const outcome = await controller.run({
-    requiredWeek,
-    maxWeeks,
-    prompts: process.argv.includes('--prompts'),
-  });
-  console.log(JSON.stringify(outcome, null, 2));
+  // A round can be missed because the clock ran out (not enough time to reach PLACE BET). Nothing was
+  // bet then, so it is safe to try the next round; at most retryRounds more times.
+  const missedTheClock = (result) => result.status === 'NO_BETS_PLACED'
+    && Array.isArray(result.failures) && result.failures.length > 0
+    && result.failures.every((failure) => /SLIP_EXPIRING|FIXTURE_ROW_NOT_AVAILABLE|expire/i.test(String(failure.reason)));
+  let outcome;
+  for (let attempt = 0; attempt <= effectiveConfig.retryRounds; attempt += 1) {
+    const controller = createBetKingController({ config: effectiveConfig, selectors, mappings });
+    outcome = await controller.run({
+      requiredWeek,
+      maxWeeks,
+      prompts: process.argv.includes('--prompts'),
+    });
+    console.log(JSON.stringify(outcome, null, 2));
+    if (effectiveConfig.pipelineThrough !== 'place' || !missedTheClock(outcome) || attempt === effectiveConfig.retryRounds) break;
+    console.log(`The round was missed (time ran out before PLACE BET). Trying the next round (${attempt + 1} of ${effectiveConfig.retryRounds}).`);
+  }
   if (outcome.status !== 'COMPLETED') process.exitCode = 1;
 }
 

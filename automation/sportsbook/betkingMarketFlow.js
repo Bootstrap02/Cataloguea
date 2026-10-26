@@ -46,7 +46,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   const overrides = selectors?.marketFlow ?? {};
   const waitMs = config.marketWaitTimeoutMs ?? 4000;
   const actionTimeout = Math.max(config.actionTimeoutMs ?? 1000, 3000);
-  const intervalMs = 250;
+  const intervalMs = 120;
 
   const pause = (milliseconds) => page.waitForTimeout(milliseconds);
 
@@ -166,7 +166,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const consent = /cookie|consent|privacy/i.test(overlays.map((overlay) => overlay.text).join(' '));
     if (!consent) {
       await page.keyboard.press('Escape');
-      await pause(400);
+      await pause(150);
       overlays = await detectOverlays();
       if (overlays.length === 0) return { ok: true, status: 'DISMISSED', via: 'escape' };
     }
@@ -205,7 +205,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
           document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
         }, ATTRIBUTE_CLOSE);
       }
-      await pause(500);
+      await pause(200);
       overlays = await detectOverlays();
       if (overlays.length === 0) return { ok: true, status: 'DISMISSED', via: 'close-control', control: tagged };
     }
@@ -216,7 +216,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if ((await detectOverlays()).length === 0) return true;
-      await pause(500);
+      await pause(200);
     }
     return false;
   }
@@ -414,7 +414,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
         }
         if (!state.panelOpen) {
           await safeClick(toggle);
-          await pause(500);
+          await pause(200);
         }
         state = await pollUntil(() => readMarketState(fixture), (current) => current.panelOpen, 3000);
         attempts.push({ via: 'more-markets', panelOpen: state.panelOpen, headerCategory: state.headerCategory });
@@ -600,9 +600,17 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const input = page.locator(overrides.slipStake || `[${ATTRIBUTE_STAKE}="1"]`).first();
     try {
       if (await input.count() === 0) return { status: 'STAKE_INPUT_NOT_FOUND', evidence: {} };
-      await input.click({ timeout: actionTimeout });
+      // fill() focuses and replaces the field by itself. A separate click timed out while the slip
+      // panel was still sliding in ("element is not stable"), which cost the bet its time.
       await input.fill(String(stake), { timeout: actionTimeout });
-      const slip = await pollUntil(readSlipPage, (parsed) => parsed.stake === Number(stake), 3000);
+      let slip = await pollUntil(readSlipPage, (parsed) => parsed.stake === Number(stake), 1500);
+      if (slip.stake !== Number(stake)) {
+        // The site pre-fills 100; if the replacement did not register, select everything and type it.
+        await input.focus({ timeout: actionTimeout });
+        await page.keyboard.press('Control+A');
+        await page.keyboard.type(String(stake));
+        slip = await pollUntil(readSlipPage, (parsed) => parsed.stake === Number(stake), 2500);
+      }
       return slip.stake === Number(stake)
         ? { status: 'STAKE_ENTERED', slip }
         : { status: 'STAKE_NOT_ACCEPTED', evidence: { expected: stake, found: slip.stake } };
@@ -659,12 +667,36 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   async function clearBetSlip() {
     const slip = await readSlipPage();
     if (!slip.isBetSlipPage) return { status: 'BET_SLIP_NOT_OPEN' };
-    if (slip.items.length === 0) return { status: 'BET_SLIP_CLEARED' };
+    // Do not trust an empty reading: if the slip text could not be parsed, the slip may still hold a pick.
+    const isEmpty = async (timeoutMs) => (await pollUntil(readSlipPage, (parsed) => parsed.items.length === 0, timeoutMs)).items.length === 0;
     const control = page.getByText(/^\s*Clear All\s*$/i).first();
-    if (await control.count() === 0) return { status: 'CLEAR_CONTROL_NOT_FOUND' };
-    await safeClick(control);
-    const after = await pollUntil(readSlipPage, (parsed) => parsed.items.length === 0, 3000);
-    return after.items.length === 0 ? { status: 'BET_SLIP_CLEARED' } : { status: 'BET_SLIP_NOT_CLEARED' };
+    if (await control.count() > 0) {
+      await safeClick(control);
+      if (await isEmpty(1200)) return { status: 'BET_SLIP_CLEARED' };
+      // Some layouts ask "are you sure?"; accept only a button that plainly confirms the clearing.
+      const confirm = page.getByRole('button', { name: /^(yes|ok|confirm|clear|clear all|remove all|delete)$/i });
+      if (await confirm.count() === 1 && await confirm.first().isVisible()) {
+        await safeClick(confirm.first());
+        if (await isEmpty(1500)) return { status: 'BET_SLIP_CLEARED' };
+      }
+    }
+    // Last resort: the remove (bin) control of the selection itself, found by its own label.
+    const remove = page.locator('[data-testid*="delete" i], [data-testid*="remove" i], [aria-label*="remove" i], [aria-label*="delete" i]').first();
+    if (await remove.count() > 0) {
+      await safeClick(remove);
+      if (await isEmpty(1500)) return { status: 'BET_SLIP_CLEARED' };
+    }
+    await snap('slip-not-cleared');
+    const html = await page.evaluate(() => {
+      const title = [...document.querySelectorAll('*')].find((element) => element.children.length === 0 && /^VIRTUALS BETSLIP$/i.test((element.textContent || '').trim()));
+      let node = title;
+      for (let depth = 0; depth < 8 && node && node.parentElement; depth += 1) {
+        if (node.parentElement.outerHTML.length > 30000) break;
+        node = node.parentElement;
+      }
+      return node ? node.outerHTML.slice(0, 9000) : null;
+    });
+    return { status: 'BET_SLIP_NOT_CLEARED', evidence: { slipHtml: html } };
   }
 
   // Leaves the slip behind after an expiry, an error or a dry run: open it if needed, clear it,
@@ -675,11 +707,12 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     let slip = await readSlipPage();
     if (!slip.isBetSlipPage && summary.count === 0) return { status: 'ALREADY_CLEAN', steps };
     if (!slip.isBetSlipPage) steps.push((await openBetSlip()).status);
-    steps.push((await clearBetSlip()).status);
+    const cleared = await clearBetSlip();
+    steps.push(cleared.status);
     steps.push((await closeBetSlip()).status);
     slip = await readSlipPage();
     const after = await readSlipSummary();
-    return { status: !slip.isBetSlipPage && after.count === 0 ? 'BET_SLIP_RESET' : 'BET_SLIP_NOT_RESET', steps };
+    return { status: !slip.isBetSlipPage && after.count === 0 ? 'BET_SLIP_RESET' : 'BET_SLIP_NOT_RESET', steps, evidence: cleared.evidence ?? null };
   }
 
   const CONFIRMED_PATTERN = /(bet\s*(slip)?\s*(has\s*been\s*)?(successfully\s*)?(placed|accepted)|successfully\s*placed|bet\s*placed|placed\s*successfully|you'?re\s*in\s*the\s*game)/i;
@@ -717,7 +750,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     let newLines = [];
     let verdict = 'SUBMITTED_UNCONFIRMED';
     while (Date.now() < deadline) {
-      await pause(500);
+      await pause(200);
       const textNow = await page.evaluate(() => document.body.innerText || '');
       newLines = textNow.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !knownLines.has(line));
       const joined = newLines.join(' | ');
@@ -792,6 +825,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     captureDiagnostics,
     openMarketCategory,
     setCaptureDirectory,
+    captureStep: snap,
     clearBetSlip,
     resetBetSlip,
     identifyMarketSelection,

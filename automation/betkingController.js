@@ -258,9 +258,28 @@ function createBetKingController({
         if (!(await waitForLogin())) return { ok: false, code: 'AUTHENTICATION_REQUIRED', reason: 'BetKing sign-in was not completed in time.' };
         result = await ports.readSchedule();
       }
-      const detected = detectUpcomingRound(result?.snapshot ?? result);
+      let detected = detectUpcomingRound(result?.snapshot ?? result);
       if (detected.status !== 'DETECTED') {
         return { ok: false, code: 'REQUIRED_WEEK_UNKNOWN', reason: 'No round with a readable week label is visible on the schedule.' };
+      }
+      // A bet needs time: slip, stake and PLACE BET all happen before the round starts. If the upcoming
+      // round starts in less than minStartSeconds, wait for the next one instead of racing the clock.
+      const secondsOf = (timer) => {
+        const parts = /^(\d{1,2}):(\d{2})$/.exec(String(timer ?? '').trim());
+        return parts ? Number(parts[1]) * 60 + Number(parts[2]) : null;
+      };
+      if (config.minStartSeconds > 0 && !stopRequested) {
+        const waitDeadline = Date.now() + 8 * 60 * 1000;
+        let remaining = secondsOf(detected.timer);
+        while (remaining !== null && remaining < config.minStartSeconds && Date.now() < waitDeadline && !stopRequested) {
+          log(`Round ${detected.roundName} starts in ${detected.timer}, too soon to bet. Waiting for the next round (needs at least ${config.minStartSeconds}s).`);
+          await sleep(Math.min(2000, config.pollIntervalMs || 2000));
+          result = await ports.readSchedule();
+          const next = detectUpcomingRound(result?.snapshot ?? result);
+          if (next.status !== 'DETECTED') break;
+          detected = next;
+          remaining = secondsOf(detected.timer);
+        }
       }
       const progress = readProgress(config.progressFile);
       const reconciliation = reconcileWeek({ detectedWeek: detected.week, lastSettledWeek: progress.lastSettledWeek });
@@ -397,7 +416,8 @@ function createBetKingController({
           record.pipelineStatus = 'PIPELINE_FAILED';
           record.eligibilityStatus = 'PIPELINE_FAILED';
           record.verificationStatus = 'NOT_VERIFIED';
-          record.reason = `Stopped after ${pipeline.stage ?? 'no stage'}: ${code}${details.reason ? ` (${details.reason})` : ''}.`;
+          const why = details.reason ?? details.evidence?.reason ?? (Array.isArray(details.problems) && details.problems.length ? details.problems.join(', ') : details.status);
+          record.reason = `Stopped after ${pipeline.stage ?? 'no stage'}: ${code}${why ? ` (${String(why).split('\n')[0]})` : ''}.`;
           journal.append('PIPELINE_FAILED', { strategyKey: record.strategyKey, code, afterStage: pipeline.stage, details });
           failed.push(record);
         };
@@ -471,6 +491,11 @@ function createBetKingController({
             },
           });
           record.slip = slip;
+          if (!comparison.ok) {
+            // Keep exactly what the slip page said, so a parsing problem can be fixed from evidence.
+            journal.writeArtifact(`slip-text-${record.strategyKey}.txt`, `${slip.rawText ?? ''}\n`);
+            if (typeof flow.captureStep === 'function') await flow.captureStep(`slip-problem-${record.strategyKey}`);
+          }
           if (!advance('BET_SLIP_VERIFIED', { comparison })) {
             stop(comparison.problems.includes('SLIP_EXPIRING') ? PIPELINE_FAILURES.SLIP_EXPIRING : PIPELINE_FAILURES.BET_SLIP_MISMATCH, { problems: comparison.problems });
             continue;
