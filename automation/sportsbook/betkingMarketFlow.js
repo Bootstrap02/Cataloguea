@@ -127,7 +127,10 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
           }
           // bodyOpen: the fixture's accordion is open even while its odds are still loading (grey
           // empty cells); such a row must be waited for, never clicked, or the click would close it.
-          const bodyOpen = !!row.querySelector('[data-testid="accordion-body-inner"], [data-testid="accordion-body"]');
+          // Each fixture is a <details data-testid="accordion-details">; its real state is the open flag
+          // (a collapsed row still has its body in the page, so the body's presence proves nothing).
+          const details = row.querySelector('[data-testid="accordion-details"]');
+          const bodyOpen = details ? details.open === true : !!row.querySelector('[data-testid="accordion-body-inner"]');
           return { labels: labels.every((label) => label === '') ? [] : labels, odds, oddsCount: odds.length, expanded: odds.length > 0, bodyOpen };
         })(),
       };
@@ -281,7 +284,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
         text(match.querySelector('[data-testid="teams-home-name"]')) === wantedHome
         && text(match.querySelector('[data-testid="teams-away-name"]')) === wantedAway));
       if (matches.length !== 1) return false;
-      const target = matches[0].querySelector('[data-testid="teams"]') || matches[0].querySelector('[data-testid="accordion-summary"]');
+      const target = matches[0].querySelector('[data-testid="accordion-summary"]') || matches[0].querySelector('[data-testid="teams"]');
       if (!target) return false;
       target.setAttribute(attribute, '1');
       return true;

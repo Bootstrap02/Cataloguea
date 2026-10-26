@@ -39,6 +39,16 @@ function readAbsolutePath(environment, key, fallback) {
   return raw;
 }
 
+const OPTION_KEYS = ['winner', 'oneX', 'twoX', 'x2', 'tg0', 'tg6', 'ht21', 'ht12', 'ht30', 'ft40', 'ft41'];
+function readOnlyOptions(environment) {
+  const raw = environment.AUTOMATION_ONLY_OPTIONS;
+  if (raw === undefined || String(raw).trim() === '') return null;
+  const keys = String(raw).split(',').map((item) => item.trim()).filter(Boolean);
+  const unknown = keys.filter((key) => !OPTION_KEYS.includes(key));
+  if (unknown.length > 0) throw new Error(`AUTOMATION_ONLY_OPTIONS has unknown option(s): ${unknown.join(', ')}. Use: ${OPTION_KEYS.join(', ')}.`);
+  return keys;
+}
+
 function createBetKingLiveConfig(environment = process.env) {
   if (environment.AUTOMATION_MODE !== 'betking-live') {
     throw new Error(
@@ -79,12 +89,15 @@ function createBetKingLiveConfig(environment = process.env) {
     // 'strict': the old safety gate (first run needs --week; jumps and repeats stop the run).
     // How long a filled slip stays on screen in a --through slip dry run before it is cleared.
     slipReviewMs: readInteger(environment, 'AUTOMATION_SLIP_REVIEW_MS', 3000, { minimum: 0, maximum: 30000 }),
+    // Trial mode: only these options are bet, for example AUTOMATION_ONLY_OPTIONS=winner. Uses its own
+    // strategy state file so a trial never changes your real strategy state.
+    onlyOptions: readOnlyOptions(environment),
     weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
-    strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', 'strategy-state.json')),
+    strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', readOnlyOptions(environment) ? 'strategy-state.trial.json' : 'strategy-state.json')),
     baseStake: readInteger(environment, 'AUTOMATION_BASE_STAKE', 10000, { maximum: 100_000_000 }),
     // Milliseconds between browser actions so you can watch every click (0 = full speed).
-    slowMoMs: readInteger(environment, 'AUTOMATION_SLOW_MO_MS', 150, { minimum: 0, maximum: 5000 }),
+    slowMoMs: readInteger(environment, 'AUTOMATION_SLOW_MO_MS', 60, { minimum: 0, maximum: 5000 }),
     progressFile: readAbsolutePath(environment, 'AUTOMATION_BETKING_PROGRESS_FILE', path.join(HOME_DIR, 'betking-progress.json')),
     marketWaitTimeoutMs: readInteger(environment, 'AUTOMATION_MARKET_WAIT_MS', 4000),
     // How far the market-first pipeline may go. identify = open category, find selection and

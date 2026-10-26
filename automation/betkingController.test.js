@@ -576,3 +576,38 @@ test('the outcome summary says which options won and lost, with the half-time an
   assert.match(text, /tg0 LOST/);
   assert.match(text, /WON: ht21 \| LOST: tg0/);
 });
+
+test('trial mode: AUTOMATION_ONLY_OPTIONS limits the bets and uses its own strategy state file', () => {
+  const config = createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_ONLY_OPTIONS: 'winner' });
+  assert.deepEqual(config.onlyOptions, ['winner']);
+  assert.match(config.strategyStateFile, /strategy-state\.trial\.json$/);
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).onlyOptions, null);
+  assert.throws(() => createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_ONLY_OPTIONS: 'winer' }), /unknown option/);
+});
+
+test('trial mode places only the chosen option and leaves the others alone', async () => {
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: { bigOneX: 5000, bigTwoX: 5000 }, through: 'place',
+    env: { ...PLACE_ENV, AUTOMATION_ONLY_OPTIONS: 'winner' }, flowOverrides: slipFlow(),
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  assert.equal(calls.flow.filter((call) => call.name === 'placeBet').length, 1);
+  assert.deepEqual(identifiedSelections(calls), ['6-0']);
+  const plan = readPlan(outcome);
+  assert.ok(plan.deferred.some((record) => record.strategyKey === 'oneX' && record.pipelineStatus === 'NOT_SELECTED_THIS_RUN'));
+});
+
+test('a selection left in the slip by an earlier run is cleared before the next one is added', async () => {
+  let cleared = false;
+  const { controller, calls } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, AUTOMATION_ONLY_OPTIONS: 'winner' },
+    flowOverrides: slipFlow({
+      readSlipSummary: () => (cleared ? { count: 0, odds: null } : { count: 1, odds: 143 }),
+      resetBetSlip: () => { cleared = true; return { status: 'BET_SLIP_RESET', steps: [] }; },
+    }),
+  });
+  await controller.run({ requiredWeek: 5 });
+  const names = calls.flow.map((call) => call.name);
+  assert.ok(names.indexOf('resetBetSlip') !== -1 && names.indexOf('resetBetSlip') < names.indexOf('selectOdd'), 'the stale slip is cleared before selecting');
+  assert.equal(names.filter((name) => name === 'placeBet').length, 1);
+});

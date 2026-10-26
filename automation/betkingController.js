@@ -372,6 +372,12 @@ function createBetKingController({
           deferred.push(record);
           continue;
         }
+        if (config.onlyOptions && !config.onlyOptions.includes(record.strategyKey)) {
+          record.pipelineStatus = 'NOT_SELECTED_THIS_RUN';
+          record.reason = `Trial run: only ${config.onlyOptions.join(', ')} ${config.onlyOptions.length === 1 ? 'is' : 'are'} bet.`;
+          deferred.push(record);
+          continue;
+        }
         if (through !== 'identify' && slipHolder) {
           // A second outcome of the same market replaces the first and several selections
           // would form one combined bet, so options are prepared one at a time.
@@ -430,6 +436,14 @@ function createBetKingController({
           // RULE-006: no odd is touched until the stages above are all verified.
           const gate = canSelectOdd(pipeline);
           if (!gate.allowed) { stop(PIPELINE_FAILURES.SELECTION_NOT_ADDED, { reason: gate.reason }); continue; }
+          if (typeof flow.readSlipSummary === 'function') {
+            // A selection left in the slip by an earlier run would be combined with this one: clear it first.
+            const leftover = await flow.readSlipSummary();
+            if (leftover.count > 0) {
+              journal.append('STALE_SLIP_FOUND', { selections: leftover.count, odds: leftover.odds });
+              await recoverSlip();
+            }
+          }
           const added = await flow.selectOdd(record.betKingSelection, { ...fixture }, identified.odds);
           if (added.status !== 'SELECTION_ADDED') { stopFromStatus(added); continue; }
           if (!advance('SELECTION_ADDED', added.evidence)) { stop(PIPELINE_FAILURES.SELECTION_NOT_ADDED); continue; }
