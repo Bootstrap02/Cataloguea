@@ -88,6 +88,18 @@ function formatOutcomeSummary(plan, verifiedResult, evaluation) {
   const won = evaluation.evaluations.filter((item) => item.outcome === 'WON').map((item) => item.strategyKey);
   const lost = evaluation.evaluations.filter((item) => item.outcome === 'LOST').map((item) => item.strategyKey);
   lines.push(`  WON: ${won.join(', ') || 'none'} | LOST: ${lost.join(', ') || 'none'}`);
+  // What every one of the 11 options did on this scoreline, bet or not, from the win rules.
+  if (ft && plan?.arsenalSide) {
+    const { evaluateResultAgainstStrategy } = require('./strategy/rules');
+    const bet = new Map(evaluation.evaluations.map((item) => [item.strategyKey, item.stake]));
+    const all = Object.keys(RULE_TEXT).map((key) => {
+      const outcome = evaluateResultAgainstStrategy({ status: 'verified', halfTime: ht, fullTime: ft }, key, { arsenalSide: plan.arsenalSide }).outcome;
+      return `${key} ${outcome}${bet.has(key) ? ` (bet ${bet.get(key)})` : ' (not bet)'}`;
+    });
+    lines.push(`  ALL 11 OPTIONS ON THIS SCORE: ${all.join(' | ')}`);
+    const winners = all.filter((entry) => / WON/.test(entry)).map((entry) => entry.split(' ')[0]);
+    lines.push(`  WINNING OPTIONS ON THIS SCORE: ${winners.join(', ') || 'none'}`);
+  }
   return lines.join('\n');
 }
 
@@ -131,6 +143,11 @@ function createBetKingController({
     let betKingPage = null;
     let strategyPage = null;
     const headlessStrategy = config.strategyMode === 'headless';
+    // In the default 'results' watch mode the live reader is off and the built-in Results-window reader is
+    // used, whatever an older selectors file says.
+    const watchSelectors = config.watchMode === 'selectors'
+      ? selectors
+      : { ...selectors, configured: { ...selectors.configured, live: false, results: false } };
     let ports = null;
     let flow = null;
     let bridge = null;
@@ -153,7 +170,7 @@ function createBetKingController({
     }
 
     function rebuildPorts() {
-      ports = createBetKingPorts({ page: betKingPage, config, selectors });
+      ports = createBetKingPorts({ page: betKingPage, config, selectors: watchSelectors });
       flow = createMarketFlow({ page: betKingPage, config, selectors });
       if (typeof flow.setCaptureDirectory === 'function') flow.setCaptureDirectory(journal.runDir);
       workflow = createOperationalWorkflow({
@@ -569,6 +586,10 @@ function createBetKingController({
             record.pipelineStatus = 'WAGER_ACCEPTED';
             record.verificationStatus = 'WAGER_ACCEPTED_BY_SITE_TEXT';
             reached.push(record);
+            if (typeof flow.dismissBetPlaced === 'function') {
+              const dismissed = await flow.dismissBetPlaced();
+              journal.append('BET_PLACED_WINDOW', dismissed);
+            }
             const closed = await flow.closeBetSlip();
             if (closed.status !== 'BET_SLIP_CLOSED') {
               halted = { code: 'BET_SLIP_NOT_CLOSED', strategyKey: record.strategyKey, severe: false };
@@ -621,7 +642,7 @@ function createBetKingController({
     }
 
     async function crossCheckWithResultsPage(liveResult) {
-      if (!selectors.configured.results) return { status: 'NOT_CONFIGURED' };
+      if (!watchSelectors.configured.results) return { status: 'NOT_CONFIGURED' };
       for (let attempt = 1; attempt <= config.resultsCrossCheckAttempts; attempt += 1) {
         if (stopRequested) return { status: 'STOPPED' };
         let page;
@@ -644,7 +665,7 @@ function createBetKingController({
     }
 
     async function observeLive(prep) {
-      if (!selectors.configured.live) return { status: 'NOT_CONFIGURED' };
+      if (!watchSelectors.configured.live) return { status: 'NOT_CONFIGURED' };
       const { identification } = prep;
       const observer = createLiveResultObserver({
         ...toObserverFixtureIds(identification.fixture.fixtureId),

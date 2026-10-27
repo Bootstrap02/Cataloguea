@@ -72,6 +72,7 @@ function setup({
     ...env,
     AUTOMATION_FEED_STRATEGY: feedStrategy ? 'true' : 'false',
     AUTOMATION_STRATEGY_MODE: 'page',
+    AUTOMATION_WATCH_MODE: env.AUTOMATION_WATCH_MODE ?? 'selectors',
     AUTOMATION_WEEK_CHECK: env.AUTOMATION_WEEK_CHECK ?? 'strict',
     AUTOMATION_SLIP_REVIEW_MS: '0',
     AUTOMATION_BETKING_PROGRESS_FILE: path.join(runsDir, 'progress.json'),
@@ -644,4 +645,24 @@ test('a failed option says why, for example the slip problems', async () => {
   });
   const outcome = await controller.run({ requiredWeek: 5 });
   assert.match(outcome.failures[0].reason, /BET_SLIP_MISMATCH \(STAKE_NOT_ACCEPTED\)/);
+});
+
+test('the result report lists what all 11 options did on the scoreline, bet or not', () => {
+  const { formatOutcomeSummary } = require('./betkingController');
+  const text = formatOutcomeSummary(
+    { fixture: { home: 'ars', away: 'ast' }, arsenalSide: 'HOME' },
+    { halfTime: { home: 3, away: 0 }, fullTime: { home: 6, away: 0 } },
+    { evaluations: [{ strategyKey: 'winner', outcome: 'WON', stake: 44, htScore: { home: 3, away: 0 }, ftScore: { home: 6, away: 0 } }], notPlaced: [], skipped: [] },
+  );
+  assert.match(text, /ALL 11 OPTIONS ON THIS SCORE:/);
+  assert.match(text, /winner WON \(bet 44\)/);
+  assert.match(text, /tg6 WON \(not bet\)/);
+  assert.match(text, /ht30 WON \(not bet\)/);
+  assert.match(text, /oneX LOST \(not bet\)/);
+  assert.match(text, /WINNING OPTIONS ON THIS SCORE: winner, tg6, ht30/);
+});
+
+test('by default the match is read from the Results window, with the live reader off', () => {
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).watchMode, 'results');
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_WATCH_MODE: 'selectors' }).watchMode, 'selectors');
 });

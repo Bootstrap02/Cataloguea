@@ -648,7 +648,14 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       }
       return false;
     }, ATTRIBUTE_CLOSE);
-    if (!tagged) return { status: 'BET_SLIP_NOT_CLOSED', evidence: { reason: 'The close control was not found.' } };
+    if (!tagged) {
+      // After PLACE BET the site already returns to the market page and shows a "Bet Placed" window;
+      // with no slip title on screen there is nothing left to close.
+      const slipNow = await readSlipPage();
+      return slipNow.isBetSlipPage
+        ? { status: 'BET_SLIP_NOT_CLOSED', evidence: { reason: 'The close control was not found.' } }
+        : { status: 'BET_SLIP_CLOSED' };
+    }
     try {
       await safeClick(page.locator(`[${ATTRIBUTE_CLOSE}="1"]`).first());
     } finally {
@@ -713,6 +720,45 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     slip = await readSlipPage();
     const after = await readSlipSummary();
     return { status: !slip.isBetSlipPage && after.count === 0 ? 'BET_SLIP_RESET' : 'BET_SLIP_NOT_RESET', steps, evidence: cleared.evidence ?? null };
+  }
+
+  // Dismisses the "Bet Placed - You're in the game" window (owner screenshot, Oct 26 2026): CONTINUE when it
+  // is there, otherwise the X at the window's top right. Only a window that names the placed bet is touched.
+  async function dismissBetPlaced() {
+    const shown = () => page.evaluate(() => /bet placed|you'?re in the game/i.test(document.body.innerText || ''));
+    if (!(await pollUntil(shown, (value) => value === true, 3000))) return { status: 'NO_BET_PLACED_WINDOW' };
+    const proceed = page.getByRole('button', { name: /^continue$/i });
+    if (await proceed.count() === 1 && await proceed.first().isVisible()) {
+      await safeClick(proceed.first());
+    } else {
+      const tagged = await page.evaluate((attribute) => {
+        const text = (element) => (element.textContent || '').replace(/\s+/g, ' ').trim();
+        const marker = [...document.querySelectorAll('*')]
+          .find((element) => element.children.length === 0 && /bet placed|you'?re in the game/i.test(text(element)));
+        if (!marker) return false;
+        let node = marker.parentElement;
+        for (let depth = 0; depth < 6 && node; depth += 1) {
+          const closers = [...node.querySelectorAll('button,[role="button"],svg')].filter((element) => {
+            const box = element.getBoundingClientRect();
+            return box.width > 0 && box.height > 0 && box.top < marker.getBoundingClientRect().top + 40
+              && box.left > marker.getBoundingClientRect().right - 10 && !/my tickets/i.test(text(element));
+          });
+          if (closers.length > 0) { closers[closers.length - 1].setAttribute(attribute, '1'); return true; }
+          node = node.parentElement;
+        }
+        return false;
+      }, ATTRIBUTE_CLOSE);
+      if (!tagged) return { status: 'BET_PLACED_WINDOW_NOT_DISMISSED' };
+      try {
+        await safeClick(page.locator(`[${ATTRIBUTE_CLOSE}="1"]`).first());
+      } finally {
+        await page.evaluate((attribute) => {
+          document.querySelectorAll(`[${attribute}]`).forEach((element) => element.removeAttribute(attribute));
+        }, ATTRIBUTE_CLOSE);
+      }
+    }
+    const gone = await pollUntil(shown, (value) => value === false, 3000);
+    return { status: gone === false ? 'BET_PLACED_WINDOW_DISMISSED' : 'BET_PLACED_WINDOW_STILL_SHOWN' };
   }
 
   const CONFIRMED_PATTERN = /(bet\s*(slip)?\s*(has\s*been\s*)?(successfully\s*)?(placed|accepted)|successfully\s*placed|bet\s*placed|placed\s*successfully|you'?re\s*in\s*the\s*game)/i;
@@ -826,6 +872,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     openMarketCategory,
     setCaptureDirectory,
     captureStep: snap,
+    dismissBetPlaced,
     clearBetSlip,
     resetBetSlip,
     identifyMarketSelection,

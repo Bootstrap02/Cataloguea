@@ -239,24 +239,28 @@ function parseBetSlipText(text, { stakeInputValue = null } = {}) {
   const fixturePattern = /^([A-Za-z0-9]{2,5})\s*-\s*([A-Za-z0-9]{2,5})$/;
   const oddsPattern = /^\d[\d,]*(?:\.\d+)?$/;
   const leaguePattern = /league.*week\s*\d+|week\s*\d+/i;
-  const stopPattern = /^(Group|Com|Stake|Total Stake|Singles|Multiple|Winnings|Total Odds|Net Potential|PLACE BET|Clear All|Next event|VIRTUALS BETSLIP)/i;
+  const stopPattern = /^(Group|Com|Stake|Total Stake|Singles|Multiple|Winnings|Total Odds|Net Potential|PLACE BET|Clear All|Next event|VIRTUALS BETSLIP|Top picks|More picks|Save my preferences)/i;
   const toNumber = (value) => Number(String(value).replace(/,/g, ''));
   const items = [];
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const fixture = fixturePattern.exec(lines[index]);
+  // The slip shows a "Top picks from the community" card with its own fixtures and an +ADD button; those
+  // are suggestions, not selections, so nothing from that line on is read as a pick.
+  const suggestionsAt = lines.findIndex((line) => /^Top picks/i.test(line));
+  const pickLines = suggestionsAt === -1 ? lines : lines.slice(0, suggestionsAt);
+  for (let index = 0; index < pickLines.length; index += 1) {
+    const fixture = fixturePattern.exec(pickLines[index]);
     if (!fixture) continue;
     let league = null;
     for (let back = 1; back <= 3 && index - back >= 0; back += 1) {
-      if (leaguePattern.test(lines[index - back])) { league = lines[index - back]; break; }
+      if (leaguePattern.test(pickLines[index - back])) { league = pickLines[index - back]; break; }
     }
     const week = league ? Number((/week\s*(\d+)/i.exec(league) || [])[1]) || null : null;
     let pendingOdds = null;
     let cursor = index + 1;
     const descriptor = [];
     const itemsBefore = items.length;
-    for (; cursor < lines.length; cursor += 1) {
-      const line = lines[cursor];
+    for (; cursor < pickLines.length; cursor += 1) {
+      const line = pickLines[cursor];
       if (fixturePattern.test(line) || stopPattern.test(line) || (leaguePattern.test(line) && /league/i.test(line))) break;
       if (oddsPattern.test(line)) {
         const last = items[items.length - 1];

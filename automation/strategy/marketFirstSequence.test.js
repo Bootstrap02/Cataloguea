@@ -251,3 +251,13 @@ test('the slip is read whether the market and the pick are on one line, two line
   assert.deepEqual([half.items[0].market, half.items[0].selection], ['HT Correct Score', '2-1']);
   assert.ok(typeof parseBetSlipText(wrap(['Correct Score · 6-0'])).rawText === 'string');
 });
+
+test('the "Top picks from the community" card on the slip is not read as an extra selection', () => {
+  const { parseBetSlipText, compareSlipToExpected } = require('./marketFirstSequence');
+  const text = ['VIRTUALS BETSLIP', 'Leagues 1', 'Clear All', 'Next event will expire in: 01:12', 'Kings League - Week 14',
+    'ARS - AST', '228.00', 'Correct Score - 6-0', 'Top picks from the community', 'BRE - COV', 'GG/NG - GG', '2.01', '+ADD', 'MORE PICKS',
+    'Total Stake Amount', 'Total Odds 228.00', 'PLACE BET'].join('\n');
+  const slip = parseBetSlipText(text, { stakeInputValue: '44' });
+  assert.equal(slip.items.length, 1);
+  assert.equal(compareSlipToExpected({ slip, expected: { home: 'ARS', away: 'AST', market: 'Correct Score', selection: '6-0', stake: 44, odds: 228, week: 14 } }).ok, true);
+});

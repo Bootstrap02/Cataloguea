@@ -96,6 +96,10 @@ function createBetKingLiveConfig(environment = process.env) {
     minStartSeconds: readInteger(environment, 'AUTOMATION_MIN_START_SECONDS', environment.AUTOMATION_PIPELINE_THROUGH === 'place' ? 75 : 0, { minimum: 0, maximum: 600 }),
     // After a round was missed (time ran out before any bet was placed), try this many more rounds.
     retryRounds: readInteger(environment, 'AUTOMATION_RETRY_ROUNDS', 2, { minimum: 0, maximum: 10 }),
+    // How the finished match is read. 'results' (default): the Kings League Results window (half-time and
+    // full-time columns, as in the owner's recording); no live reading. 'selectors': the older mode that
+    // reads live and results pages through the selectors file.
+    watchMode: environment.AUTOMATION_WATCH_MODE === 'selectors' ? 'selectors' : 'results',
     weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
     strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', readOnlyOptions(environment) ? 'strategy-state.trial.json' : 'strategy-state.json')),
