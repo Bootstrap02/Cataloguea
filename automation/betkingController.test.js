@@ -85,6 +85,7 @@ function setup({
   if (lastSettledWeek !== null) {
     fs.writeFileSync(path.join(runsDir, 'progress.json'), JSON.stringify({ lastSettledWeek }));
   }
+  const logs = [];
   let frameIndex = 0;
   let scheduleReads = 0;
   let strategyReads = 0;
@@ -153,9 +154,9 @@ function setup({
     launchContext: async () => context,
     prompt: async (question) => { prompts.push(question); return queue.length ? queue.shift() : ''; },
     sleep: async () => {},
-    log: () => {},
+    log: (message) => logs.push(String(message)),
   });
-  return { controller, calls, runsDir, prompts, mappings };
+  return { controller, calls, runsDir, prompts, mappings, logs };
 }
 
 test('real-site configuration refuses to start without the explicit mode', () => {
@@ -561,21 +562,24 @@ test('the strategy runs without a screen by default, and the old tab mode is opt
 test('the outcome summary says which options won and lost, with the half-time and full-time scores', () => {
   const { formatOutcomeSummary } = require('./betkingController');
   const text = formatOutcomeSummary(
-    { fixture: { home: 'ars', away: 'new' } },
+    { fixture: { home: 'ars', away: 'new' }, arsenalSide: 'HOME', skipped: [{ strategyKey: 'oneX', stake: 7, odds: 14.7, pipelineStatus: 'SKIPPED_BELOW_MINIMUM' }] },
     { halfTime: { home: 2, away: 1 }, fullTime: { home: 3, away: 1 } },
     {
       evaluations: [
-        { strategyKey: 'ht21', outcome: 'WON', stake: 15, htScore: { home: 2, away: 1 }, ftScore: { home: 3, away: 1 } },
-        { strategyKey: 'tg0', outcome: 'LOST', stake: 12, htScore: null, ftScore: { home: 3, away: 1 } },
+        { strategyKey: 'ht21', outcome: 'WON', stake: 15, odds: 13.4, htScore: { home: 2, away: 1 }, ftScore: { home: 3, away: 1 } },
+        { strategyKey: 'tg0', outcome: 'LOST', stake: 12, odds: 15.1, htScore: null, ftScore: { home: 3, away: 1 } },
       ],
       notPlaced: [],
-      skipped: [{ strategyKey: 'oneX', stake: 7 }],
+      skipped: [],
     },
   );
-  assert.match(text, /ARS v NEW: half-time 2-1, full-time 3-1/);
-  assert.match(text, /ht21 WON {2}stake 15 {2}\[Arsenal 2-1 at half-time\] {2}\(HT 2-1, FT 3-1\)/);
-  assert.match(text, /tg0 LOST/);
-  assert.match(text, /WON: ht21 \| LOST: tg0/);
+  assert.match(text, /ARS v NEW \(Arsenal home\): half-time 2-1, full-time 3-1/);
+  assert.match(text, /ht21\s+WON\s+PLACED\s+N15\s+13\.4/);
+  assert.match(text, /tg0\s+LOST\s+PLACED/);
+  assert.match(text, /oneX\s+LOST\s+below minimum/);
+  assert.match(text, /YOU BET AND WON:\s+ht21/);
+  assert.match(text, /YOU BET AND LOST:\s+tg0/);
+  assert.match(text, /STAKED: N27 \| RETURNED: N201 \|/);
 });
 
 test('trial mode: AUTOMATION_ONLY_OPTIONS limits the bets and uses its own strategy state file', () => {
@@ -647,22 +651,187 @@ test('a failed option says why, for example the slip problems', async () => {
   assert.match(outcome.failures[0].reason, /BET_SLIP_MISMATCH \(STAKE_NOT_ACCEPTED\)/);
 });
 
-test('the result report lists what all 11 options did on the scoreline, bet or not', () => {
+test('the result report judges all 11 options, including the ones that were not bet', () => {
   const { formatOutcomeSummary } = require('./betkingController');
   const text = formatOutcomeSummary(
-    { fixture: { home: 'ars', away: 'ast' }, arsenalSide: 'HOME' },
+    { fixture: { home: 'ars', away: 'ast' }, arsenalSide: 'HOME', instructions: [{ strategyKey: 'winner', stake: 44, betKingOdds: 228 }] },
     { halfTime: { home: 3, away: 0 }, fullTime: { home: 6, away: 0 } },
-    { evaluations: [{ strategyKey: 'winner', outcome: 'WON', stake: 44, htScore: { home: 3, away: 0 }, ftScore: { home: 6, away: 0 } }], notPlaced: [], skipped: [] },
+    { evaluations: [{ strategyKey: 'winner', outcome: 'WON', stake: 44, odds: 228, htScore: { home: 3, away: 0 }, ftScore: { home: 6, away: 0 } }], notPlaced: [], skipped: [] },
   );
-  assert.match(text, /ALL 11 OPTIONS ON THIS SCORE:/);
-  assert.match(text, /winner WON \(bet 44\)/);
-  assert.match(text, /tg6 WON \(not bet\)/);
-  assert.match(text, /ht30 WON \(not bet\)/);
-  assert.match(text, /oneX LOST \(not bet\)/);
-  assert.match(text, /WINNING OPTIONS ON THIS SCORE: winner, tg6, ht30/);
+  assert.match(text, /winner\s+WON\s+PLACED/);
+  assert.match(text, /tg6\s+WON\s+not placed/);
+  assert.match(text, /ht30\s+WON\s+not placed/);
+  assert.match(text, /oneX\s+LOST/);
+  assert.match(text, /WON BUT NOT PLACED: tg6, ht30/);
+  assert.match(text, /STAKED: N44 \| RETURNED: N10032 \| WINNING OPTIONS ON THIS SCORE: winner, tg6, ht30/);
 });
 
 test('by default the match is read from the Results window, with the live reader off', () => {
   assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).watchMode, 'results');
   assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_WATCH_MODE: 'selectors' }).watchMode, 'selectors');
+});
+
+test('place mode in the default watch mode reads the Results window, then prints the score and all 11 options', async () => {
+  const { rowsToResultsPage } = require('./sportsbook/betkingResultsModal');
+  const { controller, logs } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place',
+    env: { ...PLACE_ENV, AUTOMATION_ONLY_OPTIONS: 'winner', AUTOMATION_WATCH_MODE: 'results' }, flowOverrides: slipFlow(),
+  });
+  injected.ports.readResultsPage = async () => rowsToResultsPage({
+    roundName: 'Week 5',
+    rows: [{ position: 1, home: 'ARS', away: 'MNU', halfTime: { home: 1, away: 0 }, fullTime: { home: 1, away: 1 } }],
+  });
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.match(text, /Bet placed\. Watching the match/);
+  assert.match(text, /RESULT ARS v MNU \(Arsenal home\): half-time 1-0, full-time 1-1/);
+  assert.match(text, /winner\s+LOST\s+PLACED/);
+  assert.match(text, /oneX\s+WON\s+below minimum/);
+  assert.match(text, /WON BUT NOT PLACED: oneX/);
+});
+
+const LIVE_ENV = {
+  AUTOMATION_ONLY_OPTIONS: 'winner', AUTOMATION_WATCH_MODE: 'results', AUTOMATION_LIVE_TRACK_INTERVAL_MS: '1', AUTOMATION_LIVE_GIVE_UP_MS: '1',
+  AUTOMATION_RESULTS_MAX_ATTEMPTS: '2', AUTOMATION_RESULTS_INTERVAL_MS: '1', AUTOMATION_RESULTS_INITIAL_DELAY_MS: '1',
+};
+const sequence = (entries) => {
+  let index = 0;
+  return async () => entries[Math.min(index++, entries.length - 1)];
+};
+
+test('the match is watched live: half-time and full-time come from the score and minute, then every option is judged', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('The Kings League window did not open.'); };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 10 },
+    { home: 1, away: 0, finished: false, minute: 30 },
+    { home: 1, away: 0, finished: false, minute: 44 },
+    { home: 1, away: 0, finished: false, minute: 47 },
+    { home: 1, away: 1, finished: false, minute: 70 },
+    { home: 1, away: 1, finished: false, minute: 88 },
+    { home: 1, away: 1, finished: true, minute: null },
+  ]);
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.match(text, /Live: ARS 1 - 1 MNU/);
+  assert.match(text, /Full time: ARS 1 - 1 MNU, half-time 1-0/);
+  assert.match(text, /RESULT ARS v MNU \(Arsenal home\): half-time 1-0, full-time 1-1 {2}\[source: LIVE_TRACKING\]/);
+  assert.match(text, /winner\s+LOST\s+PLACED/);
+  assert.match(text, /oneX\s+WON\s+below minimum/);
+  assert.match(text, /ht21\s+LOST/);
+});
+
+test('when a goal falls between the observations, half-time is not guessed', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('window closed'); };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 44 },
+    { home: 1, away: 0, finished: false, minute: 47 },
+    { home: 1, away: 0, finished: false, minute: 88 },
+    { home: 1, away: 0, finished: true, minute: null },
+  ]);
+  await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.match(text, /half-time not proven/);
+  assert.match(text, /half-time n\/a, full-time 1-0/);
+  assert.match(text, /ht21\s+NEEDS HT/);
+  assert.match(text, /winner\s+LOST\s+PLACED/);
+});
+
+test('the Results window, when it can be read, is the authority over the live view', async () => {
+  const { rowsToResultsPage } = require('./sportsbook/betkingResultsModal');
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 30 },
+    { home: 1, away: 1, finished: false, minute: 89 },
+    { home: 1, away: 1, finished: true, minute: null },
+  ]);
+  injected.ports.readResultsPage = async () => rowsToResultsPage({
+    roundName: 'Week 5',
+    rows: [{ position: 1, home: 'ARS', away: 'MNU', halfTime: { home: 1, away: 0 }, fullTime: { home: 1, away: 2 } }],
+  });
+  await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.match(text, /WARNING: the live view said 1-1 but the Results window says 1-2/);
+  assert.match(text, /RESULT ARS v MNU \(Arsenal home\): half-time 1-0, full-time 1-2/);
+});
+
+test('when neither the live view nor the Results window can be read, nothing is settled and the run says where to look', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('The Kings League window did not open.'); };
+  injected.ports.readPanelScore = async () => null;
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'PAUSED');
+  assert.match(text, /could not be read/);
+  assert.match(text, /results-failed-/);
+});
+
+test('an FT label seen early in the match is ignored, so the run never leaves at the first goal', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('window closed'); };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 12 },
+    { home: 1, away: 0, finished: true, minute: 15 },   // a stray FT while the match is only at minute 15
+    { home: 1, away: 0, finished: true, minute: 15 },
+    { home: 1, away: 0, finished: true, minute: 15 },
+    { home: 1, away: 0, finished: false, minute: 44 },
+    { home: 1, away: 0, finished: false, minute: 47 },
+    { home: 1, away: 2, finished: false, minute: 90 },
+    { home: 1, away: 2, finished: true, minute: null },
+  ]);
+  await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.match(text, /FT label appeared at minute 15; ignored/);
+  assert.match(text, /Full time: ARS 1 - 2 MNU, half-time 1-0/);
+});
+
+test('the league countdown decides when the match starts: wait for zero, then watch until full time', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('window closed'); };
+  injected.ports.readMatchClock = sequence([
+    { countdown: 3, live: false }, { countdown: 2, live: false }, { countdown: 1, live: false }, { countdown: 0, live: false }, { countdown: null, live: true },
+  ]);
+  injected.ports.readPanelScore = sequence([
+    null, null, null, null,
+    { home: 0, away: 0, finished: false, minute: 20 },
+    { home: 1, away: 0, finished: false, minute: 44 },
+    { home: 1, away: 0, finished: false, minute: 47 },
+    { home: 1, away: 0, finished: false, minute: 89 },
+    { home: 1, away: 0, finished: true, minute: null },
+  ]);
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.match(text, /Kick-off in 00:03/);
+  assert.match(text, /Kick-off! The countdown reached zero/);
+  assert.match(text, /Full time: ARS 1 - 0 MNU, half-time 1-0/);
+});
+
+test('if no score is ever read, the whole match is still watched, the page lines are shown, and only then the Results window is used', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV, AUTOMATION_MATCH_SECONDS: '1', AUTOMATION_LIVE_END_MARGIN_MS: '50' }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('window closed'); };
+  injected.ports.readMatchClock = sequence([{ countdown: 0, live: true }]);
+  injected.ports.readPanelScore = async () => null;
+  injected.ports.readPanelDebug = async () => ['ARS', 'MNU', 'ARS 0 : 0 MNU ???'];
+  await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.match(text, /Kick-off! The countdown reached zero/);
+  assert.match(text, /No score read yet\. Page lines mentioning ARS\/MNU: \[ARS\] \[MNU\]/);
+  assert.match(text, /The whole match \(1s\) has passed and its score was never read/);
+});
+
+test('a stray LIVE word while the countdown is still running does not start the watch', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV, AUTOMATION_MATCH_SECONDS: '1', AUTOMATION_LIVE_END_MARGIN_MS: '50' }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('window closed'); };
+  injected.ports.readMatchClock = sequence([
+    { countdown: 40, live: true }, { countdown: 39, live: true }, { countdown: 0, live: false }, { countdown: 0, live: false },
+  ]);
+  injected.ports.readPanelScore = async () => null;
+  await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.match(text, /Kick-off in 00:40/);
+  assert.equal((text.match(/Kick-off! The countdown/g) || []).length, 1);
 });

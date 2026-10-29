@@ -12,7 +12,7 @@
 const { inspectBetKingPage, readLiveFixtureSnapshot } = require('./betkingAdapter');
 const { parseWeek } = require('../strategy/seasonWeek');
 const { normalizeTeamCode } = require('../strategy/fixtureIdentity');
-const { createResultsModalReader } = require('./betkingResultsModal');
+const { createResultsModalReader, readPanelScore, readMatchClock, readPanelDebug } = require('./betkingResultsModal');
 
 const ROUND_SWITCHER = '[data-testid^="round-switcher-button-"]';
 
@@ -180,6 +180,9 @@ function createBetKingPorts({ page, config, selectors }) {
     openLive,
     readLiveSnapshot,
     readResultsPage,
+    readPanelScore: ({ home, away }) => readPanelScore(page, home, away),
+    readMatchClock: () => readMatchClock(page),
+    readPanelDebug: ({ home, away }) => readPanelDebug(page, home, away),
   });
 }
 

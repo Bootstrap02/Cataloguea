@@ -160,6 +160,10 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
   // Tries Escape, then a control that clearly only closes the dialog. Cookie or consent dialogs
   // are never accepted: only an explicit essential-only or reject control is allowed for them.
+  async function dismissCoverOverlay() {
+    return clearOverlays();
+  }
+
   async function clearOverlays() {
     let overlays = await detectOverlays();
     if (overlays.length === 0) return { ok: true, status: 'NO_OVERLAY' };
@@ -868,6 +872,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   return Object.freeze({
     readMarketState,
     clearOverlays,
+    dismissCoverOverlay,
     captureDiagnostics,
     openMarketCategory,
     setCaptureDirectory,

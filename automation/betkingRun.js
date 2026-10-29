@@ -57,6 +57,10 @@ async function main() {
   console.log(`  live selectors configured:    ${selectors.configured.live}`);
   console.log(`  results selectors configured: ${selectors.configured.results}`);
   console.log(`  market-first pipeline goes through: ${effectiveConfig.pipelineThrough}`);
+  if (effectiveConfig.pipelineThrough !== 'place') {
+    console.log('  >>> READ-ONLY RUN: no bet will be placed in this mode.');
+    console.log('  >>> To place bets run:  AUTOMATION_ALLOW_REAL_MONEY=yes AUTOMATION_AUTO_CONFIRM=true npm run automation:betking:run -- --through place');
+  }
   console.log(`  market mappings in use:       ${Object.keys(mappings).length} (${Object.keys(mappingFile.mappings).length} from your file)`);
   if (effectiveConfig.pipelineThrough === 'place') {
     console.log(`  REAL MONEY: bets WILL be placed (cap per bet: N${effectiveConfig.maxStake}; confirmation: ${effectiveConfig.autoConfirm ? 'automatic' : 'typed for each bet'}).`);

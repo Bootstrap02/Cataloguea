@@ -63,3 +63,22 @@ test('a different round in the window is never taken as the result', async () =>
   });
   assert.notEqual((await poller.startPolling({})).status, 'verified');
 });
+
+test('the fallback reads our fixture score from the match panel text', async () => {
+  const { readPanelScore } = require('./betkingResultsModal');
+  const page = { evaluate: async () => "Week 14\nFT\nARS 2 - 2 AST\n47'\nEVE 1 - 0 CHE\n" };
+  assert.deepEqual(await readPanelScore(page, 'ars', 'ast'), { home: 2, away: 2, finished: true, minute: null });
+  assert.equal(await readPanelScore(page, 'new', 'bre'), null);
+});
+
+test('the panel reader also returns the match minute while the match is being played', async () => {
+  const { readPanelScore } = require('./betkingResultsModal');
+  const page = { evaluate: async () => "All Fixtures this round\n18'\nNEW 0 - 0 ARS\n" };
+  assert.deepEqual(await readPanelScore(page, 'new', 'ars'), { home: 0, away: 0, finished: false, minute: 18 });
+});
+
+test('the match clock reads the league countdown and the LIVE badge', async () => {
+  const { readMatchClock } = require('./betkingResultsModal');
+  assert.deepEqual(await readMatchClock({ evaluate: async () => 'Virtuals\n01:09\nKINGS LIGA\nWeek 14\n' }), { countdown: 69, live: false });
+  assert.deepEqual(await readMatchClock({ evaluate: async () => 'LIVE\nKINGS LIGA\nWeek 15\n' }), { countdown: null, live: true });
+});

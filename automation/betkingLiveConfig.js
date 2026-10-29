@@ -100,6 +100,14 @@ function createBetKingLiveConfig(environment = process.env) {
     // full-time columns, as in the owner's recording); no live reading. 'selectors': the older mode that
     // reads live and results pages through the selectors file.
     watchMode: environment.AUTOMATION_WATCH_MODE === 'selectors' ? 'selectors' : 'results',
+    // Live tracking of the match on the main page (score and minute), in milliseconds.
+    liveTrackIntervalMs: readInteger(environment, 'AUTOMATION_LIVE_TRACK_INTERVAL_MS', 150, { minimum: 1, maximum: 10000 }),
+    // A match lasts this many seconds of real time after the league countdown reaches zero.
+    matchSeconds: readInteger(environment, 'AUTOMATION_MATCH_SECONDS', 30, { minimum: 1, maximum: 600 }),
+    // The match is watched for its full length. If the score is never read from the page, the wait still lasts
+    // the whole match plus this margin (milliseconds) before the Results window is used instead.
+    liveEndMarginMs: readInteger(environment, 'AUTOMATION_LIVE_END_MARGIN_MS', 25000, { minimum: 1, maximum: 300000 }),
+    liveUnreadableGiveUpMs: readInteger(environment, 'AUTOMATION_LIVE_GIVE_UP_MS', 240000, { minimum: 1, maximum: 600000 }),
     weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',
     strategyStateFile: readAbsolutePath(environment, 'AUTOMATION_STRATEGY_STATE_FILE', path.join(__dirname, 'artifacts', readOnlyOptions(environment) ? 'strategy-state.trial.json' : 'strategy-state.json')),

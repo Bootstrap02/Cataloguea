@@ -18,6 +18,8 @@ const { createRunJournal } = require('./betkingRunJournal');
 const { createBetKingPorts } = require('./sportsbook/betkingPorts');
 const { createMarketFlow } = require('./sportsbook/betkingMarketFlow');
 const { createHeadlessStrategyBridge } = require('./strategy/headlessStrategy');
+const { setResultsCaptureDirectory } = require('./sportsbook/betkingResultsModal');
+const { summarizeTracking } = require('./strategy/liveTracking');
 const {
   PIPELINE_FAILURES,
   compareSlipToExpected,
@@ -69,37 +71,62 @@ function toObserverFixtureIds(fixtureId) {
   return match ? { id: match[1], domId: raw } : { id: raw, domId: undefined };
 }
 
-// Plain-language result of every option we bet on, with the rule that decided it, for example
-// "ht21 WON  stake 15  Arsenal 2-1 at half-time  (HT 2-1, FT 3-1)". Scores are home-away as on the site.
+// The result report. For all 11 options: did it win on this scoreline, was it bet, with what stake and odds,
+// and what it returned. Options that were not bet are still judged ("would have won, not placed").
+// Scores are written home-away as on the site; "Arsenal home/away" says which side is ours.
 function formatOutcomeSummary(plan, verifiedResult, evaluation) {
   const { RULE_TEXT } = require('./strategy/winRules');
+  const { evaluateResultAgainstStrategy } = require('./strategy/rules');
   const ft = verifiedResult?.fullTime;
   const ht = verifiedResult?.halfTime;
   const fixture = plan?.fixture ? `${String(plan.fixture.home).toUpperCase()} v ${String(plan.fixture.away).toUpperCase()}` : 'fixture';
   const side = plan?.arsenalSide ? ` (Arsenal ${String(plan.arsenalSide).toLowerCase()})` : '';
-  const lines = [`RESULT ${fixture}${side}: half-time ${ht ? `${ht.home}-${ht.away}` : 'n/a'}, full-time ${ft ? `${ft.home}-${ft.away}` : 'n/a'}`];
-  for (const item of evaluation.evaluations) {
-    const score = (label, value) => (value ? `${label} ${value.home}-${value.away}` : null);
-    const detail = [score('HT', item.htScore), score('FT', item.ftScore)].filter(Boolean).join(', ');
-    lines.push(`  ${item.strategyKey} ${item.outcome}  stake ${item.stake}  [${RULE_TEXT[item.strategyKey] ?? 'rule'}]${detail ? `  (${detail})` : ''}`);
+  const lines = [`RESULT ${fixture}${side}: half-time ${ht ? `${ht.home}-${ht.away}` : 'n/a'}, full-time ${ft ? `${ft.home}-${ft.away}` : 'n/a'}${verifiedResult?.source ? `  [source: ${verifiedResult.source}]` : ''}`];
+
+  const placed = new Map((evaluation.evaluations || []).map((item) => [item.strategyKey, item]));
+  const planRecords = new Map([...(plan?.instructions || []), ...(plan?.skipped || []), ...(plan?.deferred || []),
+    ...(plan?.pipelineFailed || []), ...(plan?.unresolved || [])].map((record) => [record.strategyKey, record]));
+  const judge = (key) => {
+    if (placed.has(key)) return placed.get(key).outcome;
+    if (!ft || !plan?.arsenalSide) return 'UNKNOWN';
+    return evaluateResultAgainstStrategy({ status: 'verified', halfTime: ht, fullTime: ft }, key, { arsenalSide: plan.arsenalSide }).outcome;
+  };
+  const rows = [];
+  let staked = 0;
+  let returned = 0;
+  for (const key of Object.keys(RULE_TEXT)) {
+    const outcome = judge(key);
+    const item = placed.get(key);
+    const record = planRecords.get(key);
+    const odds = item?.odds ?? record?.betKingOdds ?? record?.odds ?? null;
+    let status;
+    let stake = null;
+    if (item) {
+      stake = item.stake;
+      staked += Number(stake) || 0;
+      status = 'PLACED';
+      if (outcome === 'WON' && odds) returned += Math.round(Number(stake) * Number(odds));
+    } else {
+      stake = record?.stake ?? record?.finalStake ?? null;
+      const why = record?.pipelineStatus === 'NOT_SELECTED_THIS_RUN' ? 'not selected'
+        : record?.pipelineStatus === 'SKIPPED_BELOW_MINIMUM' || (stake !== null && stake < 10) ? 'below minimum'
+          : 'not placed';
+      status = why;
+    }
+    rows.push({ key, outcome, status, stake, odds, rule: RULE_TEXT[key] });
   }
-  for (const item of evaluation.notPlaced || []) lines.push(`  ${item.strategyKey} NOT PLACED  stake ${item.stake}`);
-  for (const item of evaluation.skipped || []) lines.push(`  ${item.strategyKey} below minimum, not bet  stake ${item.stake}`);
-  const won = evaluation.evaluations.filter((item) => item.outcome === 'WON').map((item) => item.strategyKey);
-  const lost = evaluation.evaluations.filter((item) => item.outcome === 'LOST').map((item) => item.strategyKey);
-  lines.push(`  WON: ${won.join(', ') || 'none'} | LOST: ${lost.join(', ') || 'none'}`);
-  // What every one of the 11 options did on this scoreline, bet or not, from the win rules.
-  if (ft && plan?.arsenalSide) {
-    const { evaluateResultAgainstStrategy } = require('./strategy/rules');
-    const bet = new Map(evaluation.evaluations.map((item) => [item.strategyKey, item.stake]));
-    const all = Object.keys(RULE_TEXT).map((key) => {
-      const outcome = evaluateResultAgainstStrategy({ status: 'verified', halfTime: ht, fullTime: ft }, key, { arsenalSide: plan.arsenalSide }).outcome;
-      return `${key} ${outcome}${bet.has(key) ? ` (bet ${bet.get(key)})` : ' (not bet)'}`;
-    });
-    lines.push(`  ALL 11 OPTIONS ON THIS SCORE: ${all.join(' | ')}`);
-    const winners = all.filter((entry) => / WON/.test(entry)).map((entry) => entry.split(' ')[0]);
-    lines.push(`  WINNING OPTIONS ON THIS SCORE: ${winners.join(', ') || 'none'}`);
+  const pad = (value, width) => String(value ?? '-').padEnd(width);
+  lines.push(`  ${pad('option', 8)}${pad('result', 10)}${pad('bet', 15)}${pad('stake', 7)}${pad('odds', 8)}rule`);
+  for (const row of rows) {
+    lines.push(`  ${pad(row.key, 8)}${pad(row.outcome === 'RESULT_UNVERIFIED' ? 'NEEDS HT' : row.outcome, 10)}${pad(row.status, 15)}${pad(row.stake === null ? '-' : `N${row.stake}`, 7)}${pad(row.odds, 8)}${row.rule}`);
   }
+  const wonPlaced = rows.filter((row) => row.status === 'PLACED' && row.outcome === 'WON').map((row) => row.key);
+  const lostPlaced = rows.filter((row) => row.status === 'PLACED' && row.outcome === 'LOST').map((row) => row.key);
+  const wonNotPlaced = rows.filter((row) => row.status !== 'PLACED' && row.outcome === 'WON').map((row) => row.key);
+  lines.push(`  YOU BET AND WON:    ${wonPlaced.join(', ') || 'none'}`);
+  lines.push(`  YOU BET AND LOST:   ${lostPlaced.join(', ') || 'none'}`);
+  lines.push(`  WON BUT NOT PLACED: ${wonNotPlaced.join(', ') || 'none'}`);
+  lines.push(`  STAKED: N${staked} | RETURNED: N${returned} | WINNING OPTIONS ON THIS SCORE: ${rows.filter((row) => row.outcome === 'WON').map((row) => row.key).join(', ') || 'none'}`);
   return lines.join('\n');
 }
 
@@ -731,23 +758,156 @@ function createBetKingController({
         { ...prep.plan.fixture, market: '' },
         { roundName: prep.identification.roundName, roundId: prep.identification.roundId },
       );
+      setResultsCaptureDirectory(journal.runDir);
+      const betAccepted = (prep.plan.instructions || []).some((record) => record.pipeline?.stage === 'WAGER_ACCEPTED');
+      if (!betAccepted) log('NOTE: this program placed NO bet in this run (read-only mode: "--through identify"). It is only watching in case you placed one yourself. To place bets use: --through place with AUTOMATION_ALLOW_REAL_MONEY=yes.');
+      log(`${betAccepted ? 'Bet placed. ' : ''}Watching the match: the Results window is checked first after ${Math.round(config.resultsInitialDelayMs / 1000)}s, then every ${Math.round(config.resultsIntervalMs / 1000)}s (up to ${config.resultsMaxAttempts} checks). Waiting for ${scheduled.homeName ?? prep.plan.fixture.home} v ${scheduled.awayName ?? prep.plan.fixture.away}, ${prep.identification.roundName}.`);
+      // Watch the match itself first: the main page shows the score and the minute while it plays.
+      const fixtureNow = prep.plan.fixture;
+      const homeCode = String(fixtureNow.home).toUpperCase();
+      const awayCode = String(fixtureNow.away).toUpperCase();
+      const history = [];
+      if (typeof ports.readPanelScore === 'function') {
+        // A match lasts about 30 seconds of real time (90 minutes), so one match minute is about a third of a
+        // second: the page is read several times a second, from the moment the bet is placed (the round may
+        // still have up to 2.5 minutes to kick-off) until full time has been confirmed.
+        const startedAt = Date.now();
+        const deadline = startedAt + config.matchWaitTimeoutMs;
+        let lastLogAt = 0;
+        let finishedReads = 0;
+        let lastMinute = null;
+        let firstLiveAt = null;
+        let ignoredFullTimeLogged = false;
+        let kickoffAt = null;
+        let sawCountdown = false;
+        let kickoffReads = 0;
+        let evidenceTaken = 0;
+        let lastCountdownLogAt = 0;
+        const mmss = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+        log(`Watching ${homeCode} v ${awayCode}: the league countdown tells when the match starts; then the score and minute are read every ${(config.liveTrackIntervalMs / 1000).toFixed(2)}s until full time (${config.matchSeconds}s).`);
+        while (Date.now() < deadline && !stopRequested) {
+          if (typeof ports.readMatchClock === 'function') {
+            let clock = null;
+            try { clock = await ports.readMatchClock(); } catch (error) { clock = null; }
+            if (clock && clock.countdown !== null) sawCountdown = true;
+            if (clock && kickoffAt === null) {
+              // Kick-off = the countdown is at zero, or the tab says LIVE with no countdown showing; confirmed
+              // by two reads in a row, so a stray word on the page cannot start the watch early.
+              const kickoffNow = (clock.countdown !== null && clock.countdown <= 0) || (clock.live && clock.countdown === null);
+              kickoffReads = kickoffNow ? kickoffReads + 1 : 0;
+              if (kickoffReads >= 2) {
+                kickoffAt = Date.now();
+                log('Kick-off! The countdown reached zero and the match is on. Watching for the whole match.');
+              } else if (clock.countdown !== null && Date.now() - lastCountdownLogAt > 10000) {
+                log(`  Kick-off in ${mmss(clock.countdown)}.`);
+                lastCountdownLogAt = Date.now();
+              }
+            }
+          }
+          if (kickoffAt !== null) {
+            const sinceKickoff = Date.now() - kickoffAt;
+            // The whole match is watched (config.matchSeconds, 30 by default). Only when the score has not been
+            // read at all by the end of it, plus a margin, is the live view given up.
+            if (history.length === 0 && sinceKickoff > config.matchSeconds * 1000 + config.liveEndMarginMs) {
+              log(`The whole match (${config.matchSeconds}s) has passed and its score was never read from the page; using the Results window.`);
+              break;
+            }
+            if (sinceKickoff > config.matchSeconds * 2000 + config.liveEndMarginMs + 15000) {
+              log(`The match should have ended ${Math.round((sinceKickoff - config.matchSeconds * 1000) / 1000)}s ago without a confirmed full time; moving on to the Results window.`);
+              break;
+            }
+            // Show what the page really says about our teams, so a wrong reading can be corrected at once.
+            const dueAt = [0.15, 0.4, 0.75].map((fraction) => fraction * config.matchSeconds * 1000);
+            if (history.length === 0 && evidenceTaken < dueAt.length && sinceKickoff >= dueAt[evidenceTaken]) {
+              evidenceTaken += 1;
+              try {
+                const lines = typeof ports.readPanelDebug === 'function' ? await ports.readPanelDebug({ home: homeCode, away: awayCode }) : [];
+                log(`  No score read yet. Page lines mentioning ${homeCode}/${awayCode}: ${lines.length ? lines.map((line) => `[${line}]`).join(' ') : '(none)'}`);
+                journal.writeArtifact(`live-page-lines-${evidenceTaken}.txt`, `${lines.join('\n')}\n`);
+                if (typeof flow.captureStep === 'function') await flow.captureStep(`live-no-score-${evidenceTaken}`);
+              } catch (error) { /* evidence only */ }
+            }
+          }
+          let snap = null;
+          try { snap = await ports.readPanelScore({ home: homeCode, away: awayCode }); } catch (error) { snap = null; }
+          if (snap) {
+            if (kickoffAt === null) kickoffAt = Date.now();
+            if (firstLiveAt === null) firstLiveAt = Date.now();
+            if (snap.minute !== null) lastMinute = snap.minute;
+            // "FT" counts only when it is steady (3 reads in a row) and the match has really run its course:
+            // the minute reached the 80s, or (no minute shown) about 20 seconds have passed since kick-off.
+            const ranItsCourse = lastMinute !== null ? lastMinute >= 80 : Date.now() - firstLiveAt >= 20000;
+            const fullTimeSeen = snap.finished === true;
+            finishedReads = fullTimeSeen ? finishedReads + 1 : 0;
+            const confirmedFinished = fullTimeSeen && finishedReads >= 3 && ranItsCourse;
+            if (fullTimeSeen && !ranItsCourse && !ignoredFullTimeLogged) {
+              log(`  (An FT label appeared at minute ${lastMinute ?? 'unknown'}; ignored because the match has not run its course.)`);
+              ignoredFullTimeLogged = true;
+            }
+            const entry = { ...snap, finished: confirmedFinished };
+            const last = history[history.length - 1];
+            if (!last || last.home !== entry.home || last.away !== entry.away || last.minute !== entry.minute || last.finished !== entry.finished) history.push(entry);
+            if (Date.now() - lastLogAt > 3000 || confirmedFinished) {
+              log(`  Live: ${homeCode} ${snap.home} - ${snap.away} ${awayCode}${snap.minute !== null ? `, minute ${snap.minute}` : ''}${confirmedFinished ? '  FULL TIME' : ''}`);
+              lastLogAt = Date.now();
+            }
+            if (confirmedFinished) break;
+          } else if (history.length === 0 && !sawCountdown && kickoffAt === null && Date.now() - startedAt > config.liveUnreadableGiveUpMs) {
+            log('The live score never appeared on the match page; relying on the Results window instead.');
+            break;
+          }
+          await sleep(config.liveTrackIntervalMs);
+        }
+      }
+      const tracked = history.length > 0 ? summarizeTracking(history) : { finished: false };
+      journal.append('LIVE_TRACKING', { entries: history.length, finished: tracked.finished, fullTime: tracked.fullTime ?? null, halfTime: tracked.halfTime ?? null, halfTimeReason: tracked.halfTimeReason ?? null });
+      if (tracked.finished) {
+        log(`Full time: ${homeCode} ${tracked.fullTime.home} - ${tracked.fullTime.away} ${awayCode}${tracked.halfTime ? `, half-time ${tracked.halfTime.home}-${tracked.halfTime.away}` : ` (half-time not proven: ${tracked.halfTimeReason})`}. Confirming with the Results window...`);
+      }
       const poller = createResultPoller({
-        readResultsPage: () => ports.readResultsPage(),
+        readResultsPage: async () => {
+          const windowPage = await ports.readResultsPage();
+          const info = windowPage && windowPage.summary;
+          if (info) log(`  Results window: ${info.rows} fixtures listed for ${info.roundName ?? 'unknown week'}.`);
+          return windowPage;
+        },
         getExpectedFixture: () => ({ scheduled, live: null, results: null }),
         getActionOperationId: () => operationId,
         config: {
           minConfidence: 'MEDIUM',
-          initialDelayMs: config.resultsInitialDelayMs,
-          intervalMs: config.resultsIntervalMs,
-          maxAttempts: config.resultsMaxAttempts,
+          // After a watched full time the Results window is only a confirmation (about a minute at most).
+          initialDelayMs: tracked.finished ? Math.min(4000, config.resultsInitialDelayMs) : config.resultsInitialDelayMs,
+          intervalMs: tracked.finished ? Math.min(6000, config.resultsIntervalMs) : config.resultsIntervalMs,
+          maxAttempts: tracked.finished ? Math.min(8, config.resultsMaxAttempts) : config.resultsMaxAttempts,
         },
       });
       const outcome = await poller.startPolling({
-        onProgress: (progress) => journal.append('RESULTS_POLL', { status: progress.status, attempt: progress.attempt }),
+        onProgress: (progress) => {
+          journal.append('RESULTS_POLL', { status: progress.status, attempt: progress.attempt, reason: progress.reason ?? null });
+          log(`Results check ${progress.attempt}: ${progress.status}${progress.reason ? ` (${String(progress.reason).split('\n')[0]})` : ''}`);
+        },
       });
-      return outcome.status === 'verified'
-        ? { status: 'VERIFIED', result: outcome.result }
-        : { status: 'UNAVAILABLE', outcome };
+      if (outcome.status === 'verified') {
+        const official = outcome.result;
+        if (tracked.finished && official.fullTime && (official.fullTime.home !== tracked.fullTime.home || official.fullTime.away !== tracked.fullTime.away)) {
+          log(`WARNING: the live view said ${tracked.fullTime.home}-${tracked.fullTime.away} but the Results window says ${official.fullTime.home}-${official.fullTime.away}. The Results window is used.`);
+        }
+        return { status: 'VERIFIED', result: official };
+      }
+      if (tracked.finished) {
+        log('The Results window could not confirm the match, so the live view is used as the result.');
+        return {
+          status: 'VERIFIED',
+          result: {
+            status: 'verified',
+            fullTime: { ...tracked.fullTime, verified: true },
+            halfTime: tracked.halfTime ? { ...tracked.halfTime, verified: true } : null,
+            source: 'LIVE_TRACKING',
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+      return { status: 'UNAVAILABLE', outcome };
     }
 
     // Returns { status: 'VERIFIED', verifiedResult, source, verifiedBy } or a failure.
@@ -946,6 +1106,24 @@ function createBetKingController({
           return finish('STOPPED', { week });
         }
         if (result.status !== 'VERIFIED') {
+          // The Results window could not be read in time. Show what is known (the full-time score from the
+          // match panel, if it is still on screen) and what that already decides. Nothing is settled.
+          try {
+            const fixtureNow = prepared.plan.fixture;
+            const panel = typeof ports.readPanelScore === 'function' ? await ports.readPanelScore({ home: String(fixtureNow.home).toUpperCase(), away: String(fixtureNow.away).toUpperCase() }) : null;
+            if (panel && panel.finished) {
+              const partial = { status: 'verified', halfTime: null, fullTime: { home: panel.home, away: panel.away } };
+              const partialEvaluation = evaluateOptionsForResult({ plan: prepared.plan, verifiedResult: partial });
+              log('The Results window could not be read in time, so nothing is settled. From the match panel:');
+              log(formatOutcomeSummary({ ...prepared.plan, arsenalSide: prepared.plan.arsenalSide ?? prepared.identification?.arsenalSide }, partial, partialEvaluation));
+              log('Half-time options cannot be judged without the half-time score (NEEDS HT).');
+            } else {
+              log('The Results window could not be read and the match panel no longer shows the score. Nothing is settled.');
+            }
+          } catch (error) {
+            journal.append('PARTIAL_REPORT_FAILED', { message: error.message });
+          }
+          log(`See ${journal.runDir} : results-failed-*.txt/.png and results-window-*.txt/.png show what the page contained.`);
           moveTo(STATES.PAUSED);
           return finish('PAUSED', { code: result.code ?? 'RESULT_NOT_VERIFIED', week, reason: result.reason });
         }
