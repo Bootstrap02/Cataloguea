@@ -221,8 +221,22 @@ async function readPanelScore(page, home, away) {
     home: Number(match[1]),
     away: Number(match[2]),
     finished,
-    minute: minute ? Number(minute[1]) : null,
+    // At full time the header shows FT instead of a minute, so any minute found there belongs to other text.
+    minute: !finished && minute ? Number(minute[1]) : null,
+    goals: parseGoalMinutes(flat, match, Number(match[1]), Number(match[2])),
   };
+}
+
+// The match list prints the minute of every goal under the score: home goals to the left of the ball icon with
+// a leading apostrophe ('43), away goals to its right with a trailing one (62'). Read from the text that follows
+// our fixture's score, up to the next fixture. The lists are trusted only when their sizes match the score.
+function parseGoalMinutes(flat, match, homeScore, awayScore) {
+  const after = flat.slice(match.index + match[0].length, match.index + match[0].length + 140);
+  const tail = after.split(/[A-Z]{2,4}\s+\d{1,2}\s*-\s*\d{1,2}\s+[A-Z]{2,4}/)[0].replace(/[\u2019\u2032\u00b4`]/g, "'");
+  const homeMinutes = [...tail.matchAll(/(?<![\d'])'(\d{1,2})(?![\d'])/g)].map((m) => Number(m[1]));
+  const awayMinutes = [...tail.matchAll(/(?<![\d'])(\d{1,2})'(?!\d)/g)].map((m) => Number(m[1]));
+  if (homeMinutes.length !== homeScore || awayMinutes.length !== awayScore) return null;
+  return { home: homeMinutes.sort((a, b) => a - b), away: awayMinutes.sort((a, b) => a - b) };
 }
 
 // The countdown on the league tab (the lion icon) counts down to zero; at zero the match starts and the tab

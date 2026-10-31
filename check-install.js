@@ -2,16 +2,17 @@
 // Tells you, file by file, whether the newest versions are really in your project.
 const fs = require('fs');
 const checks = [
-  ['automation/betkingController.js', ['formatOutcomeSummary', 'watchSelectors', 'recoverSlip', 'setResultsCaptureDirectory', 'dismissBetPlaced', 'From the match panel', 'placed NO bet', 'summarizeTracking', 'ranItsCourse', 'Kick-off!', 'liveEndMarginMs']],
-  ['automation/betkingLiveConfig.js', ['liveTrackIntervalMs', 'liveEndMarginMs', 'watchMode', 'minStartSeconds', 'onlyOptions', 'strategyMode', 'retryRounds']],
-  ['automation/betkingRun.js', ['retryRounds', 'READ-ONLY RUN']],
-  ['automation/sportsbook/betkingMarketFlow.js', ['dismissBetPlaced', 'resetBetSlip', 'accordion-details', 'captureStep', 'dismissCoverOverlay']],
+  ['automation/betkingController.js', ['formatOutcomeSummary', 'watchSelectors', 'recoverSlip', 'setResultsCaptureDirectory', 'dismissBetPlaced', 'From the match panel', 'placed NO bet', 'summarizeTracking', 'ranItsCourse', 'Kick-off!', 'liveEndMarginMs', 'sessionLine']],
+  ['automation/betkingLiveConfig.js', ['liveTrackIntervalMs', 'liveEndMarginMs', 'confirmWithResultsWindow', 'continuous', 'watchMode', 'minStartSeconds', 'onlyOptions', 'strategyMode', 'retryRounds']],
+  ['automation/betkingRun.js', ['retryRounds', 'READ-ONLY RUN', '--forever']],
+  ['automation/sportsbook/betkingMarketFlow.js', ['dismissBetPlaced', 'resetBetSlip', 'accordion-details', 'captureStep', 'dismissCoverOverlay', 'balanceDroppedBy']],
   ['automation/sportsbook/betkingResultsModal.js', ['setResultsCaptureDirectory', 'standings-button', 'readPanelScore', 'markWindow', 'clickWithFallback', 'readMatchClock']],
   ['automation/sportsbook/betkingPorts.js', ['createResultsModalReader', 'readPanelScore', 'readMatchClock', 'readPanelDebug']],
   ['automation/strategy/marketFirstSequence.js', ['KNOWN_SLIP_MARKETS', 'Top picks']],
   ['automation/strategy/headlessStrategy.js', ['createHeadlessStrategyBridge']],
   ['automation/strategy/winRules.js', ['RULE_TEXT']],
-  ['automation/strategy/liveTracking.js', ['deriveHalfTime', 'summarizeTracking']],
+  ['automation/strategy/settleRound.js', ['settleRound']],
+  ['automation/strategy/liveTracking.js', ['deriveHalfTime', 'summarizeTracking', 'halfTimeFromGoals']],
   ['automation/strategy/arsenalPerspective.js', ['isArsenal']],
 ];
 let missing = 0;

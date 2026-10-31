@@ -25,6 +25,17 @@ test('the full-time score comes from the final observation and the half-time fro
   const history = [at(20, 0, 0), at(44, 2, 1), at(46, 2, 1), at(80, 2, 2), at(null, 2, 2, true)];
   assert.deepEqual(summarizeTracking(history), {
     finished: true, fullTime: { home: 2, away: 2 }, halfTime: { home: 2, away: 1 }, halfTimeReason: null,
+    halfTimeSource: 'score at minute 45', goals: null,
   });
   assert.equal(summarizeTracking(history.slice(0, 3)).finished, false);
+});
+
+test('half-time is counted straight from the goal minutes, even when a goal fell between two readings', () => {
+  const { halfTimeFromGoals } = require('./liveTracking');
+  assert.deepEqual(halfTimeFromGoals({ home: [12, 44], away: [46, 80] }), { home: 2, away: 0 });
+  assert.deepEqual(halfTimeFromGoals({ home: [], away: [45] }), { home: 0, away: 1 });
+  const history = [at(30, 0, 0), at(44, 0, 0), { ...at(90, 1, 1), goals: { home: [44], away: [47] } }, { ...at(null, 1, 1, true), goals: { home: [44], away: [47] } }];
+  const summary = summarizeTracking(history);
+  assert.deepEqual(summary.halfTime, { home: 1, away: 0 });
+  assert.equal(summary.halfTimeSource, 'goal minutes');
 });

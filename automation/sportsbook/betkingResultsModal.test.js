@@ -67,18 +67,39 @@ test('a different round in the window is never taken as the result', async () =>
 test('the fallback reads our fixture score from the match panel text', async () => {
   const { readPanelScore } = require('./betkingResultsModal');
   const page = { evaluate: async () => "Week 14\nFT\nARS 2 - 2 AST\n47'\nEVE 1 - 0 CHE\n" };
-  assert.deepEqual(await readPanelScore(page, 'ars', 'ast'), { home: 2, away: 2, finished: true, minute: null });
+  assert.deepEqual(await readPanelScore(page, 'ars', 'ast'), { home: 2, away: 2, finished: true, minute: null, goals: null });
   assert.equal(await readPanelScore(page, 'new', 'bre'), null);
 });
 
 test('the panel reader also returns the match minute while the match is being played', async () => {
   const { readPanelScore } = require('./betkingResultsModal');
   const page = { evaluate: async () => "All Fixtures this round\n18'\nNEW 0 - 0 ARS\n" };
-  assert.deepEqual(await readPanelScore(page, 'new', 'ars'), { home: 0, away: 0, finished: false, minute: 18 });
+  assert.deepEqual(await readPanelScore(page, 'new', 'ars'), { home: 0, away: 0, finished: false, minute: 18, goals: { home: [], away: [] } });
 });
 
 test('the match clock reads the league countdown and the LIVE badge', async () => {
   const { readMatchClock } = require('./betkingResultsModal');
   assert.deepEqual(await readMatchClock({ evaluate: async () => 'Virtuals\n01:09\nKINGS LIGA\nWeek 14\n' }), { countdown: 69, live: false });
   assert.deepEqual(await readMatchClock({ evaluate: async () => 'LIVE\nKINGS LIGA\nWeek 15\n' }), { countdown: null, live: true });
+});
+
+test('goal minutes are read from the match list: home minutes lead with an apostrophe, away minutes end with one', async () => {
+  const { readPanelScore } = require('./betkingResultsModal');
+  const page = (text) => ({ evaluate: async () => text });
+  const a = await readPanelScore(page("All Fixtures\nHUL 1 - 3 MNC\n'6 32', 38', 49'\nSUN 1 - 2 BHA\n'70 6', 14'\n"), 'hul', 'mnc');
+  assert.deepEqual(a.goals, { home: [6], away: [32, 38, 49] });
+  const b = await readPanelScore(page("IPS 2 - 1 LIV\n'43, '7 62'\nFUL 1 - 0 NOT\n'5\n"), 'ips', 'liv');
+  assert.deepEqual(b.goals, { home: [7, 43], away: [62] });
+  const c = await readPanelScore(page("FT\nCHE 0 - 1 ARS\n89'\nTOT 1 - 0 CRY\n'35\n"), 'che', 'ars');
+  assert.deepEqual(c.goals, { home: [], away: [89] });
+  // sizes that do not match the score are not trusted
+  assert.equal((await readPanelScore(page("COV 1 - 0 MNU\n'23 40'\n"), 'cov', 'mnu')).goals, null);
+});
+
+test('at full time the minute is not read, so stray text beside the FT label cannot pose as the match clock', async () => {
+  const { readPanelScore } = require('./betkingResultsModal');
+  const page = { evaluate: async () => "Week 22\n18'\nFT\nCOV 1 - 2 ARS\n12 50', 70'\n" };
+  const result = await readPanelScore(page, 'cov', 'ars');
+  assert.equal(result.finished, true);
+  assert.equal(result.minute, null);
 });

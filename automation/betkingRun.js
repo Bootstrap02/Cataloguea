@@ -5,6 +5,7 @@
 // Options:  --week N|auto   game week (1-38). Default auto: the upcoming round on the real
 //                           schedule, reconciled with the last settled week
 //           --max-weeks N   weeks to process before stopping (default 1)
+//           --forever       keep going round after round until you press Ctrl-C
 //           --through STEP  how far the market-first pipeline goes: identify (default, read only),
 //                           select (adds the odd to the slip), slip (also enters and verifies the stake)
 //                           place (also places the bet; needs AUTOMATION_ALLOW_REAL_MONEY=yes)
@@ -33,8 +34,9 @@ async function main() {
     throw new Error('--week must be a number between 1 and 38, or auto.');
   }
   const maxWeeksRaw = readArgument('--max-weeks');
-  const maxWeeks = maxWeeksRaw === undefined ? 1 : Number(maxWeeksRaw);
-  if (!Number.isInteger(maxWeeks) || maxWeeks < 1 || maxWeeks > 38) {
+  const forever = process.argv.includes('--forever');
+  const maxWeeks = forever ? Infinity : (maxWeeksRaw === undefined ? 1 : Number(maxWeeksRaw));
+  if (!forever && (!Number.isInteger(maxWeeks) || maxWeeks < 1 || maxWeeks > 38)) {
     throw new Error('--max-weeks must be an integer between 1 and 38.');
   }
 
@@ -43,6 +45,7 @@ async function main() {
     ...process.env,
     ...(through === undefined ? {} : { AUTOMATION_PIPELINE_THROUGH: through }),
     ...(process.argv.includes('--auto-confirm') ? { AUTOMATION_AUTO_CONFIRM: 'true' } : {}),
+    ...(forever ? { AUTOMATION_CONTINUOUS: 'yes' } : {}),
   };
   const effectiveConfig = createBetKingLiveConfig(environment);
   if (effectiveConfig.pipelineThrough === 'place' && !effectiveConfig.allowRealMoney) {

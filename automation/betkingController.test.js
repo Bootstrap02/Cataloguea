@@ -740,9 +740,9 @@ test('when a goal falls between the observations, half-time is not guessed', asy
   assert.match(text, /winner\s+LOST\s+PLACED/);
 });
 
-test('the Results window, when it can be read, is the authority over the live view', async () => {
+test('the Results window, when confirmation is switched on and it can be read, is the authority over the live view', async () => {
   const { rowsToResultsPage } = require('./sportsbook/betkingResultsModal');
-  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV, AUTOMATION_CONFIRM_RESULTS: 'yes' }, flowOverrides: slipFlow() });
   injected.ports.readPanelScore = sequence([
     { home: 0, away: 0, finished: false, minute: 30 },
     { home: 1, away: 1, finished: false, minute: 89 },
@@ -834,4 +834,98 @@ test('a stray LIVE word while the countdown is still running does not start the 
   const text = logs.join('\n');
   assert.match(text, /Kick-off in 00:40/);
   assert.equal((text.match(/Kick-off! The countdown/g) || []).length, 1);
+});
+
+test('when the whole match was watched and half-time is proven, the result is used at once without the Results window', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  let resultsWindowReads = 0;
+  injected.ports.readResultsPage = async () => { resultsWindowReads += 1; throw new Error('should not be needed'); };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 20 },
+    { home: 1, away: 0, finished: false, minute: 44 },
+    { home: 1, away: 0, finished: false, minute: 47 },
+    { home: 1, away: 0, finished: false, minute: 89 },
+    { home: 1, away: 0, finished: true, minute: null },
+  ]);
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.equal(resultsWindowReads, 0, 'the Results window was not touched');
+  assert.match(text, /half-time and full-time proven\). Using the live result now/);
+  assert.match(text, /RESULT ARS v MNU \(Arsenal home\): half-time 1-0, full-time 1-0 {2}\[source: LIVE_TRACKING\]/);
+});
+
+test('half-time and the goal timeline come from the goal minutes the page prints, and the report lists them', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('should not be needed'); };
+  const goals = { home: [12], away: [46] };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 20, goals: null },
+    { home: 1, away: 0, finished: false, minute: 60, goals: { home: [12], away: [] } },
+    { home: 1, away: 1, finished: false, minute: 89, goals },
+    { home: 1, away: 1, finished: true, minute: null, goals },
+  ]);
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.match(text, /half-time 1-0 \(from the goal minutes\)/);
+  assert.match(text, /Goals: ARS 12' \| MNU 46'/);
+  assert.match(text, /RESULT ARS v MNU \(Arsenal home\): half-time 1-0, full-time 1-1/);
+});
+
+test('full time is recognised even when the page shows a stray minute next to FT (the run that waited 70 seconds too long)', async () => {
+  const { controller, logs } = setup({ mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place', env: { ...PLACE_ENV, ...LIVE_ENV }, flowOverrides: slipFlow() });
+  injected.ports.readResultsPage = async () => { throw new Error('should not be needed'); };
+  injected.ports.readPanelScore = sequence([
+    { home: 0, away: 0, finished: false, minute: 9, goals: null },
+    { home: 1, away: 0, finished: false, minute: 44, goals: null },
+    { home: 1, away: 0, finished: false, minute: 47, goals: null },
+    { home: 1, away: 2, finished: false, minute: 84, goals: { home: [12], away: [50, 70] } },
+    { home: 1, away: 2, finished: true, minute: 18, goals: { home: [12], away: [50, 70] } },   // stray minute beside FT
+    { home: 1, away: 2, finished: true, minute: 18, goals: { home: [12], away: [50, 70] } },
+  ]);
+  const outcome = await controller.run({ requiredWeek: 5 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.match(text, /Full time: ARS 1 - 2 MNU, half-time 1-0/);
+  assert.doesNotMatch(text, /should have ended/);
+});
+
+test('match totals count only the bets that were placed; the session line keeps a running net', () => {
+  const { matchTally, sessionLine } = require('./betkingController');
+  const tally = matchTally(
+    { instructions: [{ strategyKey: 'winner', betKingOdds: 100 }] },
+    { fullTime: { home: 6, away: 0 } },
+    { evaluations: [{ strategyKey: 'winner', outcome: 'WON', stake: 20, odds: 100 }, { strategyKey: 'tg0', outcome: 'LOST', stake: 12, odds: 15 }] },
+  );
+  assert.deepEqual(tally, { staked: 32, returned: 2000, wonPlaced: ['winner'] });
+  assert.match(sessionLine({ rounds: 3, staked: 100, returned: 40, roundsWithWin: 1 }), /3 round\(s\) \| staked N100 \| returned N40 \| net -N60 \| rounds with a winning bet: 1/);
+});
+
+test('continuous mode is switched on by AUTOMATION_CONTINUOUS=yes (the --forever flag)', () => {
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' }).continuous, false);
+  assert.equal(createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live', AUTOMATION_CONTINUOUS: 'yes' }).continuous, true);
+});
+
+test('continuous mode goes round after round: each round is watched, settled and totalled', async () => {
+  const { controller, logs } = setup({
+    mappings: OWNER_MAPPINGS, bigDeficits: {}, through: 'place',
+    env: { ...PLACE_ENV, ...LIVE_ENV, AUTOMATION_CONTINUOUS: 'yes', AUTOMATION_WEEK_CHECK: 'off' }, flowOverrides: slipFlow(),
+  });
+  injected.ports.readResultsPage = async () => { throw new Error('should not be needed'); };
+  let reads = 0;
+  const round = [
+    { home: 0, away: 0, finished: false, minute: 20, goals: null },
+    { home: 1, away: 0, finished: false, minute: 44, goals: { home: [30], away: [] } },
+    { home: 1, away: 0, finished: false, minute: 47, goals: { home: [30], away: [] } },
+    { home: 1, away: 0, finished: false, minute: 89, goals: { home: [30], away: [] } },
+    { home: 1, away: 0, finished: true, minute: null, goals: { home: [30], away: [] } },
+    { home: 1, away: 0, finished: true, minute: null, goals: { home: [30], away: [] } },
+  ];
+  injected.ports.readPanelScore = async () => round[reads++ % round.length];
+  const outcome = await controller.run({ requiredWeek: 5, maxWeeks: 2 });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'COMPLETED', text);
+  assert.equal((text.match(/SESSION: \d+ round\(s\)/g) || []).length, 2, text);
+  assert.match(text, /SESSION: 2 round\(s\) \| staked N62/);
 });

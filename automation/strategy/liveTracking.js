@@ -21,13 +21,28 @@ function deriveHalfTime(history) {
   return { halfTime: null, reason: `A goal fell between minute ${before.minute} and minute ${after.minute}, so the half-time score cannot be told from the live view.` };
 }
 
+// Half-time from the goal minutes the page prints (first half = minutes 1-45). Exact and immediate.
+function halfTimeFromGoals(goals) {
+  if (!goals) return null;
+  return {
+    home: goals.home.filter((minute) => minute <= 45).length,
+    away: goals.away.filter((minute) => minute <= 45).length,
+  };
+}
+
 // history: [{ home, away, minute|null, finished }]. Returns the tracked outcome once the match is finished.
 function summarizeTracking(history) {
   const finished = history.length > 0 && history[history.length - 1].finished === true;
   if (!finished) return { finished: false, fullTime: null, halfTime: null, halfTimeReason: 'The match has not finished.' };
   const last = history[history.length - 1];
+  const fullTime = { home: last.home, away: last.away };
+  // The goal minutes of the final reading (their sizes already match the final score) give half-time directly.
+  const withGoals = [...history].reverse().find((entry) => entry.goals && entry.home === fullTime.home && entry.away === fullTime.away);
+  if (withGoals) {
+    return { finished: true, fullTime, halfTime: halfTimeFromGoals(withGoals.goals), halfTimeReason: null, halfTimeSource: 'goal minutes', goals: withGoals.goals };
+  }
   const { halfTime, reason } = deriveHalfTime(history.filter((entry) => !entry.finished));
-  return { finished: true, fullTime: { home: last.home, away: last.away }, halfTime, halfTimeReason: reason };
+  return { finished: true, fullTime, halfTime, halfTimeReason: reason, halfTimeSource: halfTime ? 'score at minute 45' : null, goals: null };
 }
 
-module.exports = { deriveHalfTime, summarizeTracking };
+module.exports = { deriveHalfTime, halfTimeFromGoals, summarizeTracking };

@@ -39,6 +39,17 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// The wallet balance printed in the page header (for example 101.65). It is the first money-like figure on the page.
+function parseBalance(text) {
+  const match = /(?:^|\s)(\d{1,3}(?:,\d{3})*\.\d{2})(?=\s|$)/.exec(String(text ?? '').slice(0, 600));
+  return match ? Number(match[1].replace(/,/g, '')) : null;
+}
+
+// A bet is also proven when the balance fell by (about) the stake after PLACE BET was clicked.
+function balanceDroppedBy(before, now, stake) {
+  return before !== null && now !== null && Number(stake) > 0 && before - now >= Number(stake) - 0.01;
+}
+
 function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   if (!page || typeof page.evaluate !== 'function') {
     throw new TypeError('A Playwright page is required for the market flow.');
@@ -160,13 +171,62 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
   // Tries Escape, then a control that clearly only closes the dialog. Cookie or consent dialogs
   // are never accepted: only an explicit essential-only or reject control is allowed for them.
+  // Promotional pop-ups that the ordinary dialog markup does not describe (for example the "Penalty Shootout -
+  // Daily Free to Play" game window): a fixed element covering most of the screen. The betslip, the Results
+  // window and the "Bet Placed" window are also large, so they are recognised by their text and left alone.
+  async function findCoverOverlay() {
+    return page.evaluate(() => {
+      const text = (element) => (element.innerText || '').replace(/\s+/g, ' ').trim();
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const covers = [...document.querySelectorAll('body *')].filter((element) => {
+        const style = getComputedStyle(element);
+        if (style.position !== 'fixed' || style.display === 'none' || style.visibility === 'hidden') return false;
+        const box = element.getBoundingClientRect();
+        return box.width >= width * 0.6 && box.height >= height * 0.6 && Number(style.opacity || 1) > 0.05;
+      });
+      const known = /VIRTUALS BETSLIP|Standings|Bet Placed|Total Stake|You'?re in the game/i;
+      const cover = covers.filter((element) => !known.test(text(element))).pop();
+      if (!cover) return null;
+      const inner = [...cover.querySelectorAll('iframe,img,div')].map((element) => ({ element, box: element.getBoundingClientRect() }))
+        .filter((item) => item.box.width > 100 && item.box.height > 100 && item.box.width * item.box.height < width * height * 0.9)
+        .sort((a, b) => b.box.width * b.box.height - a.box.width * a.box.height)[0];
+      const box = inner ? inner.box : cover.getBoundingClientRect();
+      return { text: text(cover).slice(0, 80), rect: { left: box.left, top: box.top, right: box.right, bottom: box.bottom } };
+    });
+  }
+
   async function dismissCoverOverlay() {
-    return clearOverlays();
+    const cover = await findCoverOverlay();
+    if (!cover) return null;
+    await page.keyboard.press('Escape');
+    await pause(250);
+    if (!(await findCoverOverlay())) return { ok: true, status: 'DISMISSED', via: 'escape', text: cover.text };
+    // The close control: the top-right-most button or icon in the pop-up's header area.
+    await page.evaluate((target) => {
+      const candidates = [...document.querySelectorAll('button,[role="button"],svg,[class*="close" i],[aria-label*="close" i]')].filter((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 8 && box.width <= 80 && box.height > 8 && box.height <= 80
+          && box.top >= target.top - 4 && box.top <= target.top + 90 && box.right <= target.right + 20 && box.left >= target.left + (target.right - target.left) * 0.5;
+      }).sort((a, b) => (b.getBoundingClientRect().right - a.getBoundingClientRect().right) || (a.getBoundingClientRect().top - b.getBoundingClientRect().top));
+      const best = candidates[0];
+      if (best) (best.closest('button,[role="button"]') || best).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }, cover.rect);
+    await pause(300);
+    if (!(await findCoverOverlay())) return { ok: true, status: 'DISMISSED', via: 'close-control', text: cover.text };
+    // Last resort: click where the pop-up's own close button sits (top right corner, as in the screenshot).
+    try {
+      await page.mouse.click(cover.rect.right - 36, cover.rect.top + 36);
+    } catch (error) { /* continue */ }
+    await pause(400);
+    return (await findCoverOverlay())
+      ? { ok: false, status: 'OVERLAY_NOT_DISMISSED', overlays: [{ text: cover.text }] }
+      : { ok: true, status: 'DISMISSED', via: 'corner-click', text: cover.text };
   }
 
   async function clearOverlays() {
     let overlays = await detectOverlays();
-    if (overlays.length === 0) return { ok: true, status: 'NO_OVERLAY' };
+    if (overlays.length === 0) return (await dismissCoverOverlay()) ?? { ok: true, status: 'NO_OVERLAY' };
     const consent = /cookie|consent|privacy/i.test(overlays.map((overlay) => overlay.text).join(' '));
     if (!consent) {
       await page.keyboard.press('Escape');
@@ -785,6 +845,8 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       return { status: 'PLACE_BUTTON_NOT_FOUND', evidence: { matches: await button.count() } };
     }
     const textBefore = await page.evaluate(() => document.body.innerText || '');
+    const balanceBefore = parseBalance(textBefore);
+    const stakePlaced = before.stake;
     if (onEvidence) await onEvidence('before-place');
 
     const clickedAt = new Date().toISOString();
@@ -799,13 +861,27 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const deadline = Date.now() + (config.placeObserveMs ?? 8000);
     let newLines = [];
     let verdict = 'SUBMITTED_UNCONFIRMED';
-    while (Date.now() < deadline) {
-      await pause(200);
+    let confirmedBy = null;
+    // "New lines only" can miss a confirmation when the same words were already on screen (an earlier "Bet Placed"
+    // window still showing), so the wallet is a second, independent witness: the balance must fall by the stake.
+    const stillShowedConfirmation = CONFIRMED_PATTERN.test(textBefore);
+    const observe = async () => {
       const textNow = await page.evaluate(() => document.body.innerText || '');
       newLines = textNow.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !knownLines.has(line));
       const joined = newLines.join(' | ');
-      if (CONFIRMED_PATTERN.test(joined)) { verdict = 'ACCEPTED_BY_SITE_TEXT'; break; }
-      if (REJECTED_PATTERN.test(joined)) { verdict = 'REJECTED_BY_SITE_TEXT'; break; }
+      if (CONFIRMED_PATTERN.test(joined)) { verdict = 'ACCEPTED_BY_SITE_TEXT'; confirmedBy = 'site text'; return true; }
+      if (REJECTED_PATTERN.test(joined)) { verdict = 'REJECTED_BY_SITE_TEXT'; return true; }
+      if (balanceDroppedBy(balanceBefore, parseBalance(textNow), stakePlaced)) { verdict = 'ACCEPTED_BY_SITE_TEXT'; confirmedBy = 'balance drop'; return true; }
+      return false;
+    };
+    while (Date.now() < deadline) {
+      await pause(200);
+      if (await observe()) break;
+    }
+    if (verdict === 'SUBMITTED_UNCONFIRMED') {
+      // The balance can lag the confirmation window by a moment: look once more before calling it unconfirmed.
+      await pause(1500);
+      await observe();
     }
     if (onEvidence) await onEvidence('after-place');
     if (verdict === 'ACCEPTED_BY_SITE_TEXT') {
@@ -819,7 +895,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     }
     return {
       status: verdict,
-      evidence: { clickedAt, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
+      evidence: { clickedAt, confirmedBy, balanceBefore, staleConfirmationOnScreen: stillShowedConfirmation, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
     };
   }
 
@@ -872,7 +948,6 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   return Object.freeze({
     readMarketState,
     clearOverlays,
-    dismissCoverOverlay,
     captureDiagnostics,
     openMarketCategory,
     setCaptureDirectory,
@@ -892,4 +967,4 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
   });
 }
 
-module.exports = { createMarketFlow };
+module.exports = { createMarketFlow, parseBalance, balanceDroppedBy };

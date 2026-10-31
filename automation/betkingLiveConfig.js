@@ -107,6 +107,11 @@ function createBetKingLiveConfig(environment = process.env) {
     // The match is watched for its full length. If the score is never read from the page, the wait still lasts
     // the whole match plus this margin (milliseconds) before the Results window is used instead.
     liveEndMarginMs: readInteger(environment, 'AUTOMATION_LIVE_END_MARGIN_MS', 25000, { minimum: 1, maximum: 300000 }),
+    // Off by default: when the whole match was watched live and half-time is proven, that result is used at once.
+    // AUTOMATION_CONFIRM_RESULTS=yes brings back the (slower) cross-check against the Results window.
+    confirmWithResultsWindow: environment.AUTOMATION_CONFIRM_RESULTS === 'yes',
+    // Keep going round after round until stopped (Ctrl-C): place the playable options, watch, settle, repeat.
+    continuous: environment.AUTOMATION_CONTINUOUS === 'yes',
     liveUnreadableGiveUpMs: readInteger(environment, 'AUTOMATION_LIVE_GIVE_UP_MS', 240000, { minimum: 1, maximum: 600000 }),
     weekCheck: environment.AUTOMATION_WEEK_CHECK === 'strict' ? 'strict' : 'off',
     strategyMode: environment.AUTOMATION_STRATEGY_MODE === 'page' ? 'page' : 'headless',

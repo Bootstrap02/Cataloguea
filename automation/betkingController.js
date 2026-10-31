@@ -71,6 +71,28 @@ function toObserverFixtureIds(fixtureId) {
   return match ? { id: match[1], domId: raw } : { id: raw, domId: undefined };
 }
 
+// What this match cost and returned: only the options that were really placed count.
+function matchTally(plan, verifiedResult, evaluation) {
+  let staked = 0;
+  let returned = 0;
+  const wonPlaced = [];
+  const records = new Map([...(plan?.instructions || [])].map((record) => [record.strategyKey, record]));
+  for (const item of evaluation.evaluations || []) {
+    staked += Number(item.stake) || 0;
+    if (item.outcome === 'WON') {
+      const odds = item.odds ?? records.get(item.strategyKey)?.betKingOdds ?? records.get(item.strategyKey)?.odds ?? null;
+      if (odds) returned += Math.round(Number(item.stake) * Number(odds));
+      wonPlaced.push(item.strategyKey);
+    }
+  }
+  return { staked, returned, wonPlaced };
+}
+
+function sessionLine(session) {
+  const net = session.returned - session.staked;
+  return `SESSION: ${session.rounds} round(s) | staked N${session.staked} | returned N${session.returned} | net ${net >= 0 ? '+' : '-'}N${Math.abs(net)} | rounds with a winning bet: ${session.roundsWithWin}`;
+}
+
 // The result report. For all 11 options: did it win on this scoreline, was it bet, with what stake and odds,
 // and what it returned. Options that were not bet are still judged ("would have won, not placed").
 // Scores are written home-away as on the site; "Arsenal home/away" says which side is ours.
@@ -83,6 +105,12 @@ function formatOutcomeSummary(plan, verifiedResult, evaluation) {
   const side = plan?.arsenalSide ? ` (Arsenal ${String(plan.arsenalSide).toLowerCase()})` : '';
   const lines = [`RESULT ${fixture}${side}: half-time ${ht ? `${ht.home}-${ht.away}` : 'n/a'}, full-time ${ft ? `${ft.home}-${ft.away}` : 'n/a'}${verifiedResult?.source ? `  [source: ${verifiedResult.source}]` : ''}`];
 
+  if (verifiedResult?.goals) {
+    const fmt = (minutes) => (minutes.length ? minutes.map((minute) => `${minute}'`).join(', ') : 'none');
+    const home = plan?.fixture ? String(plan.fixture.home).toUpperCase() : 'home';
+    const away = plan?.fixture ? String(plan.fixture.away).toUpperCase() : 'away';
+    lines.push(`  Goals: ${home} ${fmt(verifiedResult.goals.home)} | ${away} ${fmt(verifiedResult.goals.away)}  (first half = minutes 1-45)`);
+  }
   const placed = new Map((evaluation.evaluations || []).map((item) => [item.strategyKey, item]));
   const planRecords = new Map([...(plan?.instructions || []), ...(plan?.skipped || []), ...(plan?.deferred || []),
     ...(plan?.pipelineFailed || []), ...(plan?.unresolved || [])].map((record) => [record.strategyKey, record]));
@@ -178,6 +206,8 @@ function createBetKingController({
     let ports = null;
     let flow = null;
     let bridge = null;
+    let makeHeadlessBridge = null;
+    const session = { rounds: 0, staked: 0, returned: 0, roundsWithWin: 0 };
     let workflow = null;
 
     function moveTo(state) {
@@ -761,7 +791,7 @@ function createBetKingController({
       setResultsCaptureDirectory(journal.runDir);
       const betAccepted = (prep.plan.instructions || []).some((record) => record.pipeline?.stage === 'WAGER_ACCEPTED');
       if (!betAccepted) log('NOTE: this program placed NO bet in this run (read-only mode: "--through identify"). It is only watching in case you placed one yourself. To place bets use: --through place with AUTOMATION_ALLOW_REAL_MONEY=yes.');
-      log(`${betAccepted ? 'Bet placed. ' : ''}Watching the match: the Results window is checked first after ${Math.round(config.resultsInitialDelayMs / 1000)}s, then every ${Math.round(config.resultsIntervalMs / 1000)}s (up to ${config.resultsMaxAttempts} checks). Waiting for ${scheduled.homeName ?? prep.plan.fixture.home} v ${scheduled.awayName ?? prep.plan.fixture.away}, ${prep.identification.roundName}.`);
+      log(`${betAccepted ? 'Bet placed. ' : ''}Watching the match from the league countdown to full time.`);
       // Watch the match itself first: the main page shows the score and the minute while it plays.
       const fixtureNow = prep.plan.fixture;
       const homeCode = String(fixtureNow.home).toUpperCase();
@@ -833,13 +863,15 @@ function createBetKingController({
           if (snap) {
             if (kickoffAt === null) kickoffAt = Date.now();
             if (firstLiveAt === null) firstLiveAt = Date.now();
-            if (snap.minute !== null) lastMinute = snap.minute;
+            // Match minutes only ever go forward: a smaller number is stray text, not the clock.
+            if (snap.minute !== null && (lastMinute === null || snap.minute >= lastMinute)) lastMinute = snap.minute;
+            else if (snap.minute !== null) snap = { ...snap, minute: lastMinute };
             // "FT" counts only when it is steady (3 reads in a row) and the match has really run its course:
             // the minute reached the 80s, or (no minute shown) about 20 seconds have passed since kick-off.
-            const ranItsCourse = lastMinute !== null ? lastMinute >= 80 : Date.now() - firstLiveAt >= 20000;
+            const ranItsCourse = (lastMinute !== null && lastMinute >= 80) || Date.now() - firstLiveAt >= config.matchSeconds * 800;
             const fullTimeSeen = snap.finished === true;
             finishedReads = fullTimeSeen ? finishedReads + 1 : 0;
-            const confirmedFinished = fullTimeSeen && finishedReads >= 3 && ranItsCourse;
+            const confirmedFinished = fullTimeSeen && finishedReads >= 2 && ranItsCourse;
             if (fullTimeSeen && !ranItsCourse && !ignoredFullTimeLogged) {
               log(`  (An FT label appeared at minute ${lastMinute ?? 'unknown'}; ignored because the match has not run its course.)`);
               ignoredFullTimeLogged = true;
@@ -862,7 +894,23 @@ function createBetKingController({
       const tracked = history.length > 0 ? summarizeTracking(history) : { finished: false };
       journal.append('LIVE_TRACKING', { entries: history.length, finished: tracked.finished, fullTime: tracked.fullTime ?? null, halfTime: tracked.halfTime ?? null, halfTimeReason: tracked.halfTimeReason ?? null });
       if (tracked.finished) {
-        log(`Full time: ${homeCode} ${tracked.fullTime.home} - ${tracked.fullTime.away} ${awayCode}${tracked.halfTime ? `, half-time ${tracked.halfTime.home}-${tracked.halfTime.away}` : ` (half-time not proven: ${tracked.halfTimeReason})`}. Confirming with the Results window...`);
+        log(`Full time: ${homeCode} ${tracked.fullTime.home} - ${tracked.fullTime.away} ${awayCode}${tracked.halfTime ? `, half-time ${tracked.halfTime.home}-${tracked.halfTime.away}${tracked.halfTimeSource === 'goal minutes' ? ' (from the goal minutes)' : ''}` : ` (half-time not proven: ${tracked.halfTimeReason})`}. ${config.confirmWithResultsWindow || !tracked.halfTime ? 'Confirming with the Results window...' : ''}`.trim());
+      }
+      if (tracked.finished && tracked.halfTime && !config.confirmWithResultsWindow) {
+        // Both halves were watched and the half-time score is proven by the readings: that is the result.
+        // Nothing is left to wait for.
+        log('The whole match was watched (half-time and full-time proven). Using the live result now.');
+        return {
+          status: 'VERIFIED',
+          result: {
+            status: 'verified',
+            fullTime: { ...tracked.fullTime, verified: true },
+            halfTime: { ...tracked.halfTime, verified: true },
+            source: 'LIVE_TRACKING',
+            goals: tracked.goals ?? null,
+            timestamp: new Date().toISOString(),
+          },
+        };
       }
       const poller = createResultPoller({
         readResultsPage: async () => {
@@ -903,6 +951,7 @@ function createBetKingController({
             fullTime: { ...tracked.fullTime, verified: true },
             halfTime: tracked.halfTime ? { ...tracked.halfTime, verified: true } : null,
             source: 'LIVE_TRACKING',
+            goals: tracked.goals ?? null,
             timestamp: new Date().toISOString(),
           },
         };
@@ -974,12 +1023,13 @@ function createBetKingController({
       betKingPage = context.pages()[0] || await context.newPage();
       if (headlessStrategy) {
         // No strategy tab: the strategy runs in this program (see strategy/headlessStrategy.js).
-        bridge = createHeadlessStrategyBridge({
+        makeHeadlessBridge = () => createHeadlessStrategyBridge({
           stateFile: config.strategyStateFile,
           baseStake: config.baseStake,
           betKingMarketMappings: mappings,
           log,
         });
+        bridge = makeHeadlessBridge();
         log(`Strategy runs without a screen (state file: ${config.strategyStateFile}).`);
       } else {
         strategyPage = await context.newPage();
@@ -1033,7 +1083,21 @@ function createBetKingController({
         week = resolved.week;
       }
       for (let cycle = 0; cycle < maxWeeks; cycle += 1) {
-        journal.append('WEEK_STARTED', { week, cycle: cycle + 1, of: maxWeeks });
+        if (stopRequested) {
+          moveTo(STATES.STOPPED);
+          log(`Stopped as you asked. ${sessionLine(session)}`);
+          return finish('STOPPED', { week, session });
+        }
+        if (cycle > 0 && config.continuous) {
+          // The page numbers its rounds on its own, so each round is taken from the page again.
+          const resolved = await resolveUpcomingWeek();
+          if (!resolved.ok) {
+            moveTo(STATES.PAUSED);
+            return finish('FAILED', { code: resolved.code, reason: resolved.reason, session });
+          }
+          week = resolved.week;
+        }
+        journal.append('WEEK_STARTED', { week, cycle: cycle + 1, of: maxWeeks === Infinity ? 'until stopped' : maxWeeks });
         const prepared = await prepareWithRecovery(week);
         if (prepared.status === 'STOPPED') {
           moveTo(STATES.STOPPED);
@@ -1052,9 +1116,19 @@ function createBetKingController({
           });
           if (prepared.plan.halted?.severe) {
             moveTo(STATES.PAUSED);
-            return finish('PAUSED', { code: prepared.plan.halted.code, week, reason: 'A bet may exist without confirmation. Check My Bets before doing anything else.' });
+            return finish('PAUSED', { code: prepared.plan.halted.code, week, option: prepared.plan.halted.strategyKey, session, reason: `The ${prepared.plan.halted.strategyKey} bet was clicked but the site's confirmation could not be read, so a bet may exist without confirmation. Check My Bets, then see ${journal.runDir} (after-place screenshot and journal).` });
           }
-          if (accepted.length === 0) {
+          const nothingQualified = prepared.plan.instructions.length === 0 && (prepared.plan.pipelineFailed ?? []).length === 0;
+          if (accepted.length === 0 && config.continuous) {
+            if (!nothingQualified) {
+              // Bets were tried but could not be placed (for example the clock ran out): skip this round, drop the
+              // strategy's open fixture without settling it, and go on to the next round.
+              log(`Round skipped: no bet could be placed (${(prepared.plan.pipelineFailed ?? []).map((record) => `${record.strategyKey}: ${record.reason}`).join('; ') || 'nothing placed'}). Moving on to the next round.`);
+              if (makeHeadlessBridge) bridge = makeHeadlessBridge();
+              continue;
+            }
+            log('No option reached the minimum stake this round, so nothing is bet. The round is still watched and settled so the strategy moves on.');
+          } else if (accepted.length === 0) {
             moveTo(STATES.PAUSED);
             return finish('NO_BETS_PLACED', {
               code: prepared.plan.halted?.code ?? 'NOTHING_TO_PLACE',
@@ -1183,6 +1257,14 @@ function createBetKingController({
           journal.append('PROGRESS_NOT_SAVED', { message: progressError.message });
         }
         log(`Week ${week} settled once and persisted. Next target: Week ${nextWeek}.`);
+        {
+          const tally = matchTally(prepared.plan, result.verifiedResult, evaluation);
+          session.rounds += 1;
+          session.staked += tally.staked;
+          session.returned += tally.returned;
+          if (tally.wonPlaced.length > 0) session.roundsWithWin += 1;
+          log(sessionLine(session));
+        }
 
         if (cycle + 1 >= maxWeeks) {
           moveTo(STATES.COMPLETED);
@@ -1201,7 +1283,7 @@ function createBetKingController({
             return finish('STOPPED', { nextWeek });
           }
         }
-        week = nextWeek;
+        if (!config.continuous) week = nextWeek;
       }
       return finish('COMPLETED', {});
     } catch (error) {
@@ -1223,4 +1305,4 @@ function createBetKingController({
   return Object.freeze({ run });
 }
 
-module.exports = { createBetKingController, formatOutcomeSummary };
+module.exports = { createBetKingController, formatOutcomeSummary, matchTally, sessionLine };
