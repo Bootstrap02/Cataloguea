@@ -547,7 +547,7 @@ test('the place depth is accepted by the configuration and is the only one that 
   const config = createBetKingLiveConfig({ AUTOMATION_MODE: 'betking-live' });
   assert.equal(config.allowRealMoney, false);
   assert.equal(config.autoConfirm, false);
-  assert.equal(config.maxStake, 1000);
+  assert.equal(config.maxStake, Infinity, 'no stake cap unless AUTOMATION_MAX_STAKE is set');
 });
 
 test('the strategy runs without a screen by default, and the old tab mode is opt-in', () => {

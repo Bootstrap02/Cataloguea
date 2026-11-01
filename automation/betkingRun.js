@@ -66,7 +66,7 @@ async function main() {
   }
   console.log(`  market mappings in use:       ${Object.keys(mappings).length} (${Object.keys(mappingFile.mappings).length} from your file)`);
   if (effectiveConfig.pipelineThrough === 'place') {
-    console.log(`  REAL MONEY: bets WILL be placed (cap per bet: N${effectiveConfig.maxStake}; confirmation: ${effectiveConfig.autoConfirm ? 'automatic' : 'typed for each bet'}).`);
+    console.log(`  REAL MONEY: bets WILL be placed (cap per bet: ${Number.isFinite(effectiveConfig.maxStake) ? `N${effectiveConfig.maxStake}` : 'none'}; confirmation: ${effectiveConfig.autoConfirm ? 'automatic' : 'typed for each bet'}).`);
   }
   for (const problem of selectors.problems) console.log(`  selectors problem: ${problem}`);
   for (const rejected of mappingFile.rejected) console.log(`  mapping ignored: ${rejected.key ?? '(file)'}: ${rejected.reason}`);

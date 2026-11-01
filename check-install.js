@@ -3,7 +3,7 @@
 const fs = require('fs');
 const checks = [
   ['automation/betkingController.js', ['formatOutcomeSummary', 'watchSelectors', 'recoverSlip', 'setResultsCaptureDirectory', 'dismissBetPlaced', 'From the match panel', 'placed NO bet', 'summarizeTracking', 'ranItsCourse', 'Kick-off!', 'liveEndMarginMs', 'sessionLine']],
-  ['automation/betkingLiveConfig.js', ['liveTrackIntervalMs', 'liveEndMarginMs', 'confirmWithResultsWindow', 'continuous', 'watchMode', 'minStartSeconds', 'onlyOptions', 'strategyMode', 'retryRounds']],
+  ['automation/betkingLiveConfig.js', ['liveTrackIntervalMs', 'liveEndMarginMs', 'confirmWithResultsWindow', 'continuous', 'No cap unless', 'watchMode', 'minStartSeconds', 'onlyOptions', 'strategyMode', 'retryRounds']],
   ['automation/betkingRun.js', ['retryRounds', 'READ-ONLY RUN', '--forever']],
   ['automation/sportsbook/betkingMarketFlow.js', ['dismissBetPlaced', 'resetBetSlip', 'accordion-details', 'captureStep', 'dismissCoverOverlay', 'balanceDroppedBy']],
   ['automation/sportsbook/betkingResultsModal.js', ['setResultsCaptureDirectory', 'standings-button', 'readPanelScore', 'markWindow', 'clickWithFallback', 'readMatchClock']],
@@ -12,6 +12,10 @@ const checks = [
   ['automation/strategy/headlessStrategy.js', ['createHeadlessStrategyBridge']],
   ['automation/strategy/winRules.js', ['RULE_TEXT']],
   ['automation/strategy/settleRound.js', ['settleRound']],
+  ['automation/strategy/laLigaStrategy.js', ['planRound', 'settleRound', 'discardRound']],
+  ['capture-page.js', ['page-capture']],
+  ['laliga-scan.js', ['laliga-scan']],
+  ['automation/sportsbook/laLigaReader.js', ['switchToLiga', 'readFixtureGrid', 'teamOddsFromFixtures']],
   ['automation/strategy/liveTracking.js', ['deriveHalfTime', 'summarizeTracking', 'halfTimeFromGoals']],
   ['automation/strategy/arsenalPerspective.js', ['isArsenal']],
 ];

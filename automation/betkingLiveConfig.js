@@ -129,7 +129,8 @@ function createBetKingLiveConfig(environment = process.env) {
     // Real money. 'place' submits wagers only when ALL of these hold: AUTOMATION_ALLOW_REAL_MONEY=yes,
     // the stake is within AUTOMATION_MAX_STAKE, and each bet is confirmed (typed) or --auto-confirm is set.
     allowRealMoney: environment.AUTOMATION_ALLOW_REAL_MONEY === 'yes',
-    maxStake: readInteger(environment, 'AUTOMATION_MAX_STAKE', 1000, { maximum: 10_000_000 }),
+    // No cap unless you set AUTOMATION_MAX_STAKE yourself (a safety limit you can still choose to add).
+    maxStake: environment.AUTOMATION_MAX_STAKE ? readInteger(environment, 'AUTOMATION_MAX_STAKE', 1000, { maximum: 10_000_000 }) : Infinity,
     autoConfirm: environment.AUTOMATION_AUTO_CONFIRM === 'true',
     placeObserveMs: readInteger(environment, 'AUTOMATION_PLACE_OBSERVE_MS', 8000),
   });
