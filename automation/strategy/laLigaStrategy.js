@@ -75,8 +75,18 @@ function planRound(state, { roundId, winnerOdds, teamOdds }) {
     smallDeficits,
     shadow: totalCost,
     brokenTarget,
-    open: { roundId, winnerStakes, gameStakes, bigStakes, options, winnerPlans },
+    open: { roundId, winnerStakes, gameStakes, bigStakes, options, winnerPlans, previous: { smallDeficits: state.smallDeficits, brokenTarget: state.brokenTarget, shadow: state.shadow } },
   };
+}
+
+// After the bets: a winner whose bet was NOT placed never cost anything, so its stake leaves the running cost.
+function markPlacement(state, { placedWinners = [], placed = [], round = null }) {
+  if (!state.open) throw new Error('No open round.');
+  const smallDeficits = { ...state.smallDeficits };
+  for (const code of state.winners) {
+    if (!placedWinners.includes(code)) smallDeficits[code] -= state.open.winnerStakes[code] || 0;
+  }
+  return { ...state, smallDeficits, open: { ...state.open, placedWinners: [...placedWinners], placed, round } };
 }
 
 // Settle the open round. winnersHit: winners whose 6-0 came in (and were placed). teamWinners: options that won AND
@@ -147,7 +157,8 @@ function settleRound(state, { winnersHit = [], teamWinners = [], bigWinners = []
 // and the winners' running costs go back to what they were.
 function discardRound(state) {
   if (!state.open) return state;
-  return { ...state, open: null, smallDeficits: Object.fromEntries(state.winners.map((code) => [code, state.smallDeficits[code] - (state.open.winnerStakes[code] || 0)])), shadow: 0 };
+  const { previous } = state.open;
+  return { ...state, open: null, smallDeficits: previous.smallDeficits, brokenTarget: previous.brokenTarget, shadow: previous.shadow };
 }
 
-module.exports = { MIN_STAKE, createState, planRound, settleRound, discardRound };
+module.exports = { MIN_STAKE, createState, planRound, markPlacement, settleRound, discardRound };

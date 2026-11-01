@@ -103,3 +103,11 @@ test('at full time the minute is not read, so stray text beside the FT label can
   assert.equal(result.finished, true);
   assert.equal(result.minute, null);
 });
+
+test('one fixture is found in the Results window text even without a position number or when the table parse misses it', () => {
+  const { parseResultForFixture } = require('./betkingResultsModal');
+  const text = 'Kings Liga Standings Results Week 29 1 LEV - BAR 0 - 3 0 - 4 OSA - RMA 0 - 1 0 - 2 3 ATM - GET 1 - 0 1 - 1';
+  assert.deepEqual(parseResultForFixture(text, 'OSA', 'RMA'), { halfTime: { home: 0, away: 1 }, fullTime: { home: 0, away: 2 } });
+  assert.deepEqual(parseResultForFixture(text, 'LEV', 'BAR').fullTime, { home: 0, away: 4 });
+  assert.equal(parseResultForFixture(text, 'ALV', 'ELC'), null);
+});

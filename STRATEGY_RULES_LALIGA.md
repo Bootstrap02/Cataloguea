@@ -22,3 +22,14 @@ raises the winners' bases, shared equally.
 1/X in the same match. If they play each other, both 6-0 bets are placed; at most one can win.
 
 **One round never settles twice,** and a round whose bets could not be placed is discarded, not settled.
+
+## How a round runs (laliga-run.js)
+1. Wait for a round with at least 70 seconds on its countdown (the next one after full time has about 2:30).
+2. Read the odds from the page: the 6-0 for Barcelona and Madrid (Correct Score) and every fixture's HT/FT grid.
+3. Plan the stakes with the rules above. Print the plan.
+4. Place the winners first, then the protecting options from the biggest stake down, until about 20 seconds remain.
+   A winner that cannot be placed costs nothing. If neither winner can be placed, the round is left unplayed.
+5. Watch: the league countdown reaches zero, the matches play for 30 seconds, full time.
+6. Read the results (live view, or the Results window when the live view cannot prove both halves).
+7. Settle the strategy, save the state, print the report and the running session total, and start again.
+A bet that may exist but could not be confirmed stops the whole run (check My Bets, then settle-laliga.js).

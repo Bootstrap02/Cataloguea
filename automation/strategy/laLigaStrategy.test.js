@@ -80,3 +80,23 @@ test('a round cannot be planned over an open one, settled twice, or settled when
   const settled = settleRound(state, {});
   assert.throws(() => settleRound(settled, {}), /No open round/);
 });
+
+test('a winner whose bet was not placed leaves the running cost again', () => {
+  const { markPlacement } = require('./laLigaStrategy');
+  let state = createState();
+  state = planRound(state, { roundId: 'p', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds: { VAL: 12 } });
+  state = markPlacement(state, { placedWinners: ['BAR'] });
+  assert.deepEqual(state.smallDeficits, { BAR: 100, RMA: 0 });
+  assert.deepEqual(state.open.placedWinners, ['BAR']);
+});
+
+test('discarding a planned round restores everything it changed, including the broken targets', () => {
+  let state = createState();
+  state.bigDef = { VAL: 2000 };
+  const before = JSON.parse(JSON.stringify({ s: state.smallDeficits, b: state.brokenTarget, sh: state.shadow }));
+  state = planRound(state, { roundId: 'd', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds: { VAL: 12, SEV: 41 } });
+  assert.notDeepEqual(state.brokenTarget, before.b, 'planning changed the broken targets');
+  state = discardRound(state);
+  assert.deepEqual({ s: state.smallDeficits, b: state.brokenTarget, sh: state.shadow }, before);
+  assert.equal(state.open, null);
+});

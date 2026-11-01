@@ -29,6 +29,16 @@ function parseResultsText(text) {
   return { roundName: week ? `Week ${week[1]}` : null, rows };
 }
 
+// Pure: one fixture's half-time and full-time from the Results window text, wherever it sits in the list and
+// whether or not a position number precedes it ("OSA - RMA 0 - 1 0 - 2"). Used when the table parse misses a row.
+function parseResultForFixture(text, home, away) {
+  const flat = squash(text);
+  const h = String(home).toUpperCase();
+  const a = String(away).toUpperCase();
+  const match = new RegExp(`(?:^|\\s)${h}\\s*[-\\u2013\\u2014]\\s*${a}\\s+(\\d{1,2})\\s*-\\s*(\\d{1,2})\\s+(\\d{1,2})\\s*-\\s*(\\d{1,2})(?=\\s|$)`).exec(flat);
+  return match ? { halfTime: { home: Number(match[1]), away: Number(match[2]) }, fullTime: { home: Number(match[3]), away: Number(match[4]) } } : null;
+}
+
 function rowsToResultsPage({ roundName, rows }, observedAt = new Date().toISOString()) {
   return {
     results: rows.map((row) => ({
@@ -193,6 +203,7 @@ function createResultsModalReader({ page, actionTimeoutMs = 3000, settleMs = 600
     const parsed = parseResultsText(text);
     const page_ = rowsToResultsPage(parsed);
     Object.defineProperty(page_, 'summary', { value: { roundName: parsed.roundName, rows: parsed.rows.length }, enumerable: false });
+    Object.defineProperty(page_, 'rawText', { value: text, enumerable: false });
     readCount += 1;
     if (readCount <= 4 || readCount % 5 === 0) await saveEvidence(`results-window-${String(readCount).padStart(2, '0')}`, text);
     await close();
@@ -206,7 +217,11 @@ function createResultsModalReader({ page, actionTimeoutMs = 3000, settleMs = 600
 // ("All Fixtures this round", for example "CHE 0 - 1 ARS"). Full time only; the half-time score is not there.
 async function readPanelScore(page, home, away) {
   const text = await page.evaluate(() => document.body.innerText || '');
-  const flat = squash(text);
+  return parsePanelText(squash(text), home, away);
+}
+
+// Pure: the live/FT score of one fixture from the squashed page text (tested).
+function parsePanelText(flat, home, away) {
   const h = String(home).toUpperCase();
   const a = String(away).toUpperCase();
   const score = `${h}\\s+(\\d{1,2})\\s*-\\s*(\\d{1,2})\\s+${a}`;
@@ -262,4 +277,4 @@ async function readMatchClock(page) {
   };
 }
 
-module.exports = { parseResultsText, rowsToResultsPage, createResultsModalReader, setResultsCaptureDirectory, readPanelScore, readMatchClock, readPanelDebug };
+module.exports = { parseResultsText, rowsToResultsPage, createResultsModalReader, setResultsCaptureDirectory, parseResultForFixture, readPanelScore, parsePanelText, squash, readMatchClock, readPanelDebug };
