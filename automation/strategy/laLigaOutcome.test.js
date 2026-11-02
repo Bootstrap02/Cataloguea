@@ -68,7 +68,50 @@ test('the report lists every fixture, each bet with WON or LOST, and the totals'
   const text = formatRoundReport({ round: { name: 'Week 14', matches: [{ home: 'VAL', away: 'GET' }] }, placed, evaluation, results, notPlaced: ['ESP (below N10)'], wonNotPlaced: [] });
   assert.match(text, /RESULTS Week 14/);
   assert.match(text, /VAL v GET\s+half-time 1-0, full-time 2-2/);
-  assert.match(text, /PROTECT\s+VAL 1\/X.*N20\s+12.5\s+WON/);
+  assert.match(text, /PROTECT\s+VAL 1\/X.*N20\s+12.5\s+WON/);   // old layout (no plan)
   assert.match(text, /NOT PLACED: ESP/);
   assert.match(text, /STAKED: N20 \| RETURNED: N250 \| NET: \+N230/);
+});
+
+test('with the plan, the report lists EVERY option with WON or LOST, placed or not', () => {
+  const plan = {
+    winnerPlans: { BAR: { stake: 45, odds: 112, playable: true }, RMA: { stake: 10, odds: 717, playable: true } },
+    options: {
+      VAL: { stake: 20, odds: 12.5, playable: true },
+      SEV: { stake: 3, odds: 13.4, playable: false },
+      ESP: { stake: 2, odds: 19.6, playable: false },
+      ATH: { stake: 4, odds: 13.6, playable: false },
+    },
+  };
+  const teams = {
+    VAL: { selection: '1/X', side: 'HOME', fixture: 'VAL v GET' },
+    SEV: { selection: '1/X', side: 'HOME', fixture: 'SEV v MLG' },
+    ESP: { selection: '2/X', side: 'AWAY', fixture: 'RST v ESP' },
+    ATH: { selection: '1/X', side: 'HOME', fixture: 'ATH v RAY' },
+  };
+  const results = {
+    'BAR-RSO': { ft: { home: 2, away: 2 }, ht: { home: 1, away: 1 } },
+    'OSA-RMA': { ft: { home: 0, away: 1 }, ht: { home: 0, away: 0 } },
+    'VAL-GET': { ft: { home: 1, away: 1 }, ht: { home: 1, away: 0 } },
+    'SEV-MLG': { ft: { home: 1, away: 0 }, ht: { home: 0, away: 0 } },
+    'RST-ESP': { ft: { home: 0, away: 0 }, ht: { home: 0, away: 0 } },
+    'ATH-RAY': { ft: { home: 2, away: 2 }, ht: { home: 2, away: 1 } },
+  };
+  const placed = [
+    { key: 'BAR', kind: 'winner', code: 'BAR', side: 'HOME', fixture: { home: 'BAR', away: 'RSO' }, stake: 45, odds: 112 },
+    { key: 'RMA', kind: 'winner', code: 'RMA', side: 'AWAY', fixture: { home: 'OSA', away: 'RMA' }, stake: 10, odds: 717 },
+    { key: 'VAL', kind: 'team', code: 'VAL', side: 'HOME', selection: '1/X', fixture: { home: 'VAL', away: 'GET' }, stake: 20, odds: 12.5 },
+  ];
+  const evaluation = evaluatePlaced(placed, results);
+  const round = { name: 'Week 18', matches: [{ home: 'BAR', away: 'RSO' }, { home: 'OSA', away: 'RMA' }, { home: 'VAL', away: 'GET' }, { home: 'SEV', away: 'MLG' }, { home: 'RST', away: 'ESP' }, { home: 'ATH', away: 'RAY' }] };
+  const text = formatRoundReport({ round, plan, placed, evaluation, results, teams, notPlaced: [], wonNotPlaced: teamsThatWon(teams, results).filter((code) => !placed.some((bet) => bet.code === code)) });
+  assert.match(text, /WINNER\s+BAR wins 6-0\s+N45\s+112\s+PLACED\s+LOST/);
+  assert.match(text, /WINNER\s+RMA wins 0-6\s+N10\s+717\s+PLACED\s+LOST/);
+  assert.match(text, /PROTECT\s+VAL 1\/X.*PLACED\s+WON/);
+  assert.match(text, /PROTECT\s+ATH 1\/X.*below N10\s+WON\s+\[ATH v RAY: HT 2-1, FT 2-2\]/, 'a win that was not placed is still shown as WON');
+  assert.match(text, /PROTECT\s+SEV 1\/X.*below N10\s+LOST/);
+  assert.match(text, /PROTECT\s+ESP 2\/X.*below N10\s+LOST/);
+  assert.match(text, /YOU BET AND LOST:\s+BAR 6-0, RMA 6-0/);
+  assert.match(text, /WON BUT NOT PLACED: ATH/);
+  assert.ok(text.indexOf('ATH 1/X') < text.indexOf('SEV 1/X'), 'winners of the round are listed before the losers');
 });

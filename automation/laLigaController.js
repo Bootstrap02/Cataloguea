@@ -4,8 +4,9 @@
 //
 // Everything that touches the website is behind `ports`, so the whole loop is tested with a fake site.
 
-const { planRound, markPlacement, settleRound, discardRound, createState } = require('./strategy/laLigaStrategy');
-const { evaluatePlaced, teamsThatWon, resultsFromLive, resultsFromWindow, formatRoundReport, sessionLine } = require('./strategy/laLigaOutcome');
+const { planRound, markPlacement, settleRound, discardRound, quashRound, createState } = require('./strategy/laLigaStrategy');
+const { evaluatePlaced, teamsThatWon, resultsFromWindow, formatRoundReport, sessionLine } = require('./strategy/laLigaOutcome');
+const { resultsFromBoard, createGoalLedger } = require('./sportsbook/liveBoard');
 const { protectingSelection } = require('./sportsbook/laLigaReader');
 
 const mmss = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.max(0, Math.round(seconds)) % 60).padStart(2, '0')}`;
@@ -20,8 +21,10 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     liveIntervalMs: 400,
     kickoffWaitMs: 360000,
     resultsWaitMs: 150000,
-    resultsPollMs: 4000,
+    resultsPollMs: 5000,
+    resultsFirstCheckMs: 20000,   // the Results window lists a round about 30 seconds after full time
     maxOddsDrift: 0.15,
+    haltOnOpen: false,          // true: refuse to start over an unsettled round (the old behaviour)
     ...config,
   };
   let stopRequested = false;
@@ -141,56 +144,68 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       }
       if (kickoffAt === null) await sleep(300);
     }
-    // After kick-off: stay for the whole match.
-    const latest = new Map();
-    const finishedReads = new Map();
+    // After kick-off: stay for the whole match. All ten matches run together and are over at the same moment, when
+    // the FT badge shows; every fixture's score and goal minutes are on the live list.
+    let board = null;
+    const ledger = createGoalLedger();   // learns which side scored each minute while the match is watched
+    let fullTimeReads = 0;
     let reportedReadable = false;
+    let triedLiveTab = false;
+    let lastLiveLog = 0;
     let evidenceTaken = false;
-    let live = {};
     const hardStop = kickoffAt + cfg.matchSeconds * 1000 + 15000;
-    const observed = round.matches && round.matches.length ? round.matches : fixtures;
+    let over = false;
     while (now() < hardStop && !stopRequested) {
-      // Every fixture of the round is read (so the report can say which unplayed options would have won);
-      // only the fixtures with a bet decide when the watch is over.
-      const snapshots = observed.length ? await ports.readLiveResults(observed) : [];
-      const relevantIds = new Set(fixtures.map((fixture) => `${fixture.home}-${fixture.away}`));
-      const readable = snapshots.filter((item) => item && item.score && relevantIds.has(`${item.home}-${item.away}`));
-      if (!reportedReadable && now() - kickoffAt > 3000) {
-        reportedReadable = true;
-        log(readable.length === fixtures.length
-          ? `Live view readable for all ${fixtures.length} fixture(s) with a bet.`
-          : `Live view readable for ${readable.length} of ${fixtures.length} fixture(s) with a bet; the Results window will fill the rest.`);
+      const raw = await ports.readBoard();
+      const elapsed = now() - kickoffAt;
+      // The page keeps showing the previous round's FT results until the new matches replace them: a board only
+      // counts when it holds THIS round's fixtures (the same home-away pairs).
+      const sameRound = round.matches.filter((match) => raw.fixtures.some((item) => item.home === match.home && item.away === match.away)).length >= Math.min(8, round.matches.length);
+      const current = sameRound ? raw : { fixtures: [], fullTime: false, minute: null };
+      if (current.fixtures.length > 0) { board = current; ledger.observe(current.fixtures); }
+      if (!triedLiveTab && current.fixtures.length === 0 && elapsed > 2500 && ports.showLive) {
+        // If the page is still showing the markets, the LIVE tab opens the live view with the ten scores.
+        triedLiveTab = true;
+        log('No scores on the page yet: clicking the LIVE tab to open the live view.');
+        try { await ports.showLive(); } catch (error) { log(`  (could not click the LIVE tab: ${error.message})`); }
       }
-      if (!evidenceTaken && now() - kickoffAt > cfg.matchSeconds * 400 && ports.captureEvidence) {
+      if (!reportedReadable && elapsed > 3000 + (triedLiveTab ? 2500 : 0)) {
+        reportedReadable = true;
+        log(current.fixtures.length > 0
+          ? `Live scoreboard readable: ${current.fixtures.length} of ${round.matches.length} fixtures.`
+          : 'The live scoreboard could not be read (no scores on the page). The Results window will be used.');
+        if (current.fixtures.length === 0 && ports.sampleLive) {
+          try { log(`  Page rows (sample): ${await ports.sampleLive()}`); } catch (error) { /* sample only */ }
+        }
+      }
+      if (current.fixtures.length > 0 && now() - lastLiveLog > 8000) {
+        lastLiveLog = now();
+        log(`  Live${current.minute ? ` ${current.minute}'` : ''}: ${current.fixtures.map((item) => `${item.home} ${item.score.home}-${item.score.away} ${item.away}`).join(' | ')}`);
+      }
+      if (!evidenceTaken && elapsed > cfg.matchSeconds * 400 && ports.captureEvidence) {
         evidenceTaken = true;
         await ports.captureEvidence('live-mid-match');
       }
-      for (const item of snapshots) {
-        if (!item || !item.score) continue;
-        const id = `${item.home}-${item.away}`;
-        latest.set(id, item);
-        finishedReads.set(id, item.finished ? (finishedReads.get(id) || 0) + 1 : 0);
-      }
-      const elapsed = now() - kickoffAt;
-      const allFinished = fixtures.length > 0 && fixtures.every((fixture) => (finishedReads.get(`${fixture.home}-${fixture.away}`) || 0) >= 2);
-      if (allFinished && elapsed >= cfg.matchSeconds * 800) {
-        log('Full time on every fixture with a bet.');
-        live = resultsFromLive([...latest.values()].map((item) => ({ ...item, finished: (finishedReads.get(`${item.home}-${item.away}`) || 0) >= 2 })));
+      fullTimeReads = current.fullTime ? fullTimeReads + 1 : 0;
+      if (fullTimeReads >= 2 && elapsed >= cfg.matchSeconds * 800) {
+        log(`FT is showing: all ${board ? board.fixtures.length : 0} matches are over.`);
+        over = true;
         break;
       }
       const clock = await ports.readClock();
-      if (clock && !clock.live && clock.countdown !== null && elapsed >= cfg.matchSeconds * 900) {
-        log('The league tab is back to a countdown: the matches are over.');
-        // Only fixtures that showed their FT label count; any other is left to the Results window.
-        live = resultsFromLive([...latest.values()].map((item) => ({ ...item, finished: (finishedReads.get(`${item.home}-${item.away}`) || 0) >= 1 })));
+      if (board && clock && !clock.live && clock.countdown !== null && elapsed >= cfg.matchSeconds * 900) {
+        log('The league tab is back to a countdown: the matches are over (the last scoreboard is used).');
+        over = true;
         break;
       }
       await sleep(cfg.liveIntervalMs);
     }
-    return { live };
+    if (ports.captureEvidence) await ports.captureEvidence('live-full-time');
+    if (!over && board) log('The matches should be over by now; using the last scoreboard that was read.');
+    return { live: board ? resultsFromBoard(board, ledger) : {} };
   }
 
-  async function collectResults(round, placed, live) {
+  async function collectResults(round, placed, live, { allowMyBets = false, patient = true } = {}) {
     const fixtures = [...new Map(placed.map((bet) => [`${bet.fixture.home}-${bet.fixture.away}`, bet.fixture])).values()];
     const needs = (results) => placed.every((bet) => {
       const result = results[`${bet.fixture.home}-${bet.fixture.away}`];
@@ -198,7 +213,10 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     });
     let results = { ...live };
     if (needs(results)) { log('Both halves of every bet were proven live. Using the live results now.'); return { results, source: 'LIVE' }; }
-    log('Reading the Results window (it lists every fixture about 30 seconds after full time), then BetKing\'s own settled bets if needed...');
+    log(allowMyBets
+      ? 'Reading the Results window, then BetKing\'s own settled bets...'
+      : `The live view did not prove every bet, so the Results window is used. It lists the round about 30 seconds after full time: first look in ${Math.round(cfg.resultsFirstCheckMs / 1000)}s. The page is not left.`);
+    if (patient && !allowMyBets) await sleep(cfg.resultsFirstCheckMs);
     const started = now();
     let attempt = 0;
     while (now() - started < cfg.resultsWaitMs && !stopRequested) {
@@ -212,7 +230,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       } catch (error) {
         log(`Results window check ${attempt} failed: ${error.message}`);
       }
-      if (attempt >= 2 && typeof ports.readMyBets === 'function') {
+      if (allowMyBets && attempt >= 2 && typeof ports.readMyBets === 'function') {
         try {
           const fromMyBets = await ports.readMyBets(round, fixtures);
           if (Object.keys(fromMyBets).length > 0) results = { ...results, ...fromMyBets };
@@ -282,13 +300,13 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     const { results, source } = await collectResults(round, placed, watched.live);
     const evaluation = evaluatePlaced(placed, results);
     if (evaluation.unresolved.length > 0) {
-      return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `No result for: ${evaluation.unresolved.join(', ')}. Check My Bets, then settle with: node settle-laliga.js --winners ${evaluation.winnersHit.join(',') || 'none'} --teams <teams that won>` };
+      return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `No result for: ${evaluation.unresolved.join(', ')}. The round stays open. Run  node laliga-run.js --resume  to read it from BetKing's settled bets, or settle by hand with  node settle-laliga.js --winners <BAR/RMA if a 6-0 came in or none> --teams <teams that won>` };
     }
 
     const allWon = teamsThatWon(teams, results);
     const wonNotPlaced = allWon.filter((code) => !placed.some((bet) => bet.code === code && bet.kind === 'team'));
     const readAll = round.matches.every((match) => results[`${match.home}-${match.away}`]);
-    log(`\n${formatRoundReport({ round, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
+    log(`\n${formatRoundReport({ round, plan: store.state.open, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
 
     store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners });
     store.save();
@@ -313,7 +331,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     const fixtures = [...new Map(placed.map((bet) => [`${bet.fixture.home}-${bet.fixture.away}`, bet.fixture])).values()];
     const round = open.round ?? { name: String(open.roundId).split('@')[0], number: Number((/\d+/.exec(open.roundId) || [])[0]) || null, matches: fixtures };
     log(`Resuming ${round.name}: ${placed.length} placed bet(s) waiting for their result.`);
-    const { results, source } = await collectResults(round, placed, {});
+    const { results, source } = await collectResults(round, placed, {}, { allowMyBets: true, patient: false });
     const evaluation = evaluatePlaced(placed, results);
     if (evaluation.unresolved.length > 0) {
       return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `Still no result for: ${evaluation.unresolved.join(', ')}. Read them in My Bets and use settle-laliga.js.` };
@@ -335,6 +353,13 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     if (resumeOpen) {
       const resumed = await resume();
       if (resumed.status !== 'SETTLED') return resumed;
+    }
+    if (store.state.open && !cfg.haltOnOpen) {
+      const open = store.state.open;
+      const placed = open.placed ?? [];
+      log(`A previous round (${open.roundId}) was never settled${placed.length ? `; ${placed.length} bet(s) had been placed on it: ${placed.map((bet) => `${bet.key} ${bet.selection} N${bet.stake}`).join(', ')}` : ''}. It is set aside now and the strategy carries on as if it had not been played. Any bets that were placed stay on BetKing and are not counted.`);
+      store.state = quashRound(store.state);
+      store.save();
     }
     if (store.state.open) {
       return { status: 'HALTED', code: 'ROUND_LEFT_OPEN', reason: `A previous round (${store.state.open.roundId}) was never settled. Check My Bets and settle it with settle-laliga.js (or --discard-open if nothing was placed).` };

@@ -68,20 +68,55 @@ function resultsFromWindow(page) {
 
 const pad = (value, width) => String(value).padEnd(width);
 
-function formatRoundReport({ round, plan, placed, evaluation, results, teams, notPlaced = [], wonNotPlaced = [] }) {
+function resultLabel(won) {
+  return won === null || won === undefined ? 'UNKNOWN' : won ? 'WON' : 'LOST';
+}
+
+// The round report. With `plan` (the strategy's open round) it lists EVERY option, placed or not, with WON/LOST:
+// the two 6-0 winners and all 20 protecting HT/FT options.
+function formatRoundReport({ round, plan = null, placed, evaluation, results, teams = {}, notPlaced = [], wonNotPlaced = [] }) {
   const lines = [];
   lines.push(`RESULTS ${round.name}`);
   for (const match of round.matches) {
     const result = results[key(match.home, match.away)];
     lines.push(`  ${pad(`${match.home} v ${match.away}`, 11)} ${result ? `half-time ${result.ht ? `${result.ht.home}-${result.ht.away}` : '?'}, full-time ${result.ft.home}-${result.ft.away}` : 'not read'}`);
   }
-  lines.push('  bet        what                         stake   odds   result');
-  for (const row of evaluation.rows) {
-    const what = row.kind === 'winner' ? `${row.code} wins ${row.side === 'HOME' ? '6-0' : '0-6'}` : `${row.code} ${row.selection} (ahead at HT, level at FT)`;
-    lines.push(`  ${pad(row.kind === 'winner' ? 'WINNER' : 'PROTECT', 10)} ${pad(what, 28)} N${pad(row.stake, 5)} ${pad(row.odds, 6)} ${row.won === null ? 'UNKNOWN' : row.won ? 'WON' : 'LOST'}`);
+  const placedKeys = new Set(placed.map((bet) => bet.key));
+  const head = `  ${pad('', 8)} ${pad('option', 31)} ${pad('stake', 7)} ${pad('odds', 7)} ${pad('bet', 21)} result`;
+  if (plan) {
+    lines.push('  EVERY OPTION THIS ROUND (placed or not):');
+    lines.push(head);
+    const rows = [];
+    for (const code of Object.keys(plan.winnerPlans)) {
+      const winnerPlan = plan.winnerPlans[code];
+      const fixture = round.matches.find((match) => match.home === code || match.away === code);
+      if (!fixture) continue;
+      const side = fixture.home === code ? 'HOME' : 'AWAY';
+      rows.push({ order: 0, code, text: `${pad('WINNER', 8)} ${pad(`${code} wins ${side === 'HOME' ? '6-0' : '0-6'}`, 31)} ${pad(`N${winnerPlan.stake}`, 7)} ${pad(winnerPlan.odds || '-', 7)} ${pad(placedKeys.has(code) ? 'PLACED' : winnerPlan.playable ? 'NOT PLACED' : 'no stake', 21)} ${resultLabel(betWon({ kind: 'winner', side }, results[key(fixture.home, fixture.away)]))}` });
+    }
+    for (const [code, option] of Object.entries(plan.options)) {
+      const team = teams[code];
+      if (!team) continue;
+      const [home, away] = team.fixture.split(' v ');
+      const result = results[key(home, away)];
+      const won = betWon({ kind: 'team', side: team.side }, result);
+      const state = placedKeys.has(code) ? 'PLACED' : option.playable ? 'NOT PLACED (time)' : 'below N10';
+      const detail = result ? `   [${team.fixture}: HT ${result.ht ? `${result.ht.home}-${result.ht.away}` : '?'}, FT ${result.ft.home}-${result.ft.away}]` : '';
+      rows.push({ order: won === true ? 1 : won === false ? 2 : 3, code, text: `${pad('PROTECT', 8)} ${pad(`${code} ${team.selection} (HT lead, FT draw)`, 31)} ${pad(`N${option.stake}`, 7)} ${pad(option.odds, 7)} ${pad(state, 21)} ${resultLabel(won)}${detail}` });
+    }
+    rows.sort((first, second) => first.order - second.order || first.code.localeCompare(second.code));
+    for (const row of rows) lines.push(`  ${row.text}`);
+  } else {
+    lines.push('  bet        what                         stake   odds   result');
+    for (const row of evaluation.rows) {
+      const what = row.kind === 'winner' ? `${row.code} wins ${row.side === 'HOME' ? '6-0' : '0-6'}` : `${row.code} ${row.selection} (ahead at HT, level at FT)`;
+      lines.push(`  ${pad(row.kind === 'winner' ? 'WINNER' : 'PROTECT', 10)} ${pad(what, 28)} N${pad(row.stake, 5)} ${pad(row.odds, 6)} ${resultLabel(row.won)}`);
+    }
   }
   if (notPlaced.length) lines.push(`  NOT PLACED: ${notPlaced.join(', ')}`);
+  const lost = evaluation.rows.filter((row) => row.won === false).map((row) => (row.kind === 'winner' ? `${row.code} 6-0` : row.code));
   lines.push(`  YOU BET AND WON:    ${[...evaluation.winnersHit.map((code) => `${code} 6-0`), ...evaluation.teamWinners].join(', ') || 'none'}`);
+  lines.push(`  YOU BET AND LOST:   ${lost.join(', ') || 'none'}`);
   lines.push(`  WON BUT NOT PLACED: ${wonNotPlaced.join(', ') || 'none'}`);
   lines.push(`  STAKED: N${evaluation.staked} | RETURNED: N${evaluation.returned} | NET: ${evaluation.returned - evaluation.staked >= 0 ? '+' : '-'}N${Math.abs(evaluation.returned - evaluation.staked)}`);
   return lines.join('\n');

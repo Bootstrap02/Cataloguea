@@ -7,6 +7,7 @@ const path = require('node:path');
 const reader = require('./laLigaReader');
 const { readMatchClock, parsePanelText, parseResultForFixture, squash, createResultsModalReader, setResultsCaptureDirectory } = require('./betkingResultsModal');
 const { readSettledBets, settledResultsFor } = require('./myBetsReader');
+const { readBoard } = require('./liveBoard');
 const { compareSlipToExpected } = require('../strategy/marketFirstSequence');
 
 const timerSeconds = (text) => {
@@ -19,6 +20,11 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
   const resultsReader = createResultsModalReader({ page });
   if (runDir && typeof setResultsCaptureDirectory === 'function') setResultsCaptureDirectory(runDir);
 
+  // The Kings Liga page has its own address: the same as the Kings League one with kings-liga at the end.
+  const ligaUrl = /\/leagues\/[^/?#]+/.test(targetUrl || '')
+    ? targetUrl.replace(/\/leagues\/[^/?#]+/, '/leagues/kings-liga')
+    : `${new URL(targetUrl).origin}/en-ng/virtuals/scheduled/leagues/kings-liga`;
+
   async function captureEvidence(label) {
     evidenceCount += 1;
     if (!runDir) return;
@@ -26,16 +32,29 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     try {
       fs.writeFileSync(`${base}.txt`, await page.evaluate(() => document.body.innerText || ''));
       await page.screenshot({ path: `${base}.png` });
+      // What each fixture row looks like right now (its text and the kinds of element inside it).
+      const rows = await page.evaluate(() => [...document.querySelectorAll('[data-testid="match"]')].slice(0, 12).map((element) => ({
+        text: (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+        testids: [...new Set([...element.querySelectorAll('[data-testid]')].map((node) => node.getAttribute('data-testid')))],
+      })));
+      fs.writeFileSync(`${base}-rows.json`, JSON.stringify(rows, null, 2));
     } catch (error) { /* evidence only */ }
   }
 
   async function ensureLiga() {
-    const here = await reader.waitForLigaRound(page, { timeoutMs: 1500 });
+    if (/login|sign-?in/i.test(page.url())) throw new Error('BetKing is asking you to log in. Log in in the browser window, then run again.');
+    if (!/kings-liga/i.test(page.url())) {
+      await page.goto(ligaUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForSelector('[data-testid="league-round"]', { timeout: 20000 }).catch(() => {});
+    }
+    let here = await reader.waitForLigaRound(page, { timeoutMs: 8000 });
     if (here.ok) return true;
     const switched = await reader.switchToLiga(page);
-    if (!switched.ok) throw new Error('Could not find the Kings Liga tab.');
-    const loaded = await reader.waitForLigaRound(page, { timeoutMs: 15000 });
-    if (!loaded.ok) throw new Error(`The Liga fixtures did not appear (${loaded.known} La Liga teams recognised).`);
+    if (switched.ok) here = await reader.waitForLigaRound(page, { timeoutMs: 15000 });
+    if (!here.ok) {
+      await captureEvidence('liga-not-found');
+      throw new Error(`The Liga fixtures did not appear (${here.known} La Liga teams recognised). If BetKing shows a login screen, log in and run again.`);
+    }
     return true;
   }
 
@@ -143,7 +162,12 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
 
   return {
     ensureLiga, readUpcomingRound, readWinnerOdds, readTeamOdds, placeBet, captureEvidence, readLiveResults,
+    readBoard: () => readBoard(page),
+    // Click the league tab (it reads LIVE during the matches): it brings the live view with all ten scores forward.
+    showLive: async () => { await reader.switchToLiga(page); await page.waitForTimeout(800); },
     readClock: () => readMatchClock(page),
+    // A short look at what the fixture rows say (for the log, so a live view that cannot be read is visible at once).
+    sampleLive: async () => page.evaluate(() => [...document.querySelectorAll('[data-testid="match"]')].slice(0, 3).map((element) => (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 90)).join('  ||  ')),
     // The Results window, plus a targeted read of each wanted fixture for any row the table parse missed.
     readResultsWindow: async (fixtures = []) => {
       const page_ = await resultsReader.readResultsPage();

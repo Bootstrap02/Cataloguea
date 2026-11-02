@@ -27,7 +27,7 @@ async function main() {
     headless: false,
     channel: config.browserChannel,
     timeout: config.browserLaunchTimeoutMs,
-    viewport: { width: 420, height: 900 },
+    viewport: { width: 1280, height: 800 },
   });
   const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {

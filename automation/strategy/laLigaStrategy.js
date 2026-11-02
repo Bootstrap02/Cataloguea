@@ -161,4 +161,18 @@ function discardRound(state) {
   return { ...state, open: null, smallDeficits: previous.smallDeficits, brokenTarget: previous.brokenTarget, shadow: previous.shadow };
 }
 
-module.exports = { MIN_STAKE, createState, planRound, markPlacement, settleRound, discardRound };
+// Set an open round aside for good (the run stopped, a bet could not be confirmed, ...): the strategy carries on as
+// if it had never been played, and a record of what had been placed is kept so nothing disappears silently.
+function quashRound(state) {
+  if (!state.open) return state;
+  const open = state.open;
+  const record = {
+    roundId: open.roundId,
+    quashedAt: new Date().toISOString(),
+    placed: (open.placed || []).map((bet) => ({ key: bet.key, kind: bet.kind, selection: bet.selection, stake: bet.stake, odds: bet.odds, fixture: `${bet.fixture.home} v ${bet.fixture.away}` })),
+  };
+  const restored = discardRound(state);
+  return { ...restored, quashed: [...(state.quashed || []), record].slice(-50) };
+}
+
+module.exports = { MIN_STAKE, quashRound, createState, planRound, markPlacement, settleRound, discardRound };

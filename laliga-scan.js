@@ -20,7 +20,7 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const { chromium } = require('playwright');
   const context = await chromium.launchPersistentContext(config.profileDir, {
-    headless: false, channel: config.browserChannel, timeout: config.browserLaunchTimeoutMs, viewport: { width: 420, height: 900 },
+    headless: false, channel: config.browserChannel, timeout: config.browserLaunchTimeoutMs, viewport: { width: 1280, height: 800 },
   });
   let step = 0;
   const page = context.pages()[0] || await context.newPage();

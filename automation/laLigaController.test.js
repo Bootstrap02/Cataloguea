@@ -43,18 +43,18 @@ function makeSite({ results = {}, liveReadable = true, failBets = {}, windowRows
       if (t < k + 30000) return { countdown: null, live: true };
       return { countdown: 140, live: false };
     },
-    readLiveResults: async (fixtures) => {
+    readBoard: async () => {
       const k = kickoffAt();
-      if (!liveReadable || t < k) return fixtures.map(() => null);
+      if (!liveReadable || t < k) return { fixtures: [], fullTime: false, minute: null };
       const over = t >= k + 29000;
-      return fixtures.map(({ home, away }) => {
+      const fixtures = FIXTURES.map(([home, away]) => {
         const r = results[`${home}-${away}`] ?? { ht: [0, 0], ft: [0, 0] };
         const goals = { home: [], away: [] };
-        // spread goals: the first half-time goals before minute 45, the rest after
         for (let i = 0; i < r.ft[0]; i += 1) goals.home.push(i < r.ht[0] ? 10 + i : 50 + i);
         for (let i = 0; i < r.ft[1]; i += 1) goals.away.push(i < r.ht[1] ? 12 + i : 60 + i);
-        return { home, away, score: { home: over ? r.ft[0] : 0, away: over ? r.ft[1] : 0 }, finished: over, goals: over ? goals : null };
+        return { home, away, score: { home: over ? r.ft[0] : 0, away: over ? r.ft[1] : 0 }, tokens: over ? [...goals.home, ...goals.away] : [] };
       });
+      return { fixtures, fullTime: over, minute: over ? null : 20 };
     },
     readResultsWindow: async () => {
       site.calls.results += 1;
@@ -93,7 +93,7 @@ test('a full round: winners first, then every protecting option, watched to full
   assert.deepEqual(site.placed.slice(0, 2), ['BAR', 'RMA'], 'winners are placed first');
   assert.equal(site.placed.length, 22, 'two winners and all 20 teams reach N10 at these odds');
   assert.match(text, /Kick-off! The countdown reached zero/);
-  assert.match(text, /Full time on every fixture with a bet/);
+  assert.match(text, /FT is showing: all 10 matches are over/);
   assert.match(text, /PROTECT\s+VAL 1\/X.*WON/, 'VAL led at half-time and drew');
   assert.match(text, /settled and saved/);
   assert.equal(store.state.open, null);
@@ -108,7 +108,7 @@ test('a 6-0 for Barcelona is detected, paid, and clears only Barcelona', async (
   const { controller, logs, store } = build(site);
   await controller.run();
   const text = logs.join('\n');
-  assert.match(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+WON/);
+  assert.match(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+PLACED\s+WON/);
   assert.match(text, /YOU BET AND WON:\s+BAR 6-0/);
   assert.equal(store.state.smallDeficits.BAR, 0);
   assert.equal(store.state.bases.BAR, 5000);
@@ -129,8 +129,8 @@ test('when the live view is unreadable the Results window supplies both halves',
   const { controller, logs } = build(site);
   await controller.run();
   const text = logs.join('\n');
-  assert.match(text, /Live view readable for 0 of 22|Live view readable for 0 of \d+ fixture/);
-  assert.match(text, /Reading the Results window/);
+  assert.match(text, /live scoreboard could not be read/);
+  assert.match(text, /Results window is used/);
   assert.match(text, /\[source: RESULTS_WINDOW\]/);
   assert.match(text, /PROTECT\s+GET 2\/X.*WON/, 'GET led at half-time and drew');
   assert.ok(site.calls.results >= 1);
@@ -165,9 +165,31 @@ test('a bet that may exist without confirmation stops everything and leaves the 
   assert.equal(outcome.code, 'WAGER_UNCONFIRMED');
   assert.match(outcome.reason, /VAL bet was clicked/);
   assert.ok(store.state.open, 'the round stays open so it cannot be planned over');
-  // and a new run refuses to start over an open round
+  // a new run no longer refuses: it sets the old round aside, records it, and carries on
   const again = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log() {}, sleep: site.sleep, now: site.now });
-  assert.equal((await again.run()).code, 'ROUND_LEFT_OPEN');
+  const second = await again.run();
+  assert.equal(store.state.quashed.length, 1, 'the set-aside round is recorded');
+  assert.equal(store.state.quashed[0].placed.length > 0, true);
+  assert.equal(second.code, 'WAGER_UNCONFIRMED', 'it started a new round (which hit the same fake failure)');
+  // the old behaviour is still available on request
+  const strict = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true, haltOnOpen: true }, log() {}, sleep: site.sleep, now: site.now });
+  assert.equal((await strict.run()).code, 'ROUND_LEFT_OPEN');
+});
+
+test('a round left open with placed winners is quashed at the start, its costs removed, and a new round is played', async () => {
+  const site = makeSite({ results: { 'BAR-RMA': { ht: [0, 0], ft: [1, 1] } } });
+  const { controller, logs, store } = build(site);
+  const { planRound, markPlacement } = require('./strategy/laLigaStrategy');
+  let state = planRound(createState(), { roundId: 'Week 3@old', winnerOdds: { BAR: 161, RMA: 167 }, teamOdds: {} });
+  state = markPlacement(state, { placedWinners: ['BAR', 'RMA'], placed: [{ key: 'BAR', kind: 'winner', code: 'BAR', side: 'AWAY', fixture: { home: 'LEV', away: 'BAR' }, selection: '0-6', stake: 31, odds: 161 }] });
+  store.state = state;
+  const outcome = await controller.run();
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'STOPPED', text);
+  assert.match(text, /A previous round \(Week 3@old\) was never settled; 1 bet\(s\) had been placed on it: BAR 0-6 N31/);
+  assert.equal(store.state.quashed.length, 1);
+  assert.equal(store.state.settledRounds.length, 1, 'the new round was played and settled');
+  assert.equal(store.state.open, null);
 });
 
 test('placing stops when the round runs low on time; the rest settle as not bet', async () => {
@@ -200,16 +222,18 @@ test('forever mode goes round after round until stopped', async () => {
   void opened;
 });
 
-test('a fixture missing from the Results window is read from BetKing\'s settled bets instead of halting', async () => {
+test('a fixture the Results window never lists halts the round (page not left) and points to --resume', async () => {
   const rows = FIXTURES.filter(([home]) => home !== 'BAR').map(([home, away]) => ({ home, away, ht: [0, 0], ft: [0, 0] }));   // BAR-RMA missing
   const site = makeSite({ liveReadable: false, windowRows: rows });
-  site.ports.readMyBets = async (round, fixtures) => Object.fromEntries(fixtures.map(({ home, away }) => [`${home}-${away}`, { ft: { home: 1, away: 2 }, ht: { home: 0, away: 1 } }]));
-  const { controller, logs, store } = build(site);
+  let myBetsOpened = 0;
+  site.ports.readMyBets = async () => { myBetsOpened += 1; return {}; };
+  const { controller, store } = build(site);
   const outcome = await controller.run();
-  const text = logs.join('\n');
-  assert.equal(outcome.status, 'STOPPED', text);
-  assert.match(text, /\[source: MY_BETS\]/);
-  assert.equal(store.state.settledRounds.length, 1);
+  assert.equal(outcome.status, 'HALTED');
+  assert.equal(outcome.code, 'RESULTS_UNAVAILABLE');
+  assert.match(outcome.reason, /laliga-run\.js --resume/);
+  assert.equal(myBetsOpened, 0);
+  assert.ok(store.state.open, 'the round stays open for --resume');
 });
 
 test('an open round with placed bets is settled by --resume from the settled bets, then the run can carry on', async () => {
@@ -242,4 +266,47 @@ test('the report says which options won even though they were not placed (below 
   assert.deepEqual(site.placed, ['BAR', 'RMA']);
   assert.match(text, /WON BUT NOT PLACED: VAL, SEV/);
   assert.match(text, /VAL v GET\s+half-time 1-0, full-time 1-1/);
+});
+
+test('a normal round never leaves the page for My Bets: it waits for the Results window instead', async () => {
+  const rows = FIXTURES.map(([home, away]) => ({ home, away, ht: [0, 0], ft: [0, 0] }));
+  let windowReads = 0;
+  const site = makeSite({ liveReadable: false });
+  site.ports.readResultsWindow = async () => {
+    windowReads += 1;
+    // the window only lists the round some time after full time
+    return windowReads < 3 ? { results: [] } : { results: rows.map(({ home, away, ht, ft }) => ({ fixture: { home, away }, halfTime: { home: ht[0], away: ht[1] }, fullTime: { home: ft[0], away: ft[1] } })) };
+  };
+  let myBetsOpened = 0;
+  site.ports.readMyBets = async () => { myBetsOpened += 1; return {}; };
+  const { controller, logs } = build(site);
+  await controller.run();
+  assert.equal(myBetsOpened, 0, 'My Bets must not be opened during a normal round');
+  assert.ok(windowReads >= 3);
+  assert.match(logs.join('\n'), /\[source: RESULTS_WINDOW\]/);
+  assert.match(logs.join('\n'), /The page is not left/);
+});
+
+test('a stale board from the previous round (other pairings, FT showing) is never taken as this round\'s result', async () => {
+  const site = makeSite({ liveReadable: false, windowRows: FIXTURES.map(([home, away]) => ({ home, away, ht: [0, 0], ft: [0, 0] })) });
+  site.ports.readBoard = async () => ({
+    fixtures: FIXTURES.map(([home, away]) => ({ home: away, away: home, score: { home: 6, away: 0 }, tokens: [1, 2, 3, 4, 5, 6] })),   // reversed pairings: last round's
+    fullTime: true, minute: null,
+  });
+  const { controller, logs } = build(site);
+  await controller.run();
+  const text = logs.join('\n');
+  assert.match(text, /live scoreboard could not be read/);
+  assert.match(text, /\[source: RESULTS_WINDOW\]/);
+  assert.doesNotMatch(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+PLACED\s+WON/);
+});
+
+test('when no scores are on the page the LIVE tab is clicked once to open the live view', async () => {
+  const site = makeSite({ liveReadable: false, windowRows: FIXTURES.map(([home, away]) => ({ home, away, ht: [0, 0], ft: [0, 0] })) });
+  let clicks = 0;
+  site.ports.showLive = async () => { clicks += 1; };
+  const { controller, logs } = build(site);
+  await controller.run();
+  assert.equal(clicks, 1);
+  assert.match(logs.join('\n'), /clicking the LIVE tab/);
 });

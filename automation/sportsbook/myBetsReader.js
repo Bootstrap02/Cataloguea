@@ -38,8 +38,14 @@ function settledResultsFor(found, fixtures, weekNumber = null) {
 async function readSettledBets(page, { targetUrl, settleMs = 2500 } = {}) {
   const origin = new URL(targetUrl).origin;
   await page.goto(`${origin}/en-ng/my-bets/virtuals/settled`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(settleMs);
-  const text = await page.evaluate(() => document.body.innerText || '');
+  // The list says "Loading..." for a moment: wait until the scores are printed (or give up after 12 seconds).
+  let text = '';
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(settleMs > 1000 ? 1000 : settleMs);
+    text = await page.evaluate(() => document.body.innerText || '');
+    if (/\(\s*HT:/.test(text) && !/Loading/i.test(text)) break;
+  }
   try {
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForSelector('[data-testid="league-round"]', { timeout: 15000 }).catch(() => {});

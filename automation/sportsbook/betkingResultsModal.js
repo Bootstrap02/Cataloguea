@@ -277,4 +277,4 @@ async function readMatchClock(page) {
   };
 }
 
-module.exports = { parseResultsText, rowsToResultsPage, createResultsModalReader, setResultsCaptureDirectory, parseResultForFixture, readPanelScore, parsePanelText, squash, readMatchClock, readPanelDebug };
+module.exports = { parseResultsText, rowsToResultsPage, createResultsModalReader, setResultsCaptureDirectory, parseResultForFixture, parseGoalMinutes, readPanelScore, parsePanelText, squash, readMatchClock, readPanelDebug };
