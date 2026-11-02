@@ -15,7 +15,7 @@ test('with ONE winner and base 10000 the engine matches the original strategy ro
     baseStake: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank: 0, privateDef: {}, bigDef: {}, brokenTarget: {},
     winners: new Set(), bigWinners: new Set(), clicked: new Set(),
   };
-  let mine = createState({ baseStake: 10000, winners: ['W'] });
+  let mine = createState({ baseStake: 10000, winners: ['W'], spreadDivisor: 10 });   // the original divides by its 10 options
   for (let round = 1; round <= 120; round += 1) {
     const winnerOdds = 40 + Math.floor(random() * 200);
     const teamOdds = Object.fromEntries(keys.map((key) => [key, Math.round((8 + random() * 40) * 10) / 10]));
@@ -99,4 +99,76 @@ test('discarding a planned round restores everything it changed, including the b
   state = discardRound(state);
   assert.deepEqual({ s: state.smallDeficits, b: state.brokenTarget, sh: state.shadow }, before);
   assert.equal(state.open, null);
+});
+
+test('BIG deficits, their spread, the N1000 cap and the bank match the original strategy round after round (big numbers)', () => {
+  const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const random = lcg(99);
+  let old = {
+    baseStake: 10000, deficit: 0, smallDeficit: 0, shadow: 0, bank: 0, privateDef: {}, bigDef: {}, brokenTarget: {},
+    winners: new Set(), bigWinners: new Set(), clicked: new Set(),
+  };
+  let mine = createState({ baseStake: 10000, winners: ['W'], spreadDivisor: 10 });   // the original divides by its 10 options
+  let sawBigDef = false;
+  let sawBigStake = false;
+  let sawBaseIncrease = false;
+  for (let round = 1; round <= 400; round += 1) {
+    const winnerOdds = 4 + Math.floor(random() * 12);               // low odds: big winner stakes, so big protecting stakes
+    const teamOdds = Object.fromEntries(keys.map((key) => [key, Math.round((2.5 + random() * 8) * 10) / 10]));
+    old = original.submitSoloMatrixFixture(old, { winner: winnerOdds, ...teamOdds }, keys);
+    mine = planRound(mine, { roundId: `r${round}`, winnerOdds: { W: winnerOdds }, teamOdds });
+    assert.deepEqual(mine.open.gameStakes, old.gameStakes, `stakes differ in round ${round}`);
+    assert.deepEqual(mine.open.bigStakes, old.bigStakes, `big stakes differ in round ${round}`);
+    assert.deepEqual(mine.brokenTarget, old.brokenTarget, `broken targets differ in round ${round}`);
+    if (Object.keys(old.bigStakes).length) sawBigStake = true;
+    const won = keys.filter(() => random() < 0.04);
+    const bigWon = won.filter((key) => (old.bigStakes[key] || 0) > 0);   // a winning option repays its big stake too
+    old = { ...old, winners: new Set(won), bigWinners: new Set(bigWon) };
+    const settledOld = original.settleSoloMatrixState(old, keys);
+    old = { ...old, ...settledOld, fixture: null };
+    mine = settleRound(mine, { teamWinners: won, bigWinners: bigWon });
+    assert.equal(mine.bases.W, old.baseStake, `base differs after round ${round}`);
+    assert.deepEqual(mine.privateDef, old.privateDef, `private deficits differ after round ${round}`);
+    assert.deepEqual(mine.bigDef, old.bigDef, `big deficits differ after round ${round}`);
+    assert.deepEqual(mine.brokenTarget, old.brokenTarget, `broken targets differ after round ${round}`);
+    assert.equal(mine.bank, old.bank, `bank differs after round ${round}`);
+    if (Object.values(old.bigDef).some((value) => value > 0)) sawBigDef = true;
+    if (old.baseStake > 10000) sawBaseIncrease = true;
+  }
+  assert.ok(sawBigDef, 'the test reached a big deficit');
+  assert.ok(sawBigStake, 'the test placed a big stake');
+  assert.ok(sawBaseIncrease, 'the test reached the N1000 cap and raised the base');
+});
+
+test('with two winners the N1000 broken target is shared equally between them (N500 each), and a winner hit keeps the other', () => {
+  let state = createState();
+  state.brokenTarget = { VAL: 1000, SEV: 400 };
+  state = planRound(state, { roundId: 'cap', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds: { VAL: 12, SEV: 41 } });
+  state = settleRound(state, {});
+  assert.equal(state.brokenTarget.VAL, 0);
+  assert.deepEqual(state.bases, { BAR: 5500, RMA: 5500 }, 'N1000 shared N500 apiece');
+  state = planRound(state, { roundId: 'cap2', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds: { VAL: 12, SEV: 41 } });
+  state = settleRound(state, { winnersHit: ['BAR'] });
+  assert.deepEqual(state.bases, { BAR: 5000, RMA: 5500 }, 'only Barcelona resets');
+});
+
+test('the pressure of a big deficit reaches every known option, even one whose odds were not read today', () => {
+  let state = createState();
+  state.bigDef = { VAL: 2000 };
+  state.privateDef = { SEV: 5 };
+  state = planRound(state, { roundId: 'spread', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds: { VAL: 10 } });   // SEV odds not read
+  assert.equal(state.open.bigStakes.VAL, 200);
+  assert.equal(state.brokenTarget.VAL, 10, '200 / 20 teams');
+  assert.equal(state.brokenTarget.SEV, 10, 'SEV carries the pressure as well');
+});
+
+test('a big stake of N50 is spread as N50 / 20 = N2 onto every one of the 20 teams (floored)', () => {
+  const { SPREAD_DIVISOR } = require('./laLigaStrategy');
+  assert.equal(SPREAD_DIVISOR, 20);
+  let state = createState();
+  state.bigDef = { ATM: 500 };                 // N500 / odds 10 = a N50 big stake
+  const teamOdds = Object.fromEntries(['ATM', 'RMA', 'BAR', 'VAL', 'SEV', 'OSA', 'GET', 'ELC', 'ESP', 'MLG', 'LEV', 'BET', 'RST', 'RAY', 'ALV', 'DLC', 'CEL', 'RSO', 'ATH', 'VIL'].map((code) => [code, code === 'ATM' ? 10 : 14]));
+  state = planRound(state, { roundId: 'spread20', winnerOdds: { BAR: 50, RMA: 100 }, teamOdds });
+  assert.equal(state.open.bigStakes.ATM, 50);
+  for (const code of Object.keys(teamOdds)) assert.equal(state.brokenTarget[code], 2, `${code} gets N50 / 20`);
 });

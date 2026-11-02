@@ -858,7 +858,13 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
 
     // Observe what the page shows afterwards; only lines that appeared after the click count.
     const knownLines = new Set(textBefore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
-    const deadline = Date.now() + (config.placeObserveMs ?? 8000);
+    // The site shows a "Placing Bet" spinner while it works; on a slow network that can take well over eight
+    // seconds, so the wait goes on for as long as the spinner shows (up to 90 seconds in all).
+    const startedWaiting = Date.now();
+    const hardDeadline = startedWaiting + (config.placeMaxWaitMs ?? 90000);
+    let deadline = startedWaiting + (config.placeObserveMs ?? 8000);
+    let pendingNow = false;
+    let pendingSeen = false;
     let newLines = [];
     let verdict = 'SUBMITTED_UNCONFIRMED';
     let confirmedBy = null;
@@ -867,6 +873,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     const stillShowedConfirmation = CONFIRMED_PATTERN.test(textBefore);
     const observe = async () => {
       const textNow = await page.evaluate(() => document.body.innerText || '');
+      pendingNow = /Placing\s+Bet|Placing\s+your\s+bet/i.test(textNow);
       newLines = textNow.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !knownLines.has(line));
       const joined = newLines.join(' | ');
       if (CONFIRMED_PATTERN.test(joined)) { verdict = 'ACCEPTED_BY_SITE_TEXT'; confirmedBy = 'site text'; return true; }
@@ -877,6 +884,10 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     while (Date.now() < deadline) {
       await pause(200);
       if (await observe()) break;
+      if (pendingNow) {
+        pendingSeen = true;
+        deadline = Math.min(hardDeadline, Math.max(deadline, Date.now() + 3000));
+      }
     }
     if (verdict === 'SUBMITTED_UNCONFIRMED') {
       // The balance can lag the confirmation window by a moment: look once more before calling it unconfirmed.
@@ -895,7 +906,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     }
     return {
       status: verdict,
-      evidence: { clickedAt, confirmedBy, balanceBefore, staleConfirmationOnScreen: stillShowedConfirmation, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
+      evidence: { clickedAt, confirmedBy, waitedMs: Date.now() - startedWaiting, pendingSeen, balanceBefore, staleConfirmationOnScreen: stillShowedConfirmation, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
     };
   }
 

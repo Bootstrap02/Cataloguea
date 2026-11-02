@@ -52,7 +52,7 @@ function makeSite({ results = {}, liveReadable = true, failBets = {}, windowRows
         const goals = { home: [], away: [] };
         for (let i = 0; i < r.ft[0]; i += 1) goals.home.push(i < r.ht[0] ? 10 + i : 50 + i);
         for (let i = 0; i < r.ft[1]; i += 1) goals.away.push(i < r.ht[1] ? 12 + i : 60 + i);
-        return { home, away, score: { home: over ? r.ft[0] : 0, away: over ? r.ft[1] : 0 }, goals: over ? goals : null };
+        return { home, away, score: { home: over ? r.ft[0] : 0, away: over ? r.ft[1] : 0 }, tokens: over ? [...goals.home, ...goals.away] : [] };
       });
       return { fixtures, fullTime: over, minute: over ? null : 20 };
     },
@@ -108,7 +108,7 @@ test('a 6-0 for Barcelona is detected, paid, and clears only Barcelona', async (
   const { controller, logs, store } = build(site);
   await controller.run();
   const text = logs.join('\n');
-  assert.match(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+WON/);
+  assert.match(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+PLACED\s+WON/);
   assert.match(text, /YOU BET AND WON:\s+BAR 6-0/);
   assert.equal(store.state.smallDeficits.BAR, 0);
   assert.equal(store.state.bases.BAR, 5000);
@@ -290,7 +290,7 @@ test('a normal round never leaves the page for My Bets: it waits for the Results
 test('a stale board from the previous round (other pairings, FT showing) is never taken as this round\'s result', async () => {
   const site = makeSite({ liveReadable: false, windowRows: FIXTURES.map(([home, away]) => ({ home, away, ht: [0, 0], ft: [0, 0] })) });
   site.ports.readBoard = async () => ({
-    fixtures: FIXTURES.map(([home, away]) => ({ home: away, away: home, score: { home: 6, away: 0 }, goals: { home: [1, 2, 3, 4, 5, 6], away: [] } })),   // reversed pairings: last round's
+    fixtures: FIXTURES.map(([home, away]) => ({ home: away, away: home, score: { home: 6, away: 0 }, tokens: [1, 2, 3, 4, 5, 6] })),   // reversed pairings: last round's
     fullTime: true, minute: null,
   });
   const { controller, logs } = build(site);
@@ -298,7 +298,7 @@ test('a stale board from the previous round (other pairings, FT showing) is neve
   const text = logs.join('\n');
   assert.match(text, /live scoreboard could not be read/);
   assert.match(text, /\[source: RESULTS_WINDOW\]/);
-  assert.doesNotMatch(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+WON/);
+  assert.doesNotMatch(text, /WINNER\s+BAR wins 6-0\s+N11\s+476\s+PLACED\s+WON/);
 });
 
 test('when no scores are on the page the LIVE tab is clicked once to open the live view', async () => {
@@ -309,4 +309,26 @@ test('when no scores are on the page the LIVE tab is clicked once to open the li
   await controller.run();
   assert.equal(clicks, 1);
   assert.match(logs.join('\n'), /clicking the LIVE tab/);
+});
+
+test('when the page jumps to the Premier League the loop goes back to La Liga and only the La Liga clock counts', async () => {
+  const site = makeSite();
+  const originalClock = site.ports.readClock;
+  let reads = 0;
+  let ensures = 0;
+  const originalEnsure = site.ports.ensureLiga;
+  site.ports.ensureLiga = async () => { ensures += 1; return originalEnsure(); };
+  site.ports.readClock = async () => {
+    reads += 1;
+    if (reads <= 3) return { offLiga: true, countdown: null, live: false };   // the Premier League is showing, with its own clock
+    return originalClock();
+  };
+  const { controller, logs } = build(site, { minStartSeconds: 20 });
+  const before = ensures;
+  await controller.run();
+  const text = logs.join('\n');
+  assert.match(text, /The page left La Liga/);
+  assert.ok(ensures - before >= 4, 'it went back to La Liga each time (plus the normal checks)');
+  assert.match(text, /Kick-off! The countdown reached zero/);
+  assert.match(text, /settled and saved/);
 });

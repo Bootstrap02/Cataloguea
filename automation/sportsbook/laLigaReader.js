@@ -54,6 +54,24 @@ async function switchToLiga(page) {
   });
 }
 
+// The La Liga tab's own clock: its countdown, or LIVE while its matches are played. Only the selected tab shows one
+// (the others show their names), and each league runs on its own clock, so this is the only clock that counts.
+async function readLigaTab(page) {
+  return page.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[data-testid^="league-switcher-tab-"]')];
+    const text = (element) => (element.textContent || '').replace(/\s+/g, ' ').trim();
+    const list = tabs.map((element) => ({ testid: element.getAttribute('data-testid'), text: text(element) }));
+    const notOthers = (value) => !/bund|ital|champ/i.test(value);
+    let index = list.findIndex((tab) => /liga/i.test(tab.testid) && notOthers(tab.testid));
+    if (index === -1) index = list.findIndex((tab) => /liga/i.test(tab.text) && notOthers(tab.text));
+    if (index === -1 && tabs.length >= 2) index = 1;
+    if (index === -1) return { found: false };
+    const label = list[index].text;
+    const timer = /(\d{1,2}):(\d{2})/.exec(label);
+    return { found: true, text: label, countdown: timer ? Number(timer[1]) * 60 + Number(timer[2]) : null, live: /\bLIVE\b/i.test(label) };
+  });
+}
+
 // Every round on screen with its fixtures and, for each fixture, the labels/odds that are showing right now.
 async function readRounds(page) {
   return page.evaluate(() => {
@@ -134,5 +152,5 @@ async function readFixtureGrid(page, roundName, home, away, { expectedLabels, ti
 
 module.exports = {
   LA_LIGA_CODES, HT_FT_LABELS, parseOdd, protectingSelection, teamOddsFromFixtures, winnerOddsFromGrid,
-  switchToLiga, readRounds, waitForLigaRound, readFixtureGrid,
+  switchToLiga, readLigaTab, readRounds, waitForLigaRound, readFixtureGrid,
 };

@@ -5,7 +5,7 @@
 // Everything that touches the website is behind `ports`, so the whole loop is tested with a fake site.
 
 const { planRound, markPlacement, settleRound, discardRound, quashRound, createState } = require('./strategy/laLigaStrategy');
-const { evaluatePlaced, teamsThatWon, resultsFromWindow, formatRoundReport, sessionLine } = require('./strategy/laLigaOutcome');
+const { evaluatePlaced, teamsThatWon, resultsFromWindow, formatRoundReport, formatCarried, sessionLine } = require('./strategy/laLigaOutcome');
 const { resultsFromBoard, createGoalLedger } = require('./sportsbook/liveBoard');
 const { protectingSelection } = require('./sportsbook/laLigaReader');
 
@@ -127,11 +127,18 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     let sawCountdown = false;
     let lastLogAt = 0;
     const waitStarted = now();
-    log(`Watching ${round.name}: the league countdown tells when the matches start.`);
+    await ports.ensureLiga();
+    log(`Watching ${round.name}: the La Liga countdown tells when the matches start.`);
     while (kickoffAt === null) {
       if (stopRequested) return { stopped: true };
       if (now() - waitStarted > cfg.kickoffWaitMs) return { failed: 'KICKOFF_NOT_SEEN' };
       const clock = await ports.readClock();
+      if (clock && clock.offLiga) {
+        log('The page left La Liga (the Premier League has its own clock): going back to the orange Kings Liga tab.');
+        await ports.ensureLiga();
+        await sleep(300);
+        continue;
+      }
       if (clock) {
         if (clock.countdown !== null) sawCountdown = true;
         if (clock.live || (sawCountdown && clock.countdown !== null && clock.countdown <= 0)) {
@@ -193,6 +200,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
         break;
       }
       const clock = await ports.readClock();
+      if (clock && clock.offLiga) { await ports.ensureLiga(); await sleep(300); continue; }
       if (board && clock && !clock.live && clock.countdown !== null && elapsed >= cfg.matchSeconds * 900) {
         log('The league tab is back to a countdown: the matches are over (the last scoreboard is used).');
         over = true;
@@ -308,13 +316,16 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     const readAll = round.matches.every((match) => results[`${match.home}-${match.away}`]);
     log(`\n${formatRoundReport({ round, plan: store.state.open, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
 
-    store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners });
+    // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
+    const bigWinners = evaluation.teamWinners.filter((code) => ((store.state.open.bigStakes || {})[code] || 0) > 0);
+    store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners, bigWinners });
     store.save();
     session.rounds += 1;
     session.staked += evaluation.staked;
     session.returned += evaluation.returned;
     if (evaluation.winnersHit.length || evaluation.teamWinners.length) session.roundsWithWin += 1;
     log(`${round.name} settled and saved.`);
+    log(formatCarried(store.state));
     log(sessionLine(session));
     return { status: 'SETTLED' };
   }
@@ -337,13 +348,16 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `Still no result for: ${evaluation.unresolved.join(', ')}. Read them in My Bets and use settle-laliga.js.` };
     }
     log(`\n${formatRoundReport({ round, placed, evaluation, results, teams: {}, notPlaced: [], wonNotPlaced: [] })}  [source: ${source}]`);
-    store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners });
+    // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
+    const bigWinners = evaluation.teamWinners.filter((code) => ((store.state.open.bigStakes || {})[code] || 0) > 0);
+    store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners, bigWinners });
     store.save();
     session.rounds += 1;
     session.staked += evaluation.staked;
     session.returned += evaluation.returned;
     if (evaluation.winnersHit.length || evaluation.teamWinners.length) session.roundsWithWin += 1;
     log(`${round.name} settled and saved.`);
+    log(formatCarried(store.state));
     log(sessionLine(session));
     return { status: 'SETTLED', session };
   }

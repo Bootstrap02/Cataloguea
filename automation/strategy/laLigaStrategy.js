@@ -9,11 +9,16 @@
 
 const MIN_STAKE = 10;
 
-function createState({ baseStake = 10000, winners = ['BAR', 'RMA'] } = {}) {
+// A big stake is spread over the options: each one's target rises by (big stake / SPREAD_DIVISOR). The original
+// strategy had 10 options and divided by 10; with the 20 La Liga teams it divides by 20.
+const SPREAD_DIVISOR = 20;
+
+function createState({ baseStake = 10000, winners = ['BAR', 'RMA'], spreadDivisor = SPREAD_DIVISOR } = {}) {
   const share = baseStake / winners.length;
   return {
     winners: [...winners],
     startBase: share,
+    spreadDivisor,
     bases: Object.fromEntries(winners.map((code) => [code, share])),   // each winner's own target
     smallDeficits: Object.fromEntries(winners.map((code) => [code, 0])), // each winner's own accumulated cost
     shadow: 0,
@@ -50,13 +55,15 @@ function planRound(state, { roundId, winnerOdds, teamOdds }) {
   // Big deficits add a "big" stake and raise every option's target (the original's brokenTarget rule).
   const bigStakes = {};
   const brokenTarget = { ...state.brokenTarget };
+  // the pressure of a big deficit goes to every option the strategy knows, even one whose odds were not read today
+  const allKeys = [...new Set([...keys, ...Object.keys(state.privateDef), ...Object.keys(state.bigDef), ...Object.keys(state.brokenTarget)])];
   for (const key of keys) {
     if ((state.bigDef[key] || 0) === 0) continue;
     const odd = teamOdds[key] || 0;
     if (odd > 1.01) {
       bigStakes[key] = Math.round(state.bigDef[key] / odd);
-      const share = Math.floor(bigStakes[key] / 10);
-      if (share > 0) for (const other of keys) brokenTarget[other] = (brokenTarget[other] || 0) + share;
+      const share = Math.floor(bigStakes[key] / (state.spreadDivisor || SPREAD_DIVISOR));
+      if (share > 0) for (const other of allKeys) brokenTarget[other] = (brokenTarget[other] || 0) + share;
     }
   }
   const options = {};
@@ -175,4 +182,4 @@ function quashRound(state) {
   return { ...restored, quashed: [...(state.quashed || []), record].slice(-50) };
 }
 
-module.exports = { MIN_STAKE, quashRound, createState, planRound, markPlacement, settleRound, discardRound };
+module.exports = { MIN_STAKE, SPREAD_DIVISOR, quashRound, createState, planRound, markPlacement, settleRound, discardRound };

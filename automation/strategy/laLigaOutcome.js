@@ -122,9 +122,22 @@ function formatRoundReport({ round, plan = null, placed, evaluation, results, te
   return lines.join('\n');
 }
 
+// What the strategy carries into the next round: each winner's base and running cost, every option's deficit,
+// the big deficits, the broken targets (the pressure that reaches N1000 is added to the winners' bases) and the bank.
+function formatCarried(state) {
+  const nonZero = (map) => Object.entries(map || {}).filter(([, value]) => value).sort((a, b) => b[1] - a[1]).map(([code, value]) => `${code} N${Math.round(value)}`);
+  const lines = ['CARRIED FORWARD'];
+  lines.push(`  winners:        ${state.winners.map((code) => `${code} base N${Math.round(state.bases[code])}, running cost N${Math.round(state.smallDeficits[code])}`).join(' | ')}`);
+  lines.push(`  deficits:       ${nonZero(state.privateDef).join(', ') || 'none'}`);
+  lines.push(`  big deficits:   ${nonZero(state.bigDef).join(', ') || 'none'}`);
+  lines.push(`  broken targets: ${nonZero(state.brokenTarget).join(', ') || 'none'}  (at N1000 a target is added to the winners' bases, shared equally)`);
+  lines.push(`  bank:           N${Math.round(state.bank || 0)}`);
+  return lines.join('\n');
+}
+
 function sessionLine(session) {
   const net = session.returned - session.staked;
   return `SESSION: ${session.rounds} round(s) | staked N${session.staked} | returned N${session.returned} | net ${net >= 0 ? '+' : '-'}N${Math.abs(net)} | rounds with a winning bet: ${session.roundsWithWin}`;
 }
 
-module.exports = { betWon, evaluatePlaced, teamsThatWon, resultsFromLive, resultsFromWindow, formatRoundReport, sessionLine };
+module.exports = { betWon, evaluatePlaced, teamsThatWon, resultsFromLive, resultsFromWindow, formatRoundReport, formatCarried, sessionLine };

@@ -41,9 +41,14 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     } catch (error) { /* evidence only */ }
   }
 
+  const onLiga = () => /kings-liga/i.test(page.url());
+
+  // The orange La Liga tab must be the one showing. The page jumps back to the Premier League after a bet is
+  // confirmed (and if anyone clicks another tab), so this is checked before every step that reads or bets.
   async function ensureLiga() {
     if (/login|sign-?in/i.test(page.url())) throw new Error('BetKing is asking you to log in. Log in in the browser window, then run again.');
-    if (!/kings-liga/i.test(page.url())) {
+    if (!onLiga()) {
+      log('The page is not on La Liga: going back to the orange Kings Liga tab.');
       await page.goto(ligaUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForSelector('[data-testid="league-round"]', { timeout: 20000 }).catch(() => {});
     }
@@ -59,8 +64,11 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
   }
 
   async function readUpcomingRound() {
+    if (!onLiga()) await ensureLiga();
     const rounds = await reader.readRounds(page);
-    const round = rounds.find((item) => item.matches.length >= 8);
+    // only a round of La Liga fixtures counts (never the Premier League's)
+    const ligaCodes = new Set(reader.LA_LIGA_CODES);
+    const round = rounds.find((item) => item.matches.length >= 8 && item.matches.filter((match) => ligaCodes.has(match.home.toUpperCase()) || ligaCodes.has(match.away.toUpperCase())).length >= 8);
     if (!round) return null;
     return {
       name: round.name,
@@ -72,6 +80,7 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
   }
 
   async function readWinnerOdds(round, winners) {
+    await ensureLiga();
     const odds = {};
     for (const code of winners) {
       odds[code] = null;
@@ -92,6 +101,7 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
   }
 
   async function readTeamOdds(round) {
+    await ensureLiga();
     const first = round.matches[0];
     const opened = await flow.openMarketCategory('HT/FT', { roundName: round.name, ...first }, { market: 'HT/FT' });
     if (opened.status !== 'MARKET_CATEGORY_OPENED') throw new Error(`Could not open HT/FT (${opened.status}).`);
@@ -112,6 +122,7 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     const fixture = { roundName: round.name, home: bet.fixture.home, away: bet.fixture.away };
     const fail = async (reason) => { await resetSlipQuietly(); return { status: 'FAILED', reason }; };
     try {
+      await ensureLiga();
       const opened = await flow.openMarketCategory(bet.category, fixture, { market: bet.market });
       if (opened.status !== 'MARKET_CATEGORY_OPENED') return fail(`open ${bet.category}: ${opened.status}`);
       const identified = await flow.identifyMarketSelection(bet.selection, fixture);
@@ -137,6 +148,7 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
         try { await flow.dismissBetPlaced(); } catch (error) { /* the next bet clears the window */ }
         const closed = await flow.closeBetSlip();
         if (closed.status !== 'BET_SLIP_CLOSED') await resetSlipQuietly();
+        await ensureLiga().catch(() => {});   // the confirmation sends the page back to the Premier League
         return { status: 'PLACED', odds: identified.odds };
       }
       if (placed.status === 'REJECTED_BY_SITE_TEXT') return fail(`the site rejected the bet: ${(placed.evidence?.newLines ?? []).join(' | ').slice(0, 120)}`);
@@ -165,7 +177,13 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     readBoard: () => readBoard(page),
     // Click the league tab (it reads LIVE during the matches): it brings the live view with all ten scores forward.
     showLive: async () => { await reader.switchToLiga(page); await page.waitForTimeout(800); },
-    readClock: () => readMatchClock(page),
+    // Only the La Liga tab's own clock. Off La Liga there is no valid clock (the Premier League has its own).
+    readClock: async () => {
+      if (!onLiga()) return { offLiga: true, countdown: null, live: false };
+      const tab = await reader.readLigaTab(page);
+      if (!tab.found) return readMatchClock(page);
+      return { offLiga: false, countdown: tab.countdown, live: tab.live };
+    },
     // A short look at what the fixture rows say (for the log, so a live view that cannot be read is visible at once).
     sampleLive: async () => page.evaluate(() => [...document.querySelectorAll('[data-testid="match"]')].slice(0, 3).map((element) => (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 90)).join('  ||  ')),
     // The Results window, plus a targeted read of each wanted fixture for any row the table parse missed.

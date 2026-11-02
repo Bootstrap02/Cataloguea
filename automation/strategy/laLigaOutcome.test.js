@@ -115,3 +115,16 @@ test('with the plan, the report lists EVERY option with WON or LOST, placed or n
   assert.match(text, /WON BUT NOT PLACED: ATH/);
   assert.ok(text.indexOf('ATH 1/X') < text.indexOf('SEV 1/X'), 'winners of the round are listed before the losers');
 });
+
+test('the carried-forward summary lists the winners, deficits, big deficits, broken targets and bank', () => {
+  const { formatCarried } = require('./laLigaOutcome');
+  const text = formatCarried({
+    winners: ['BAR', 'RMA'], bases: { BAR: 5000, RMA: 5500 }, smallDeficits: { BAR: 33, RMA: 0 },
+    privateDef: { ATM: 70, VIL: 8, CEL: 0 }, bigDef: { RAY: 1200 }, brokenTarget: { ATM: 40 }, bank: 25,
+  });
+  assert.match(text, /BAR base N5000, running cost N33 \| RMA base N5500, running cost N0/);
+  assert.match(text, /deficits:\s+ATM N70, VIL N8\n/);
+  assert.match(text, /big deficits:\s+RAY N1200/);
+  assert.match(text, /broken targets:\s+ATM N40/);
+  assert.match(text, /bank:\s+N25/);
+});

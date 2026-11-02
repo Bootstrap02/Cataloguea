@@ -310,3 +310,25 @@ test('when no scores are on the page the LIVE tab is clicked once to open the li
   assert.equal(clicks, 1);
   assert.match(logs.join('\n'), /clicking the LIVE tab/);
 });
+
+test('when the page jumps to the Premier League the loop goes back to La Liga and only the La Liga clock counts', async () => {
+  const site = makeSite();
+  const originalClock = site.ports.readClock;
+  let reads = 0;
+  let ensures = 0;
+  const originalEnsure = site.ports.ensureLiga;
+  site.ports.ensureLiga = async () => { ensures += 1; return originalEnsure(); };
+  site.ports.readClock = async () => {
+    reads += 1;
+    if (reads <= 3) return { offLiga: true, countdown: null, live: false };   // the Premier League is showing, with its own clock
+    return originalClock();
+  };
+  const { controller, logs } = build(site, { minStartSeconds: 20 });
+  const before = ensures;
+  await controller.run();
+  const text = logs.join('\n');
+  assert.match(text, /The page left La Liga/);
+  assert.ok(ensures - before >= 4, 'it went back to La Liga each time (plus the normal checks)');
+  assert.match(text, /Kick-off! The countdown reached zero/);
+  assert.match(text, /settled and saved/);
+});

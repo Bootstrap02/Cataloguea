@@ -13,7 +13,7 @@ A stake under 10 is not bet. It still counts as a loss for that option and carri
 **When a protecting option wins (and was placed):** its own losses reset, and every winner's running cost resets
 (the profit repaid them). A second winner in the same round adds the round's cost to the bank.
 **When it loses:** its losses grow by its stake. At 1000 or more they move to its big deficit (the bank eases it by up
-to 500 first). Big deficits add a "big" stake and raise every option's broken target; a broken target of 1000 or more
+to 500 first). Big deficits add a "big" stake (big deficit / odds) and raise every option's broken target by that stake divided by 20, the number of teams; a broken target of 1000 or more
 raises the winners' bases, shared equally.
 
 **When a winner hits 6-0:** only that winner resets (base back to 5000, running cost to zero). The other keeps its own.
