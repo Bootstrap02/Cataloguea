@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Playwright Proof of Concept</title>
+  </head>
+  <body>
+    <main>
+      <h1>Playwright Local Proof of Concept</h1>
+      <p>This local page verifies visible browser automation.</p>
+      <button type="button" id="change-message">Change message</button>
+      <p id="status-message" aria-live="polite">Waiting for the button.</p>
+      <form>
+        <label for="test-input">Your message</label>
+        <input id="test-input" name="message" type="text">
+      </form>
+    </main>
+    <script>
+      document.getElementById('change-message').addEventListener('click', () => {
+        document.getElementById('status-message').textContent = 'Button clicked successfully.';
+      });
+    </script>
+  </body>
+</html>
