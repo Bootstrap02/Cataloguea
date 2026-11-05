@@ -11,7 +11,7 @@ const { protectingSelection } = require('./sportsbook/laLigaReader');
 
 const mmss = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.max(0, Math.round(seconds)) % 60).padStart(2, '0')}`;
 
-function createLaLigaController({ ports, store, config = {}, log = console.log, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now }) {
+function createLaLigaController({ ports, store, config = {}, log = console.log, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now, hooks = {} }) {
   const cfg = {
     allowRealMoney: false,
     baseStake: 10000,
@@ -30,6 +30,11 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
   let stopRequested = false;
   const session = { rounds: 0, staked: 0, returned: 0, roundsWithWin: 0 };
   const stopNow = () => { stopRequested = true; };
+  // Optional things to do at big moments (a tone, a sync). A hook that fails never stops the run.
+  async function fire(name, payload) {
+    if (typeof hooks[name] !== 'function') return;
+    try { await hooks[name](payload); } catch (error) { log(`  (${name} failed: ${error.message})`); }
+  }
 
   // ---- 1. wait for a round with enough time ---------------------------------------------------
   async function waitForRound() {
@@ -314,6 +319,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     const allWon = teamsThatWon(teams, results);
     const wonNotPlaced = allWon.filter((code) => !placed.some((bet) => bet.code === code && bet.kind === 'team'));
     const readAll = round.matches.every((match) => results[`${match.home}-${match.away}`]);
+    if (evaluation.winnersHit.length > 0) await fire('onSixNil', { winners: evaluation.winnersHit, rows: evaluation.rows.filter((row) => row.kind === 'winner' && row.won), round });
     log(`\n${formatRoundReport({ round, plan: store.state.open, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
 
     // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
@@ -326,6 +332,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     if (evaluation.winnersHit.length || evaluation.teamWinners.length) session.roundsWithWin += 1;
     log(`${round.name} settled and saved.`);
     log(formatCarried(store.state));
+    await fire('onSettled', { state: store.state, sixNil: evaluation.winnersHit.length > 0, round, evaluation });
     log(sessionLine(session));
     return { status: 'SETTLED' };
   }
@@ -347,6 +354,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     if (evaluation.unresolved.length > 0) {
       return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `Still no result for: ${evaluation.unresolved.join(', ')}. Read them in My Bets and use settle-laliga.js.` };
     }
+    if (evaluation.winnersHit.length > 0) await fire('onSixNil', { winners: evaluation.winnersHit, rows: evaluation.rows.filter((row) => row.kind === 'winner' && row.won), round });
     log(`\n${formatRoundReport({ round, placed, evaluation, results, teams: {}, notPlaced: [], wonNotPlaced: [] })}  [source: ${source}]`);
     // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
     const bigWinners = evaluation.teamWinners.filter((code) => ((store.state.open.bigStakes || {})[code] || 0) > 0);
@@ -358,6 +366,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     if (evaluation.winnersHit.length || evaluation.teamWinners.length) session.roundsWithWin += 1;
     log(`${round.name} settled and saved.`);
     log(formatCarried(store.state));
+    await fire('onSettled', { state: store.state, sixNil: evaluation.winnersHit.length > 0, round, evaluation });
     log(sessionLine(session));
     return { status: 'SETTLED', session };
   }
