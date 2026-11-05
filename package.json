@@ -25,7 +25,16 @@
     "automation:betking:probe": "node automation/betkingProbe.js",
     "automation:betking:run": "node automation/betkingRun.js",
     "automation:betking:open": "node automation/betkingOpen.js",
-    "automation:betking:markets": "node automation/betkingMarkets.js"
+    "automation:betking:markets": "node automation/betkingMarkets.js",
+    "laliga": "bash start-laliga.sh dry",
+    "laliga:play": "bash start-laliga.sh play",
+    "laliga:one": "bash start-laliga.sh one",
+    "laliga:resume": "bash start-laliga.sh resume",
+    "laliga:scan": "bash start-laliga.sh scan",
+    "laliga:sync-setup": "node laliga-sync.js setup",
+    "laliga:sync-status": "node laliga-sync.js status",
+    "laliga:push": "node laliga-sync.js push",
+    "laliga:pull": "node laliga-sync.js pull"
   },
   "eslintConfig": {
     "extends": [
