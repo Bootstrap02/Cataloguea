@@ -20,3 +20,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# La Liga sync settings (URL and key - keep out of GitHub)
+laliga-sync.json
