@@ -1,13 +1,13 @@
- #!/bin/bash
+#!/bin/bash
 
  git add .
-  echo "git add ."
+ echo "git add ."
 
-  git commit -m "changes  from claude"
-  echo "changes from claude"
+ git commit -m "changes  from claude"
+ echo "changes from claude"
 
-  git push origin automation-build
+ git push origin main
 
-  echo "git push origin automation-build"
+ echo "git push origin main"
 
-  echo "git push finished" 
+ echo "git push finished" 
