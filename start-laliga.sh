@@ -10,6 +10,9 @@
 set -u
 cd "$(dirname "$0")" || exit 1
 MODE="${1:-play}"
+shift || true
+# anything else you type after the mode is passed on, e.g.  bash start-laliga.sh play --no-sync   or   --account second
+EXTRA=("$@")
 
 if ! command -v node >/dev/null 2>&1; then echo "Node.js is not installed or not on the PATH."; exit 1; fi
 [ -f laliga-run.js ] || { echo "laliga-run.js not found here. Run this from the project folder."; exit 1; }
@@ -35,13 +38,13 @@ confirm_real_money() {
 }
 
 case "$MODE" in
-  play)   confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --forever ;;
-  one)    confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --rounds 1 ;;
-  dry)    exec node laliga-run.js ;;
-  resume) exec node laliga-run.js --resume ;;
+  play)   confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --forever ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  one)    confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --rounds 1 ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  dry)    exec node laliga-run.js ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  resume) exec node laliga-run.js --resume ${EXTRA[@]+"${EXTRA[@]}"} ;;
   scan)   exec node laliga-scan.js ;;
   sync-setup) exec node laliga-sync.js setup ;;
-  push)   shift; exec node laliga-sync.js push "$@" ;;
-  pull)   shift; exec node laliga-sync.js pull "$@" ;;
+  push)   exec node laliga-sync.js push ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  pull)   exec node laliga-sync.js pull ${EXTRA[@]+"${EXTRA[@]}"} ;;
   *)      echo "Unknown mode '$MODE'. Use: play | one | dry | resume | scan"; exit 1 ;;
 esac

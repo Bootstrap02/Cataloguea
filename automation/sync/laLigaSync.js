@@ -27,7 +27,7 @@ function createSyncClient({ url, key, deviceId, fetchImpl = globalThis.fetch, ti
     try {
       const response = await fetchImpl(`${base}${pathName}`, {
         method,
-        headers: { 'content-type': 'application/json', 'x-sync-key': key },
+        headers: key ? { 'content-type': 'application/json', 'x-sync-key': key } : { 'content-type': 'application/json' },   // the key is optional
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
@@ -51,7 +51,7 @@ function createSyncClient({ url, key, deviceId, fetchImpl = globalThis.fetch, ti
   };
 }
 
-const problemOf = (response) => (response.status === 401 ? 'the sync key is wrong' : response.status === 503 ? 'the server has no LALIGA_SYNC_KEY set up' : `server answered ${response.status}${response.body?.message ? `: ${response.body.message}` : ''}`);
+const problemOf = (response) => (response.status === 401 ? 'the server wants a sync key and the one given is wrong (or missing)' : `server answered ${response.status}${response.body?.message ? `: ${response.body.message}` : ''}`);
 
 // io: { readState(), writeState(state), readMeta(), writeMeta(meta), backupState(label) }
 function createSyncManager({ client, io, log = () => {}, deviceId = 'this-device', now = () => new Date().toISOString() }) {
@@ -126,6 +126,13 @@ function createSyncManager({ client, io, log = () => {}, deviceId = 'this-device
     return conflict('The server holds an OLDER version than this device last saw (was the server reset?).');
   }
 
+  // Has this device got changes the server has not seen? (no network needed)
+  function unsent() {
+    const local = io.readState();
+    const meta = io.readMeta();
+    return Boolean(local && (!meta || hashState(local) !== meta.hash));
+  }
+
   async function status() {
     const local = io.readState();
     const meta = io.readMeta();
@@ -142,7 +149,7 @@ function createSyncManager({ client, io, log = () => {}, deviceId = 'this-device
     };
   }
 
-  return { push, pull, startup, status };
+  return { push, pull, startup, status, unsent };
 }
 
 module.exports = { createSyncClient, createSyncManager, hashState, stableStringify };

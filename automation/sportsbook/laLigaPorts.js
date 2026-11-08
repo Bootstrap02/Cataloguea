@@ -7,6 +7,7 @@ const path = require('node:path');
 const reader = require('./laLigaReader');
 const { readMatchClock, parsePanelText, parseResultForFixture, squash, createResultsModalReader, setResultsCaptureDirectory } = require('./betkingResultsModal');
 const { readSettledBets, settledResultsFor } = require('./myBetsReader');
+const { parseBalance } = require('./betkingMarketFlow');
 const { readBoard } = require('./liveBoard');
 const { compareSlipToExpected } = require('../strategy/marketFirstSequence');
 
@@ -175,6 +176,8 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
   return {
     ensureLiga, readUpcomingRound, readWinnerOdds, readTeamOdds, placeBet, captureEvidence, readLiveResults,
     readBoard: () => readBoard(page),
+    // the balance in the page header: it tells which account is logged in (shown on the panel while paused)
+    readBalance: async () => parseBalance(await page.evaluate(() => document.body.innerText || '')),
     // Click the league tab (it reads LIVE during the matches): it brings the live view with all ten scores forward.
     showLive: async () => { await reader.switchToLiga(page); await page.waitForTimeout(800); },
     // Only the La Liga tab's own clock. Off La Liga there is no valid clock (the Premier League has its own).

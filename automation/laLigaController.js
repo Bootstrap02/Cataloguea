@@ -29,7 +29,56 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
   };
   let stopRequested = false;
   const session = { rounds: 0, staked: 0, returned: 0, roundsWithWin: 0 };
-  const stopNow = () => { stopRequested = true; };
+  // ---- controls: pause, continue, stop ---------------------------------------------------------------------------
+  // A round that has bets placed is always finished and settled first, so these act BETWEEN rounds:
+  //   pause()      after the round in hand, nothing new is placed until unpause()
+  //   requestStop() after the round in hand, the run ends
+  //   abort()      stop at once (a placed round stays open and is dealt with at the next start)
+  let stopAfterRound = false;
+  let paused = false;
+  let pauseReported = false;
+  let phase = 'starting';
+  let currentRound = null;
+  let lastReport = '';
+  const setPhase = (value) => { phase = value; };
+  const requestStop = () => { stopAfterRound = true; };
+  const abortNow = () => { stopRequested = true; };
+  const pause = () => { paused = true; };
+  const unpause = () => { paused = false; };
+  const stopping = () => stopRequested || stopAfterRound;
+  const logReport = (text) => { lastReport = String(text).trim(); log(text); };
+
+  async function holdIfPaused() {
+    while (paused && !stopping()) {
+      if (!pauseReported) {
+        pauseReported = true;
+        setPhase('paused');
+        log('PAUSED between rounds. Nothing is placed until you press Continue.');
+        await fire('onPaused', { state: store.state, session });
+      }
+      await sleep(500);
+    }
+    if (pauseReported) {
+      pauseReported = false;
+      if (!stopping()) {
+        log('Continuing.');
+        await fire('onResumed', { state: store.state });
+      }
+    }
+  }
+
+  function status() {
+    const count = (map) => Object.values(map || {}).filter(Boolean).length;
+    const state = stopRequested ? 'stopping now' : stopAfterRound ? 'stopping after this round' : paused ? (pauseReported ? 'paused' : 'pausing after this round') : 'running';
+    const memory = store.state;
+    return {
+      state, phase, round: currentRound, session: { ...session }, lastReport,
+      strategy: {
+        winners: memory.winners, bases: memory.bases, teamsWithDeficit: count(memory.privateDef), bigDeficits: count(memory.bigDef),
+        bank: memory.bank, roundsSettled: (memory.settledRounds || []).length, openRound: Boolean(memory.open),
+      },
+    };
+  }
   // Optional things to do at big moments (a tone, a sync). A hook that fails never stops the run.
   async function fire(name, payload) {
     if (typeof hooks[name] !== 'function') return;
@@ -40,7 +89,9 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
   async function waitForRound() {
     let lastLog = 0;
     for (;;) {
-      if (stopRequested) return null;
+      if (stopping()) return null;
+      await holdIfPaused();
+      if (stopping()) return null;
       const round = await ports.readUpcomingRound();
       if (round && round.secondsLeft !== null && round.secondsLeft >= cfg.minStartSeconds) return round;
       if (now() - lastLog > 10000) {
@@ -260,9 +311,14 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
 
   // ---- 5. one round ---------------------------------------------------------------------------
   async function playRound() {
+    setPhase('waiting for the next round');
+    await holdIfPaused();
+    if (stopping()) return { status: 'STOPPED' };
     await ports.ensureLiga();
     const round = await waitForRound();
     if (!round) return { status: 'STOPPED' };
+    currentRound = { name: round.name, number: round.number };
+    setPhase('reading the odds');
     round.readAt = round.readAt ?? now();
     const winnerOdds = await ports.readWinnerOdds(round, store.state.winners);
     const { teams, missing } = await ports.readTeamOdds(round);
@@ -290,6 +346,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       return { status: 'SKIPPED' };
     }
 
+    setPhase('placing bets');
     log('\nPlacing:');
     const { placed, notPlaced, halted } = await placeAll(round, bets);
     const placedWinners = placed.filter((bet) => bet.kind === 'winner').map((bet) => bet.code);
@@ -307,9 +364,11 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     store.state = markPlacement(store.state, { placedWinners, placed, round: { name: round.name, number: round.number, matches: round.matches } });
     store.save();
 
+    setPhase('watching the matches');
     const watched = await watch(round, placed);
     if (watched.stopped) return { status: 'STOPPED', note: 'Stopped while watching; the round stays open (bets are placed).' };
     if (watched.failed) return { status: 'HALTED', code: watched.failed, reason: 'The league countdown never reached zero. Bets are placed; check My Bets.' };
+    setPhase('reading the results');
     const { results, source } = await collectResults(round, placed, watched.live);
     const evaluation = evaluatePlaced(placed, results);
     if (evaluation.unresolved.length > 0) {
@@ -320,7 +379,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     const wonNotPlaced = allWon.filter((code) => !placed.some((bet) => bet.code === code && bet.kind === 'team'));
     const readAll = round.matches.every((match) => results[`${match.home}-${match.away}`]);
     if (evaluation.winnersHit.length > 0) await fire('onSixNil', { winners: evaluation.winnersHit, rows: evaluation.rows.filter((row) => row.kind === 'winner' && row.won), round });
-    log(`\n${formatRoundReport({ round, plan: store.state.open, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
+    logReport(`\n${formatRoundReport({ round, plan: store.state.open, placed, evaluation, results, teams, notPlaced, wonNotPlaced })}  [source: ${source}]${readAll ? '' : '\n  (some fixtures without a bet could not be read, so "won but not placed" may be incomplete)'}`);
 
     // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
     const bigWinners = evaluation.teamWinners.filter((code) => ((store.state.open.bigStakes || {})[code] || 0) > 0);
@@ -334,6 +393,8 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
     log(formatCarried(store.state));
     await fire('onSettled', { state: store.state, sixNil: evaluation.winnersHit.length > 0, round, evaluation });
     log(sessionLine(session));
+    setPhase('round settled; waiting for the next one');
+    currentRound = null;
     return { status: 'SETTLED' };
   }
 
@@ -355,7 +416,7 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       return { status: 'HALTED', code: 'RESULTS_UNAVAILABLE', reason: `Still no result for: ${evaluation.unresolved.join(', ')}. Read them in My Bets and use settle-laliga.js.` };
     }
     if (evaluation.winnersHit.length > 0) await fire('onSixNil', { winners: evaluation.winnersHit, rows: evaluation.rows.filter((row) => row.kind === 'winner' && row.won), round });
-    log(`\n${formatRoundReport({ round, placed, evaluation, results, teams: {}, notPlaced: [], wonNotPlaced: [] })}  [source: ${source}]`);
+    logReport(`\n${formatRoundReport({ round, placed, evaluation, results, teams: {}, notPlaced: [], wonNotPlaced: [] })}  [source: ${source}]`);
     // The bet placed for an option is its normal stake PLUS its big stake in one ticket, so when it wins both are repaid.
     const bigWinners = evaluation.teamWinners.filter((code) => ((store.state.open.bigStakes || {})[code] || 0) > 0);
     store.state = settleRound(store.state, { winnersHit: evaluation.winnersHit, teamWinners: evaluation.teamWinners, bigWinners });
@@ -372,7 +433,13 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
   }
 
   // ---- 6. forever ------------------------------------------------------------------------------
-  async function run({ forever = false, maxRounds = 1, resumeOpen = false } = {}) {
+  async function run({ forever = false, maxRounds = 1, resumeOpen = false, resumeIfOpen = false } = {}) {
+    // resumeIfOpen: if a round with placed bets was left unsettled (a crash, a power cut), read its result and settle
+    // it first, then carry on; with nothing left open it just carries on. (resumeOpen is the same but must find one.)
+    if (resumeIfOpen && store.state.open && Array.isArray(store.state.open.placed) && store.state.open.placed.length > 0) {
+      const resumed = await resume();
+      if (resumed.status !== 'SETTLED') return resumed;
+    }
     if (resumeOpen) {
       const resumed = await resume();
       if (resumed.status !== 'SETTLED') return resumed;
@@ -388,19 +455,20 @@ function createLaLigaController({ ports, store, config = {}, log = console.log, 
       return { status: 'HALTED', code: 'ROUND_LEFT_OPEN', reason: `A previous round (${store.state.open.roundId}) was never settled. Check My Bets and settle it with settle-laliga.js (or --discard-open if nothing was placed).` };
     }
     for (let count = 0; forever || count < maxRounds; count += 1) {
-      if (stopRequested) break;
+      if (stopping()) break;
       const outcome = await playRound();
       if (outcome.status === 'HALTED' || outcome.status === 'STOPPED' || outcome.status === 'DRY_RUN') return { ...outcome, session };
     }
+    setPhase('stopped');
     log(`Stopped as you asked. ${sessionLine(session)}`);
     return { status: 'STOPPED', session };
   }
 
-  return Object.freeze({ run, playRound, resume, stop: stopNow, session });
+  return Object.freeze({ run, playRound, resume, stop: requestStop, abort: abortNow, pause, unpause, status, session });
 }
 
 function createMemoryStore(initial) {
-  return { state: initial ?? createState({ baseStake: 10000 }), save() {} };
+  return { state: initial ?? createState({ baseStake: 10000 }), save() {}, reload() {} };
 }
 
 module.exports = { createLaLigaController, createMemoryStore };

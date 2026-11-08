@@ -1,15 +1,23 @@
 // The La Liga run: Barcelona and Real Madrid 6-0 winners protected by the HT/FT options of the 20 teams.
-//   node laliga-run.js                    one round, DRY: reads the odds, shows the plan, places nothing
-//   (an unsettled round left over from an earlier run is set aside automatically; --halt-on-open refuses instead)
-//   node laliga-run.js --resume           settle a round left open (placed but never settled) from the results, then carry on
-//   AUTOMATION_ALLOW_REAL_MONEY=yes node laliga-run.js --rounds 3      three real rounds
-//   AUTOMATION_ALLOW_REAL_MONEY=yes node laliga-run.js --forever       round after round until you press Ctrl-C
-// Strategy state: automation/artifacts/laliga-state.json (fresh at 10000: 5000 for each winner).
-// No stake cap unless you set AUTOMATION_MAX_STAKE. Ctrl-C finishes the bet in hand, then stops.
+//
+//   node laliga-run.js                      one round, DRY: reads the odds, shows the plan, places nothing
+//   AUTOMATION_ALLOW_REAL_MONEY=yes node laliga-run.js --auto-confirm --forever     real bets, round after round
+//   ... --rounds 3        three real rounds         --resume     settle a round left open, then carry on
+//   ... --account second  use another saved BetKing login (its own browser profile)
+//   ... --start-paused    start, log in / check, and wait for Continue (used on a server)
+//   ... --resume-open    if a round with bets was left unsettled (crash, power cut), settle it first, then carry on
+//   ... --no-sync         do not talk to the backend this time
+// (npm run laliga:play does the real-money one for you; see README-LALIGA.md)
+//
+// WHILE IT RUNS you control it with single keys in this terminal, or with the buttons on the control page
+// (http://localhost:4545): Pause (after the round in hand; the state is sent to the server), Continue (the newest
+// state is fetched from the server first), Stop (after the round in hand), Send, Get.
+// Strategy state: automation/artifacts/laliga-state.json. No stake cap unless you set AUTOMATION_MAX_STAKE.
 
 process.env.AUTOMATION_MODE = 'betking-live';
 const fs = require('node:fs');
 const path = require('node:path');
+const readline = require('node:readline');
 const { createBetKingLiveConfig } = require('./automation/betkingLiveConfig');
 const { createMarketFlow } = require('./automation/sportsbook/betkingMarketFlow');
 const { createLaLigaPorts } = require('./automation/sportsbook/laLigaPorts');
@@ -18,6 +26,7 @@ const { createFileStore } = require('./automation/laLigaStore');
 const { celebrate } = require('./automation/notify');
 const { createSyncClient, createSyncManager } = require('./automation/sync/laLigaSync');
 const { createFileIo, loadSyncConfig, getDeviceId, defaultPaths } = require('./automation/sync/syncFiles');
+const { createControlPanel, keyAction } = require('./automation/control/controlPanel');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -30,27 +39,36 @@ async function main() {
   const resumeOnly = process.argv.includes('--resume') && !forever && !argValue('--rounds');
   const maxRounds = resumeOnly ? 0 : Number(argValue('--rounds') || 1);
   const baseStake = Number(process.env.AUTOMATION_BASE_STAKE) || 10000;
-  const stateFile = path.join(__dirname, 'automation', 'artifacts', process.argv.includes('--trial') ? 'laliga-state.trial.json' : 'laliga-state.json');
-  const runDir = path.join(__dirname, 'automation', 'artifacts', 'laliga-runs', new Date().toISOString().replace(/[:.]/g, '-'));
+  const trial = process.argv.includes('--trial');
+  const account = (argValue('--account') || '').replace(/[^a-z0-9_-]/gi, '');
+  const paths = defaultPaths(__dirname, trial);
+  const runDir = path.join(paths.artifacts, 'laliga-runs', new Date().toISOString().replace(/[:.]/g, '-'));
   fs.mkdirSync(runDir, { recursive: true });
+
+  // everything printed is also kept (the last 400 lines) for the control page
+  const logLines = [];
+  const log = (line) => {
+    console.log(line);
+    for (const part of String(line).split('\n')) logLines.push(part);
+    if (logLines.length > 400) logLines.splice(0, logLines.length - 400);
+  };
 
   if (config.allowRealMoney && !(config.autoConfirm || process.argv.includes('--auto-confirm'))) {
     console.error('Real bets need --auto-confirm (there are too many bets to confirm one by one). Example:\n  AUTOMATION_ALLOW_REAL_MONEY=yes node laliga-run.js --auto-confirm --forever');
     process.exit(1);
   }
-  // ---- keep the strategy memory in step with the server (so any device can carry on) -------------------------------
-  const trial = process.argv.includes('--trial');
-  const paths = defaultPaths(__dirname, trial);
+
+  // ---- keep the strategy memory in step with the server (so any device can carry on) -----------------------------
   const syncConfig = loadSyncConfig({ env: process.env, file: paths.configFile });
   const syncOn = syncConfig.configured && syncConfig.mode !== 'off' && !trial && !process.argv.includes('--no-sync');
   let syncManager = null;
   if (syncOn) {
     const deviceId = getDeviceId(paths.deviceFile);
-    syncManager = createSyncManager({ client: createSyncClient({ url: syncConfig.url, key: syncConfig.key, deviceId }), io: createFileIo(paths), log: (line) => console.log(line), deviceId });
+    syncManager = createSyncManager({ client: createSyncClient({ url: syncConfig.url, key: syncConfig.key, deviceId }), io: createFileIo(paths), log, deviceId });
     const start = await syncManager.startup();
-    if (start.status === 'pulled') console.log(`Sync: ${start.note || 'the newest strategy state was fetched from the server'} (version ${start.version}). Carrying on from it.`);
-    else if (start.status === 'pushed') console.log(`Sync: ${start.note} (version ${start.version}).`);
-    else if (start.status === 'ok') console.log(`Sync: this device is up to date${start.version ? ` (version ${start.version})` : ''}.`);
+    if (start.status === 'pulled') log(`Sync: ${start.note || 'the newest strategy state was fetched from the server'} (version ${start.version}). Carrying on from it.`);
+    else if (start.status === 'pushed') log(`Sync: ${start.note} (version ${start.version}).`);
+    else if (start.status === 'ok') log(`Sync: this device is up to date${start.version ? ` (version ${start.version})` : ''}.`);
     else {
       console.error(`\nSync: ${start.status === 'conflict' ? 'CONFLICT. ' : start.status === 'unreachable' ? 'cannot reach the server. ' : 'problem. '}${start.message || ''}`);
       if (start.status === 'conflict') console.error('  Use the server\'s version:   npm run laliga:pull\n  Use this device\'s version:  npm run laliga:push -- --force\nThen start again.');
@@ -58,24 +76,28 @@ async function main() {
       process.exit(2);
     }
   } else {
-    console.log(`Sync: ${process.argv.includes('--no-sync') ? 'switched off for this run' : 'not set up (npm run laliga:sync-setup to turn it on)'}.`);
+    log(`Sync: ${process.argv.includes('--no-sync') ? 'switched off for this run' : 'not set up (npm run laliga:sync-setup to turn it on)'}.`);
   }
-  const store = createFileStore({ file: stateFile, baseStake });
-  console.log(`La Liga run (${config.allowRealMoney ? 'REAL MONEY: bets WILL be placed' : 'DRY: nothing will be placed'}; stake cap: ${Number.isFinite(config.maxStake) ? `N${config.maxStake}` : 'none'}).`);
-  console.log(`${store.existed ? 'Continuing the strategy state' : 'No strategy state yet; starting fresh at base stake ' + baseStake} (${stateFile}). Evidence: ${runDir}`);
 
-  // The window: 1280x800 by default; AUTOMATION_VIEWPORT=420x900 gives the phone-sized page the first La Liga run used.
+  const store = createFileStore({ file: paths.stateFile, baseStake });
+  log(`La Liga run (${config.allowRealMoney ? 'REAL MONEY: bets WILL be placed' : 'DRY: nothing will be placed'}; stake cap: ${Number.isFinite(config.maxStake) ? `N${config.maxStake}` : 'none'}).`);
+  log(`${store.existed ? 'Continuing the strategy state' : 'No strategy state yet; starting fresh at base stake ' + baseStake} (${paths.stateFile}). Evidence: ${runDir}`);
+
+  // ---- the browser (each --account has its own saved login) -------------------------------------------------------
   const viewportMatch = /^(\d{3,4})x(\d{3,4})$/.exec(process.env.AUTOMATION_VIEWPORT || '');
   const viewport = viewportMatch ? { width: Number(viewportMatch[1]), height: Number(viewportMatch[2]) } : { width: 1280, height: 800 };
+  const profileDir = account ? `${config.profileDir}-${account}` : config.profileDir;
+  log(`Browser login profile: ${account ? `"${account}"` : 'main'} (${profileDir}). To use another BetKing account: Pause, log out and in inside the browser window, Continue; or start with --account <name>.`);
   const { chromium } = require('playwright');
-  const context = await chromium.launchPersistentContext(config.profileDir, {
+  const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, channel: config.browserChannel, timeout: config.browserLaunchTimeoutMs, viewport, slowMo: config.slowMoMs,
   });
   const page = context.pages()[0] || await context.newPage();
   const flow = createMarketFlow({ page, config });
   const ports = createLaLigaPorts({ page, flow, runDir, targetUrl: config.targetUrl });
+
   const controller = createLaLigaController({
-    ports, store, log: (line) => console.log(line),
+    ports, store, log,
     hooks: {
       // the moment a 6-0 is known: a tone, a pop-up and a banner
       onSixNil: async ({ rows }) => {
@@ -85,35 +107,107 @@ async function main() {
       onSettled: async ({ sixNil }) => {
         if (!syncManager || (syncConfig.mode === 'win' && !sixNil)) return;
         const sent = await syncManager.push({ reason: sixNil ? 'six-nil-win' : 'round' });
-        if (sent.ok) console.log(`  Sync: strategy state sent to the server (version ${sent.version}).`);
-        else console.log(`  Sync: NOT sent (${sent.conflict ? 'another device saved a newer state' : sent.error}). It is sent again after the next round, or run npm run laliga:push.`);
+        if (sent.ok) log(`  Sync: strategy state sent to the server (version ${sent.version}).`);
+        else log(`  Sync: NOT sent (${sent.conflict ? 'another device saved a newer state' : sent.error}). It is sent again after the next round, or use Send.`);
+      },
+      // Pause: everything is sent to the server first, so a new device or a new account can carry on from it
+      onPaused: async () => {
+        if (!syncManager) return;
+        if (!syncManager.unsent()) { log('  Sync: the server already has everything.'); return; }
+        const sent = await syncManager.push({ reason: 'pause' });
+        log(sent.ok ? `  Sync: everything sent to the server (version ${sent.version}).` : `  Sync: NOT sent (${sent.conflict ? 'another device saved a newer state' : sent.error}).`);
+      },
+      // Continue: the newest state is fetched from the server first (if another device played in between)
+      onResumed: async () => {
+        if (!syncManager) return;
+        const start = await syncManager.startup();
+        if (start.status === 'pulled') { store.reload(); log(`  Sync: a newer state was fetched from the server (version ${start.version}). Carrying on from it.`); }
+        else if (start.status === 'pushed') log('  Sync: this device\'s changes were sent to the server.');
+        else if (start.status !== 'ok') {
+          log(`  Sync: ${start.status}${start.message ? `: ${start.message}` : ''}. Staying paused. Use "Get from server" or "Send to server", then Continue.`);
+          controller.pause();
+        }
       },
     },
     config: { haltOnOpen: process.argv.includes('--halt-on-open'), allowRealMoney: config.allowRealMoney, baseStake, matchSeconds: config.matchSeconds, liveIntervalMs: config.liveTrackIntervalMs },
   });
+  if (process.argv.includes('--start-paused')) controller.pause();
+
+  // ---- the controls: terminal keys and the control page ------------------------------------------------------------
+  const actions = {
+    pause: async () => { controller.pause(); return { ok: true, message: 'Pausing: the round in hand is finished and settled first, then nothing new is placed.' }; },
+    resume: async () => { controller.unpause(); return { ok: true, message: 'Continuing.' }; },
+    stop: async () => { controller.stop(); return { ok: true, message: 'Stopping after the round in hand.' }; },
+    'stop-now': async () => { controller.abort(); return { ok: true, message: 'Stopping now (a round with bets placed stays open).' }; },
+    push: async () => {
+      if (!syncManager) return { ok: false, message: 'Sync is not set up (npm run laliga:sync-setup).' };
+      const sent = await syncManager.push({ reason: 'manual' });
+      return { ok: sent.ok, message: sent.ok ? `Sent to the server (version ${sent.version}).` : `Not sent: ${sent.conflict ? 'another device saved a newer state (use laliga:pull, or push --force)' : sent.error}` };
+    },
+    pull: async () => {
+      if (!syncManager) return { ok: false, message: 'Sync is not set up (npm run laliga:sync-setup).' };
+      if (controller.status().state !== 'paused') return { ok: false, message: 'Pause first, and wait until it says "paused".' };
+      const pulled = await syncManager.pull();
+      if (pulled.ok) store.reload();
+      return { ok: pulled.ok, message: pulled.ok ? `Fetched version ${pulled.version} from the server.` : `Not fetched: ${pulled.error}` };
+    },
+    help: async () => { log(HELP); return { ok: true, message: 'Keys are listed in the terminal.' }; },
+  };
+  const HELP = 'Keys:  p = pause after this round   c = continue   s = stop after this round   x = stop now   u = send state to the server   d = get state from the server (when paused)';
+
+  const panelOption = String(process.env.AUTOMATION_PANEL_PORT ?? '4545').toLowerCase();
+  let panel = null;
+  if (panelOption !== 'off') {
+    panel = createControlPanel({
+      controller, actions, getLog: () => logLines, port: Number(panelOption) || 4545,
+      extras: async () => ({
+        account: account || 'main',
+        sync: syncManager ? syncConfig.mode : 'off',
+        balance: controller.status().state === 'paused' ? await ports.readBalance().catch(() => null) : null,
+      }),
+    });
+    try { const port = await panel.start(); log(`Control page: http://localhost:${port}  (buttons: Pause, Continue, Stop, Send, Get)`); }
+    catch (error) { log(`(The control page could not start: ${error.message}. The keys below still work.)`); panel = null; }
+  }
+  log(HELP);
+
   let interrupts = 0;
-  // Ctrl-C and `systemctl stop` (SIGTERM) both ask for a safe stop: finish the step in hand, then stop.
-  process.on('SIGTERM', () => { console.log('\nStop requested (SIGTERM): finishing the current step safely.'); controller.stop(); });
-  process.on('SIGINT', () => {
+  const interrupt = () => {
     interrupts += 1;
-    if (interrupts > 1) process.exit(130);
-    console.log('\nStop requested: finishing the current step safely (press Ctrl-C again to quit at once).');
-    controller.stop();
-  });
+    if (interrupts === 1) { log('\nStop requested: the round in hand is finished and settled first (Ctrl-C again to stop at once).'); controller.stop(); }
+    else if (interrupts === 2) { log('\nStopping now.'); controller.abort(); }
+    else process.exit(130);
+  };
+  // `systemctl stop` (SIGTERM) asks for the same safe stop as the first Ctrl-C
+  process.on('SIGTERM', () => { log('\nStop requested (SIGTERM): the round in hand is finished and settled first.'); controller.stop(); });
+  process.on('SIGINT', interrupt);
+  if (process.stdin.isTTY) {
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.on('keypress', async (text, key) => {
+      if (key && key.ctrl && key.name === 'c') return interrupt();
+      const action = keyAction(text);
+      if (!action || !actions[action]) return undefined;
+      try { const result = await actions[action](); if (action !== 'help') log(`> ${result.message}`); } catch (error) { log(`> ${error.message}`); }
+      return undefined;
+    });
+  }
 
   let exitCode = 0;
   try {
     await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForSelector('[data-testid="league-round"]', { timeout: 20000 }).catch(() => {});
     await flow.clearOverlays().catch(() => {});
-    const outcome = await controller.run({ forever, maxRounds, resumeOpen: process.argv.includes('--resume') });
-    console.log(`\nRun finished: ${outcome.status}${outcome.code ? ` (${outcome.code})` : ''}${outcome.reason ? `\n${outcome.reason}` : ''}`);
+    const outcome = await controller.run({ forever, maxRounds, resumeOpen: process.argv.includes('--resume'), resumeIfOpen: process.argv.includes('--resume-open') });
+    log(`\nRun finished: ${outcome.status}${outcome.code ? ` (${outcome.code})` : ''}${outcome.reason ? `\n${outcome.reason}` : ''}`);
     if (outcome.status === 'HALTED') exitCode = 2;
   } catch (error) {
     console.error(`\nSTOPPED by an error: ${error.message}`);
     await ports.captureEvidence('error');
     exitCode = 1;
   } finally {
+    if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (error) { /* closing anyway */ } }
+    if (panel) await panel.stop().catch(() => {});
     await context.close();
   }
   process.exit(exitCode);

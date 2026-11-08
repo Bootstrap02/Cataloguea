@@ -37,7 +37,7 @@ function loadSyncConfig({ env = process.env, file }) {
   const url = env.LALIGA_API_URL || saved.url || '';
   const key = env.LALIGA_SYNC_KEY || saved.key || '';
   const mode = String(env.LALIGA_SYNC || saved.mode || 'round').toLowerCase();
-  return { configured: Boolean(url && key), url, key, mode: ['round', 'win', 'off'].includes(mode) ? mode : 'round' };
+  return { configured: Boolean(url), url, key, mode: ['round', 'win', 'off'].includes(mode) ? mode : 'round' };
 }
 
 function saveSyncConfig(file, config) {

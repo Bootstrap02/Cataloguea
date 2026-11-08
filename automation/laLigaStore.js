@@ -17,6 +17,8 @@ function createFileStore({ file, baseStake = 10000 }) {
       fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`);
       fs.renameSync(temporary, file);
     },
+    // read the file again (after the sync fetched a newer state from the server)
+    reload() { if (fs.existsSync(file)) state = JSON.parse(fs.readFileSync(file, 'utf8')); },
     existed: fs.existsSync(file),
   };
   return store;

@@ -1,0 +1,25 @@
+[Unit]
+Description=Cataloguea La Liga automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=/bin/bash __DIR__/deploy/oracle/run-server.sh
+# a crash (exit 1) is restarted after 30 seconds, but not in a loop: at most 4 times in 15 minutes
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=900
+StartLimitBurst=4
+# exit code 2 = the run HALTED on purpose (for example a bet could not be confirmed): a person must look first
+RestartPreventExitStatus=2
+# "stop" asks the automation to finish the round in hand and settle it; the virtual screen stays up until it is done
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=420
+Environment=AUTOMATION_PANEL_PORT=4545
+
+[Install]
+WantedBy=multi-user.target

@@ -33,10 +33,10 @@ const describeSummary = (summary) => (summary ? `${summary.teamsWithDeficit} tea
   if (command === 'setup') {
     const existing = loadSyncConfig({ env: {}, file: paths.configFile });
     const url = (await ask(`Server address (the address of your backend, e.g. https://your-backend.vercel.app)${existing.url ? ` [${existing.url}]` : ''}: `)) || existing.url;
-    const key = (await ask(`Sync key (the LALIGA_SYNC_KEY you set on the backend)${existing.key ? ' [keep the saved one: press Enter]' : ''}: `)) || existing.key;
+    const key = (await ask(`Sync key, ONLY if you set LALIGA_SYNC_KEY on the backend (otherwise just press Enter)${existing.key ? ' [saved one kept: press Enter]' : ''}: `)) || existing.key || '';
     const modeAnswer = (await ask('Send the state after [r]ound (every settled round, recommended) or only after a 6-0 [w]in? [r]: ')).toLowerCase();
     const mode = modeAnswer.startsWith('w') ? 'win' : 'round';
-    if (!url || !key) { console.error('Both the address and the key are needed.'); process.exit(1); }
+    if (!url) { console.error('The server address is needed.'); process.exit(1); }
     const client = createSyncClient({ url, key, deviceId: getDeviceId(paths.deviceFile) });
     try {
       const response = await client.getState();

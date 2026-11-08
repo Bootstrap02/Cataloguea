@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { odds } from "./Scores";
@@ -333,57 +332,17 @@ const Homepage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const home = sanitizeTeam(inputA) || "ars";
-    const away = sanitizeTeam(inputB) || "ars";
-    const found = odds.find(o => o.home === home && o.away === away);
-    if (!found) { alert(`No odds for ${home} vs ${away}`); return; }
+    const result = submitFixtureByTeams(inputA, inputB);
+    if (!result.ok) alert(result.reason);
+  };
 
-    setFixture(found);
-    setClicked(new Set());
-    setWinners(new Set());
-    setBigWinners(new Set());
-
-    /* ── 6-0 winner stake → smallDeficit ── */
-    const newBase = baseStake + deficit;
-    setBaseStake(newBase);
-    setDeficit(0);
-    const wStake = Math.max(Math.round(newBase / found.winner), 10);
-    setWinnerStake(wStake);
-
-    /* Sync small Deficit and Shadow instantly together at all times */
-    const curSD = smallDeficit + wStake;
-    setSmallDeficit(curSD);
-    setShadow(curSD);
-
-    /* ── Solo stakes: each asset independent ── */
-    const newStakes = emptyMap();
-    ALL_ASSETS.forEach(key => {
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        const bt  = brokenTarget[key] || 0;
-        const pd  = privateDef[key]   || 0;
-        newStakes[key] = Math.round((bt + curSD + pd) / (odd - 1));
-      }
-    });
-    setGameStakes(newStakes);
-
-    /* ── Big deficit stakes: bigDef[key] / odd ── */
-    const newBigStakes = {};
-    const newBrokenFromBig = { ...brokenTarget };
-    ALL_ASSETS.forEach(key => {
-      if ((bigDef[key] || 0) === 0) return;
-      const odd = found[ASSET_ODD_KEY[key]] || 0;
-      if (odd > 1.01) {
-        newBigStakes[key] = Math.round((bigDef[key] || 0) / odd);
-        /* Distribute stake/10 immediately into every asset's brokenTarget */
-        const share = Math.floor(newBigStakes[key] / 10);
-        if (share > 0) {
-          ALL_ASSETS.forEach(k => { newBrokenFromBig[k] = (newBrokenFromBig[k] || 0) + share; });
-        }
-      }
-    });
-    setBigStakes(newBigStakes);
-    setBrokenTarget(newBrokenFromBig);
+  // Automation entry point: refuses while a fixture is already active (never replaces it).
+  const submitFixtureForAutomation = ({ home, away } = {}) => {
+    if (fixture) {
+      return { ok: false, code: "FIXTURE_ALREADY_SUBMITTED", reason: "A fixture is already active.", fixture: { ...fixture } };
+    }
+    const result = submitFixtureByTeams(home, away);
+    return result.ok ? result : { ...result, code: "NO_ODDS_FOR_FIXTURE" };
   };
 
   const markWin    = (key) => {

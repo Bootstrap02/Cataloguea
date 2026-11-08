@@ -332,3 +332,119 @@ test('when the page jumps to the Premier League the loop goes back to La Liga an
   assert.match(text, /Kick-off! The countdown reached zero/);
   assert.match(text, /settled and saved/);
 });
+
+test('a 6-0 triggers the win hook at once and the settled hook after saving; a failing hook never stops the run', async () => {
+  const site = makeSite({ results: { 'BAR-RMA': { ht: [3, 0], ft: [6, 0] } } });
+  const calls = [];
+  const hooks = {
+    onSixNil: async (info) => { calls.push(['sixNil', info.winners, info.rows[0].odds]); },
+    onSettled: async (info) => { calls.push(['settled', info.sixNil, info.state.open]); throw new Error('network down'); },
+  };
+  const logs = [];
+  const store = createMemoryStore(createState({ baseStake: 10000 }));
+  const controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log: (line) => logs.push(line), sleep: site.sleep, now: site.now, hooks });
+  const outcome = await controller.run();
+  assert.equal(outcome.status, 'STOPPED');
+  assert.deepEqual(calls[0], ['sixNil', ['BAR'], 476]);
+  assert.deepEqual(calls[1], ['settled', true, null], 'the state was already settled and saved when the hook ran');
+  assert.match(logs.join('\n'), /\(onSettled failed: network down\)/);
+  assert.equal(store.state.settledRounds.length, 1);
+});
+
+test('no 6-0 means no win hook, but the settled hook still runs after every round', async () => {
+  const site = makeSite({ results: { 'BAR-RMA': { ht: [0, 0], ft: [1, 1] } } });
+  const calls = [];
+  const hooks = { onSixNil: async () => calls.push('sixNil'), onSettled: async (info) => calls.push(`settled:${info.sixNil}`) };
+  const store = createMemoryStore(createState({ baseStake: 10000 }));
+  const controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log() {}, sleep: site.sleep, now: site.now, hooks });
+  await controller.run();
+  assert.deepEqual(calls, ['settled:false']);
+});
+
+test('pause finishes the round in hand, then waits; continue carries on; the hooks fire (send state on pause, fetch on continue)', async () => {
+  const site = makeSite();
+  const events = [];
+  const logs = [];
+  const store = createMemoryStore(createState({ baseStake: 10000 }));
+  let controller;
+  const hooks = {
+    onPaused: async () => { events.push('paused'); controller.unpause(); },
+    onResumed: async () => { events.push('resumed'); },
+    onSettled: async () => { events.push('settled'); },
+  };
+  controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log: (line) => logs.push(line), sleep: site.sleep, now: site.now, hooks });
+  // ask for a pause while the first round is being played, and a stop once the second round has started
+  const original = site.ports.readWinnerOdds;
+  let rounds = 0;
+  site.ports.readWinnerOdds = async (...args) => {
+    rounds += 1;
+    if (rounds === 1) controller.pause();
+    if (rounds === 2) controller.stop();
+    return original(...args);
+  };
+  const outcome = await controller.run({ forever: true });
+  const text = logs.join('\n');
+  assert.equal(outcome.status, 'STOPPED', text);
+  assert.deepEqual(events.slice(0, 3), ['settled', 'paused', 'resumed'], 'the round was settled BEFORE the pause took effect');
+  assert.match(text, /PAUSED between rounds/);
+  assert.match(text, /Continuing\./);
+  assert.equal(outcome.session.rounds, 2, 'the second round was played after continuing, and finished before stopping');
+});
+
+test('stop finishes the round in hand and then ends; abort leaves a placed round open', async () => {
+  const site = makeSite();
+  const store = createMemoryStore(createState({ baseStake: 10000 }));
+  const controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log() {}, sleep: site.sleep, now: site.now });
+  const original = site.ports.readWinnerOdds;
+  site.ports.readWinnerOdds = async (...args) => { controller.stop(); return original(...args); };
+  const outcome = await controller.run({ forever: true });
+  assert.equal(outcome.status, 'STOPPED');
+  assert.equal(outcome.session.rounds, 1, 'the round in hand was finished and settled');
+  assert.equal(store.state.open, null);
+});
+
+test('the status shows what the run is doing, for the control panel', async () => {
+  const site = makeSite();
+  const store = createMemoryStore(createState({ baseStake: 10000 }));
+  const controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log() {}, sleep: site.sleep, now: site.now });
+  const seen = [];
+  const original = site.ports.placeBet;
+  site.ports.placeBet = async (arg) => { seen.push(controller.status()); return original(arg); };
+  assert.equal(controller.status().state, 'running');
+  await controller.run();
+  assert.equal(seen[0].phase, 'placing bets');
+  assert.equal(seen[0].round.name, 'Week 14');
+  assert.equal(controller.status().phase, 'stopped');
+  assert.match(controller.status().lastReport, /RESULTS Week 14/);
+  controller.pause();
+  assert.equal(controller.status().state, 'pausing after this round');
+  controller.stop();
+  assert.equal(controller.status().state, 'stopping after this round');
+});
+
+test('--resume-open settles a round that was left with placed bets, then carries on; with nothing open it just carries on', async () => {
+  const { planRound, markPlacement } = require('./strategy/laLigaStrategy');
+  const build2 = () => {
+    const site = makeSite({ liveReadable: true });
+    site.ports.readMyBets = async (round, fixtures) => Object.fromEntries(fixtures.map(({ home, away }) => [`${home}-${away}`, { ft: { home: 0, away: 1 }, ht: { home: 0, away: 0 } }]));
+    return site;
+  };
+  // 1) a round was left open with a placed bet
+  let site = build2();
+  let logs = [];
+  let store = createMemoryStore(createState());
+  let state = planRound(createState(), { roundId: 'Week 3@old', winnerOdds: { BAR: 161, RMA: 167 }, teamOdds: {} });
+  store.state = markPlacement(state, { placedWinners: ['BAR'], placed: [{ key: 'BAR', kind: 'winner', code: 'BAR', side: 'AWAY', fixture: { home: 'LEV', away: 'BAR' }, selection: '0-6', stake: 31, odds: 161 }] });
+  let controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log: (line) => logs.push(line), sleep: site.sleep, now: site.now });
+  let outcome = await controller.run({ resumeIfOpen: true, maxRounds: 1 });
+  assert.equal(outcome.status, 'STOPPED', logs.join('\n'));
+  assert.match(logs.join('\n'), /Resuming Week 3: 1 placed bet\(s\)/);
+  assert.equal(store.state.settledRounds.length, 2, 'the old round was settled, then a new one was played');
+  assert.equal(store.state.quashed ?? undefined, undefined, 'nothing was thrown away');
+  // 2) nothing open: carries on normally
+  site = build2(); logs = []; store = createMemoryStore(createState());
+  controller = createLaLigaController({ ports: site.ports, store, config: { allowRealMoney: true }, log: (line) => logs.push(line), sleep: site.sleep, now: site.now });
+  outcome = await controller.run({ resumeIfOpen: true, maxRounds: 1 });
+  assert.equal(outcome.status, 'STOPPED');
+  assert.equal(store.state.settledRounds.length, 1);
+});
