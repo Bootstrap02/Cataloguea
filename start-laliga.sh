@@ -34,7 +34,8 @@ confirm_real_money() {
   echo "This places REAL bets on BetKing automatically, with no stake cap."
   echo "Before you continue: log in to BetKing in the browser window it opens (it remembers you), and leave that window alone."
   read -r -p "Type YES to start: " answer
-  [ "$answer" = "YES" ] || { echo "Not started."; exit 0; }
+  answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"   # yes, Yes and YES all count
+  { [ "$answer" = "yes" ] || [ "$answer" = "y" ]; } || { echo "Not started (you typed something other than yes)."; exit 0; }
 }
 
 case "$MODE" in

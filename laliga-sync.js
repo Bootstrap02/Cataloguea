@@ -64,7 +64,7 @@ const describeSummary = (summary) => (summary ? `${summary.teamsWithDeficit} tea
     const version = value('--version');
     if (!flag('--yes')) {
       const answer = await ask(`This replaces this device's strategy state with the server's${version ? ` (version ${version})` : ' newest'}. A backup of the current one is kept. Type YES: `);
-      if (answer !== 'YES') { console.log('Cancelled.'); return; }
+      if (!/^\s*(y|yes)\s*$/i.test(answer)) { console.log('Cancelled.'); return; }
     }
     const pulled = await manager.pull({ version: version ? Number(version) : null });
     if (pulled.ok) console.log(`Done. This device now has ${pulled.restoredVersion ? `version ${pulled.restoredVersion}` : `the server's version ${pulled.version}`} (${describeSummary(pulled.summary)}). ${pulled.backedUp ? 'Your old state was backed up in automation/artifacts/backups/.' : ''}`.trim());
