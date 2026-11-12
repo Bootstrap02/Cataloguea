@@ -133,6 +133,7 @@ function createBetKingLiveConfig(environment = process.env) {
     maxStake: environment.AUTOMATION_MAX_STAKE ? readInteger(environment, 'AUTOMATION_MAX_STAKE', 1000, { maximum: 10_000_000 }) : Infinity,
     autoConfirm: environment.AUTOMATION_AUTO_CONFIRM === 'true',
     placeObserveMs: readInteger(environment, 'AUTOMATION_PLACE_OBSERVE_MS', 8000),
+    placeGraceMs: readInteger(environment, 'AUTOMATION_PLACE_GRACE_MS', 10000),
   });
 }
 

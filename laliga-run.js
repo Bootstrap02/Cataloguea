@@ -68,7 +68,16 @@ async function main() {
   if (syncOn) {
     const deviceId = getDeviceId(paths.deviceFile);
     syncManager = createSyncManager({ client: createSyncClient({ url: syncConfig.url, key: syncConfig.key, deviceId }), io: createFileIo(paths), log, deviceId });
-    const start = await syncManager.startup();
+    let start = await syncManager.startup();
+    // Before any money is involved, a dropped connection (or a sleeping free-tier server, which can take up to a minute
+    // to wake) is retried every 5 seconds instead of ending the start. LALIGA_SYNC_WAIT_MS changes the 30 seconds.
+    const syncWaitMs = Number(process.env.LALIGA_SYNC_WAIT_MS ?? 30000);
+    const syncGiveUpAt = Date.now() + syncWaitMs;
+    for (let attempt = 2; start.status === 'unreachable' && Date.now() < syncGiveUpAt; attempt += 1) {
+      log(`Sync: cannot reach the server (${start.message || 'no answer'}). Trying again in 5 seconds (attempt ${attempt}, up to ${Math.round(syncWaitMs / 1000)}s in all).`);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      start = await syncManager.startup();
+    }
     if (start.status === 'pulled') log(`Sync: ${start.note || 'the newest strategy state was fetched from the server'} (version ${start.version}). Carrying on from it.`);
     else if (start.status === 'pushed') log(`Sync: ${start.note} (version ${start.version}).`);
     else if (start.status === 'ok') log(`Sync: this device is up to date${start.version ? ` (version ${start.version})` : ''}.`);
@@ -165,6 +174,52 @@ async function main() {
     help: async () => { log(HELP); return { ok: true, message: 'Keys are listed in the terminal.' }; },
   };
   const HELP = 'Keys:  p = pause after this round   c = continue   s = stop after this round   x = stop now   u = send state to the server   d = get state from the server (when paused)';
+
+  // ---- SAVE = BETTING ON HOLD ---------------------------------------------------------------------------------------
+  // Whenever you save (key u, the Send button, a remote save, npm), no new bet is placed until the server has answered,
+  // so the state that is saved is the state at rest. A failed save is tried once more after 10 seconds (still on hold).
+  let saveInFlight = null;
+  const rawPush = actions.push;
+  actions.push = async () => {
+    while (saveInFlight) await saveInFlight;
+    let release;
+    saveInFlight = new Promise((resolve) => { release = resolve; });
+    log('  Save: no new bets are placed until the server answers.');
+    try {
+      const withLimit = () => Promise.race([rawPush(), new Promise((resolve) => setTimeout(() => resolve({ ok: false, message: 'Not sent: the server did not answer in 30 seconds.' }), 30000))]);
+      let result = await withLimit();
+      if (!result.ok && !/newer state|not set up/i.test(result.message)) {
+        log(`  Save did not go through (${result.message}). Trying once more in 10 seconds; betting stays on hold.`);
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+        result = await withLimit();
+      }
+      log(result.ok ? '  Save finished: betting continues.' : '  Save FAILED: betting continues anyway. Fix the connection and press u again.');
+      return result;
+    } finally { saveInFlight = null; release(); }
+  };
+  const rawPlaceBet = ports.placeBet;
+  ports.placeBet = async (arg) => {
+    if (saveInFlight) { log('  Waiting for the save to finish before placing the next bet.'); while (saveInFlight) await saveInFlight; }
+    return rawPlaceBet(arg);
+  };
+
+  // ---- PAGE STUCK = RELOAD AND TRY AGAIN ------------------------------------------------------------------------------
+  // A read that fails (slow API, slow page, a blip) waits up to 10 seconds for the network, reloads the La Liga page and
+  // reads again, up to twice. Only the page reloads; the run's plan, round and record stay. Placing bets has its own
+  // version of this inside the ports (it never clicks PLACE BET twice without checking the balance first).
+  for (const name of ['readUpcomingRound', 'readWinnerOdds', 'readTeamOdds', 'readResultsWindow']) {
+    const raw = ports[name];
+    if (typeof raw !== 'function') continue;
+    ports[name] = async (...args) => {
+      for (let attempt = 1; ; attempt += 1) {
+        try { return await raw(...args); } catch (error) {
+          if (attempt >= 3 || /log ?in|sign-?in/i.test(error.message)) throw error;
+          log(`  ${name} hit a problem (${String(error.message).split('\n')[0]}). Reloading the page and trying again (${attempt}/2).`);
+          await ports.reloadLiga().catch((reloadError) => log(`  Reload problem: ${String(reloadError.message).split('\n')[0]}`));
+        }
+      }
+    };
+  }
 
   // Remote save / pause: you send a command to the backend from anywhere, and this run carries it out within seconds.
   let commandPoller = null;

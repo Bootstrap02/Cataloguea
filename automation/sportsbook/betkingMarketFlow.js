@@ -894,6 +894,21 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
       await pause(1500);
       await observe();
     }
+    // NETWORK GRACE. A bad connection can swallow the confirmation. Before giving up, keep watching for a further
+    // 10 seconds (AUTOMATION_PLACE_GRACE_MS) for the site's text or the balance drop. This NEVER clicks PLACE BET
+    // again: a second click could place a second, real bet.
+    let offlineSeen = false;
+    const graceMs = config.placeGraceMs ?? 10000;
+    if (verdict === 'SUBMITTED_UNCONFIRMED' && graceMs > 0) {
+      let graceEnd = Date.now() + graceMs;
+      while (verdict === 'SUBMITTED_UNCONFIRMED' && Date.now() < graceEnd) {
+        const online = await page.evaluate(() => navigator.onLine).catch(() => true);
+        if (!online) offlineSeen = true;
+        await pause(500);
+        try { if (await observe()) break; } catch (error) { /* the page may be reloading: look again */ }
+        if (pendingNow) graceEnd = Math.max(graceEnd, Math.min(hardDeadline, Date.now() + 3000));
+      }
+    }
     if (onEvidence) await onEvidence('after-place');
     if (verdict === 'ACCEPTED_BY_SITE_TEXT') {
       // The site's "Bet Placed - You're in the game, Good luck!" window (owner recording, Oct 23 2026)
@@ -906,7 +921,7 @@ function createMarketFlow({ page, config = {}, selectors = {} } = {}) {
     }
     return {
       status: verdict,
-      evidence: { clickedAt, confirmedBy, waitedMs: Date.now() - startedWaiting, pendingSeen, balanceBefore, staleConfirmationOnScreen: stillShowedConfirmation, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
+      evidence: { clickedAt, confirmedBy, waitedMs: Date.now() - startedWaiting, pendingSeen, offlineSeen, graceMs, balanceBefore, staleConfirmationOnScreen: stillShowedConfirmation, newLines: newLines.slice(0, 20), siteConfirmationText: verdict === 'ACCEPTED_BY_SITE_TEXT' ? newLines.join(' | ').slice(0, 300) : null },
     };
   }
 
