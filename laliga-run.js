@@ -27,6 +27,7 @@ const { celebrate } = require('./automation/notify');
 const { createSyncClient, createSyncManager } = require('./automation/sync/laLigaSync');
 const { createFileIo, loadSyncConfig, getDeviceId, defaultPaths } = require('./automation/sync/syncFiles');
 const { createControlPanel, keyAction } = require('./automation/control/controlPanel');
+const { createEventsClient, buildWinEvents, emailWins, startCommandPoller } = require('./automation/sync/backendEvents');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -62,6 +63,8 @@ async function main() {
   const syncConfig = loadSyncConfig({ env: process.env, file: paths.configFile });
   const syncOn = syncConfig.configured && syncConfig.mode !== 'off' && !trial && !process.argv.includes('--no-sync');
   let syncManager = null;
+  // the 6-0 email and the remote save/pause commands go through the same backend address and key
+  const eventsClient = syncOn ? createEventsClient({ url: syncConfig.url, key: syncConfig.key }) : null;
   if (syncOn) {
     const deviceId = getDeviceId(paths.deviceFile);
     syncManager = createSyncManager({ client: createSyncClient({ url: syncConfig.url, key: syncConfig.key, deviceId }), io: createFileIo(paths), log, deviceId });
@@ -104,11 +107,19 @@ async function main() {
         await celebrate({ title: '6-0 WIN!', lines: rows.map((row) => `${row.code} ${row.side === 'HOME' ? '6-0' : '0-6'} at ${row.fixture.home} v ${row.fixture.away}: N${row.stake} @ ${row.odds} returns N${Math.round(row.stake * row.odds)}`) });
       },
       // after the round is settled and saved: send the newest strategy state to the server
-      onSettled: async ({ sixNil }) => {
-        if (!syncManager || (syncConfig.mode === 'win' && !sixNil)) return;
-        const sent = await syncManager.push({ reason: sixNil ? 'six-nil-win' : 'round' });
-        if (sent.ok) log(`  Sync: strategy state sent to the server (version ${sent.version}).`);
-        else log(`  Sync: NOT sent (${sent.conflict ? 'another device saved a newer state' : sent.error}). It is sent again after the next round, or use Send.`);
+      onSettled: async ({ sixNil, round, evaluation, state }) => {
+        let savedVersion = null;
+        let saveError = null;
+        if (syncManager && !(syncConfig.mode === 'win' && !sixNil)) {
+          const sent = await syncManager.push({ reason: sixNil ? 'six-nil-win' : 'round' });
+          if (sent.ok) { savedVersion = sent.version; log(`  Sync: strategy state sent to the server (version ${sent.version}).`); }
+          else { saveError = sent.conflict ? 'another device saved a newer state' : sent.error; log(`  Sync: NOT sent (${saveError}). It is sent again after the next round, or use Send.`); }
+        }
+        // a 6-0: the backend emails you the full details (and says whether the state is saved), after the save above
+        if (sixNil && eventsClient) {
+          const events = buildWinEvents({ round, rows: evaluation.rows, state, savedVersion, saveError });
+          await emailWins({ client: eventsClient, events, log });
+        }
       },
       // Pause: everything is sent to the server first, so a new device or a new account can carry on from it
       onPaused: async () => {
@@ -154,6 +165,16 @@ async function main() {
     help: async () => { log(HELP); return { ok: true, message: 'Keys are listed in the terminal.' }; },
   };
   const HELP = 'Keys:  p = pause after this round   c = continue   s = stop after this round   x = stop now   u = send state to the server   d = get state from the server (when paused)';
+
+  // Remote save / pause: you send a command to the backend from anywhere, and this run carries it out within seconds.
+  let commandPoller = null;
+  if (eventsClient && process.env.LALIGA_REMOTE !== 'off') {
+    commandPoller = startCommandPoller({
+      client: eventsClient, log,
+      actions: { save: actions.push, pause: actions.pause },
+    });
+    log('Remote commands: on (save and pause can be sent from the backend).');
+  }
 
   const panelOption = String(process.env.AUTOMATION_PANEL_PORT ?? '4545').toLowerCase();
   let panel = null;
@@ -207,6 +228,7 @@ async function main() {
     exitCode = 1;
   } finally {
     if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (error) { /* closing anyway */ } }
+    if (commandPoller) commandPoller.stop();
     if (panel) await panel.stop().catch(() => {});
     await context.close();
   }
