@@ -96,7 +96,7 @@ test('at start, a newer server state is pulled in when this device has no unsent
   assert.deepEqual(phone.files.backups, ['before-pull']);
 });
 
-test('when both devices changed, the start stops with a conflict instead of choosing', async () => {
+test('when both devices changed, the start never stops: the server wins and the old file is kept in backups', async () => {
   const fake = fakeServer();
   fake.server.fetchImpl = fake.fetchImpl;
   const laptop = device('laptop', fake.server);
@@ -108,11 +108,12 @@ test('when both devices changed, the start stops with a conflict instead of choo
   await laptop.manager.push({ reason: 'round' });
   phone.io.writeState(stateWith(7));      // the phone played on without syncing
   const outcome = await phone.manager.startup();
-  assert.equal(outcome.status, 'conflict');
-  assert.equal(phone.files.state.bank, 7, 'nothing was overwritten');
+  assert.equal(outcome.status, 'pulled');
+  assert.equal(phone.files.state.bank, 5, 'the server\'s state replaced the unsent one');
+  assert.deepEqual(phone.files.backups, ['before-pull'], 'the unsent file was kept');
   const forced = await phone.manager.push({ reason: 'manual', force: true });
   assert.equal(forced.ok, true);
-  assert.equal(fake.server.doc.state.bank, 7);
+  assert.equal(fake.server.doc.state.bank, 5);
 });
 
 test('unsent changes from the last session are sent at the next start (catch-up)', async () => {
@@ -127,7 +128,7 @@ test('unsent changes from the last session are sent at the next start (catch-up)
   assert.equal(fake.server.doc.state.bank, 4);
 });
 
-test('a local state that was never synced while the server has another is a conflict; the wrong key and a dead network are reported plainly', async () => {
+test('a local state that was never synced while the server has another is replaced by the server\'s; the wrong key and a dead network are reported plainly', async () => {
   const fake = fakeServer();
   fake.server.fetchImpl = fake.fetchImpl;
   const laptop = device('laptop', fake.server);
@@ -135,7 +136,7 @@ test('a local state that was never synced while the server has another is a conf
   await laptop.manager.startup();
   const phone = device('phone', fake.server);
   phone.io.writeState(stateWith(8));      // an old, never-synced file on the phone
-  assert.equal((await phone.manager.startup()).status, 'conflict');
+  assert.equal((await phone.manager.startup()).status, 'pulled');
   const wrong = device('thief', fake.server);
   wrong.manager = createSyncManager({ client: createSyncClient({ url: 'https://example.test', key: 'nope', deviceId: 'x', fetchImpl: fake.fetchImpl }), io: wrong.io });
   const bad = await wrong.manager.startup();

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the La Liga automation.
-#   bash start-laliga.sh            plays round after round until you press Ctrl-C (asks you to confirm first)
+#   bash start-laliga.sh            plays round after round until you press Ctrl-C (starts at once, no question)
 #   bash start-laliga.sh dry        reads the odds and shows the plan for one round; places NOTHING
 #   bash start-laliga.sh one        plays ONE real round, then stops
 #   bash start-laliga.sh resume     settles a round that was left open (reads its result), then stops
@@ -30,12 +30,9 @@ echo "Checking the installation..."
 node check-install.js | tail -1
 
 confirm_real_money() {
+  # No question any more: it starts at once. Log in to BetKing in the browser window if it asks (it remembers you).
   echo
-  echo "This places REAL bets on BetKing automatically, with no stake cap."
-  echo "Before you continue: log in to BetKing in the browser window it opens (it remembers you), and leave that window alone."
-  read -r -p "Type YES to start: " answer
-  answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"   # yes, Yes and YES all count
-  { [ "$answer" = "yes" ] || [ "$answer" = "y" ]; } || { echo "Not started (you typed something other than yes)."; exit 0; }
+  echo "Starting: REAL bets on BetKing, no stake cap. Leave the browser window alone."
 }
 
 case "$MODE" in

@@ -180,6 +180,11 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     const secondsLeftNow = () => round.secondsLeft - (Date.now() - round.readAt) / 1000;
     let clicked = false;
     let odds = bet.odds;
+    // Where does the time of each bet go? One short line per placed bet shows it (AUTOMATION_TIMING=off hides it).
+    const marks = [Date.now()];
+    const labels = [];
+    const mark = (label) => { labels.push(label); marks.push(Date.now()); };
+    const timingLine = () => `${labels.map((label, i) => `${label} ${((marks[i + 1] - marks[i]) / 1000).toFixed(1)}`).join(' | ')} = ${((marks[marks.length - 1] - marks[0]) / 1000).toFixed(1)}s`;
     // The page got stuck BEFORE PLACE BET was clicked (slow page, slow network): reload and try this same bet again.
     const stuck = async (reason) => {
       const left = secondsLeftNow();
@@ -210,21 +215,25 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
     };
     let balanceBeforeClick = null;
     try {
-      await ensureLiga();
+      if (!onLiga()) await ensureLiga();   // the full page check only when the page really is elsewhere (it costs a second or more)
+      mark('page');
       const opened = await flow.openMarketCategory(bet.category, fixture, { market: bet.market });
       if (opened.status !== 'MARKET_CATEGORY_OPENED') return stuck(`open ${bet.category}: ${opened.status}`);
       const identified = await flow.identifyMarketSelection(bet.selection, fixture);
       if (identified.status !== 'MARKET_SELECTION_IDENTIFIED') return stuck(`find ${bet.selection}: ${identified.status}`);
       odds = identified.odds;
+      mark('market+odd');
       if (bet.odds > 1 && Math.abs(identified.odds - bet.odds) / bet.odds > maxOddsDrift) return fail(`odds moved from ${bet.odds} to ${identified.odds}`);
       const leftover = await flow.readSlipSummary();
       if (leftover.count > 0) await resetSlipQuietly();
       const added = await flow.selectOdd(bet.selection, { ...fixture }, identified.odds);
       if (added.status !== 'SELECTION_ADDED') return stuck(`add selection: ${added.status}`);
+      mark('add');
       const slipOpen = await flow.openBetSlip();
       if (slipOpen.status !== 'BET_SLIP_OPEN') return stuck(`open slip: ${slipOpen.status}`);
       const entered = await flow.enterStake(bet.stake);
       if (entered.status !== 'STAKE_ENTERED') return stuck(`enter stake: ${entered.status}`);
+      mark('slip+stake');
       const slip = await flow.readSlipPage();
       const expected = { home: bet.fixture.home, away: bet.fixture.away, market: bet.market, selection: bet.selection, stake: bet.stake, odds: identified.odds, week: round.number };
       const check = compareSlipToExpected({ slip, expected, minSecondsRemaining: 15 });
@@ -233,13 +242,24 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
         return fail(`slip does not match: ${check.problems.join(', ')}`);
       }
       balanceBeforeClick = await page.evaluate(() => document.body.innerText || '').then(parseBalance).catch(() => null);
+      mark('verify');
       clicked = true;   // from here on a failure may hide a bet that exists
-      const placed = await flow.placeBet({ minSecondsRemaining: 15, onEvidence: async (label) => captureEvidence(`${bet.key}-${label}`) });
+      // Screenshots cost about a second each, so a bet that goes well takes none (AUTOMATION_EVIDENCE=all brings them back).
+      const placed = await flow.placeBet({ minSecondsRemaining: 15, onEvidence: process.env.AUTOMATION_EVIDENCE === 'all' ? async (label) => captureEvidence(`${bet.key}-${label}`) : null });
+      mark('click+confirm');
       if (placed.status === 'ACCEPTED_BY_SITE_TEXT') {
-        try { await flow.dismissBetPlaced(); } catch (error) { /* the next bet clears the window */ }
-        const closed = await flow.closeBetSlip();
-        if (closed.status !== 'BET_SLIP_CLOSED') await resetSlipQuietly();
-        await ensureLiga().catch(() => {});   // the confirmation sends the page back to the Premier League
+        // Each of these steps is only done when it is needed: the flow has already pressed CONTINUE on the "Bet Placed"
+        // window, and waiting 3 seconds for a window that is already gone was a big part of the delay.
+        const windowStill = await page.evaluate(() => /bet placed|you'?re in the game/i.test(document.body.innerText || '')).catch(() => false);
+        if (windowStill) { try { await flow.dismissBetPlaced(); } catch (error) { /* the next bet clears the window */ } }
+        const slipStill = await flow.readSlipPage().then((parsed) => parsed.isBetSlipPage).catch(() => false);
+        if (slipStill) {
+          const closed = await flow.closeBetSlip();
+          if (closed.status !== 'BET_SLIP_CLOSED') await resetSlipQuietly();
+        }
+        if (!onLiga()) await ensureLiga().catch(() => {});   // the confirmation can send the page back to the Premier League
+        mark('after');
+        if (process.env.AUTOMATION_TIMING !== 'off') log(`    time ${bet.key}: ${timingLine()}`);
         return { status: 'PLACED', odds: identified.odds };
       }
       if (placed.status === 'REJECTED_BY_SITE_TEXT') {
@@ -250,6 +270,7 @@ function createLaLigaPorts({ page, flow, runDir, targetUrl, log = console.log, m
           log(`  The site showed an error window after PLACE BET (${shown.slice(0, 90)}). Reloading the page at once and checking the balance.`);
           return afterUnclear(placed.evidence?.balanceBefore ?? balanceBeforeClick, '. The site showed an error window.');
         }
+        await captureEvidence(`rejected-${bet.key}`);
         await reloadLiga().catch(() => {});   // clears any window the site left on the screen
         return fail(`the site rejected the bet: ${shown.slice(0, 120)}`);
       }

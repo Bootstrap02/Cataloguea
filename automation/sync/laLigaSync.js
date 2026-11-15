@@ -4,7 +4,7 @@
 //  * a push builds on the version this device last saw; if another device saved since, the server refuses (conflict)
 //    and nothing is overwritten;
 //  * at every start the server is asked first: if it holds a newer state and this device has no unsent changes, the
-//    newer state is pulled in (a backup of the old one is kept); if both changed, it stops and tells you;
+//    newer state is pulled in (a backup of the old one is kept); if both changed, the SERVER's state wins (the old file is kept in backups) and the start never stops;
 //  * pushes happen after every settled round (and at once on a 6-0 win), or by hand.
 
 const crypto = require('node:crypto');
@@ -111,19 +111,25 @@ function createSyncManager({ client, io, log = () => {}, deviceId = 'this-device
       return pulled.ok ? { status: 'pulled', version: pulled.version, summary: pulled.summary } : { status: 'error', message: pulled.error };
     }
     const localChanged = !meta || hashState(local) !== meta.hash;
-    const conflict = (why) => ({ status: 'conflict', message: why, serverVersion: server.version, serverDeviceId: server.deviceId, serverReason: server.reason, updatedAt: server.updatedAt });
-    if (!meta) return conflict('This device has a strategy state that was never synced, and the server also has one.');
+    // No conflict ever stops a start: the server's state replaces this device's (pull() first keeps a copy of the old file in backups).
+    const serverWins = async (note) => {
+      const pulled = await pull();
+      return pulled.ok ? { status: 'pulled', version: pulled.version, summary: pulled.summary, note } : { status: 'error', message: pulled.error };
+    };
+    if (!meta) return serverWins('this device had a state that was never synced, so the server\'s state replaced it (the old file is kept in backups)');
     if (meta.version === server.version) {
       if (!localChanged) return { status: 'ok', version: server.version };
       const sent = await push({ reason: 'catch-up' });
-      return sent.ok ? { status: 'pushed', version: sent.version, note: 'changes from the last session were sent' } : (sent.conflict ? conflict(sent.error) : { status: 'error', message: sent.error });
+      return sent.ok ? { status: 'pushed', version: sent.version, note: 'changes from the last session were sent' } : (sent.conflict ? serverWins('another device saved at the same moment, so the server\'s state replaced this one (the old file is kept in backups)') : { status: 'error', message: sent.error });
     }
     if (server.version > meta.version) {
-      if (localChanged) return conflict('Another device saved a newer state, and this device also has changes that were never sent.');
+      if (localChanged) return serverWins(`another device saved a newer state (from ${server.deviceId || 'another device'}), so it replaced this device's unsent changes (the old file is kept in backups)`);
       const pulled = await pull();
       return pulled.ok ? { status: 'pulled', version: pulled.version, summary: pulled.summary, note: `the server had a newer state (from ${server.deviceId || 'another device'}, ${server.reason || 'sync'})` } : { status: 'error', message: pulled.error };
     }
-    return conflict('The server holds an OLDER version than this device last saw (was the server reset?).');
+    // The server holds an OLDER version than this device last saw (was it reset?): pulling would lose data, so this device's state goes up.
+    const restored = await push({ reason: 'server-was-older', force: true });
+    return restored.ok ? { status: 'pushed', version: restored.version, note: 'the server held an older state than this device had seen (was it reset?), so this device\'s state was sent' } : { status: restored.unreachable ? 'unreachable' : 'error', message: restored.error };
   }
 
   // Has this device got changes the server has not seen? (no network needed)
