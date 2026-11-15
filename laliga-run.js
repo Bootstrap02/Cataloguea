@@ -82,9 +82,8 @@ async function main() {
     else if (start.status === 'pushed') log(`Sync: ${start.note} (version ${start.version}).`);
     else if (start.status === 'ok') log(`Sync: this device is up to date${start.version ? ` (version ${start.version})` : ''}.`);
     else {
-      console.error(`\nSync: ${start.status === 'conflict' ? 'CONFLICT. ' : start.status === 'unreachable' ? 'cannot reach the server. ' : 'problem. '}${start.message || ''}`);
-      if (start.status === 'conflict') console.error('  Use the server\'s version:   npm run laliga:pull\n  Use this device\'s version:  npm run laliga:push -- --force\nThen start again.');
-      else console.error('  Fix the connection, or start without syncing:  add --no-sync (only if you are sure this device has the newest state).');
+      console.error(`\nSync: ${start.status === 'unreachable' ? 'cannot reach the server. ' : 'problem. '}${start.message || ''}`);
+      console.error('  Fix the connection, or start without syncing:  add --no-sync (only if you are sure this device has the newest state).');
       process.exit(2);
     }
   } else {
