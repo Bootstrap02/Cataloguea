@@ -36,7 +36,8 @@ confirm_real_money() {
 }
 
 case "$MODE" in
-  play)   confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --forever ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  # play = the daily cycle: work until 23:59, finish the round, save, rest, and start again every 72 hours (laliga-cycle.js)
+  play)   confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-cycle.js --auto-confirm --forever ${EXTRA[@]+"${EXTRA[@]}"} ;;
   one)    confirm_real_money; AUTOMATION_ALLOW_REAL_MONEY=yes exec node laliga-run.js --auto-confirm --rounds 1 ${EXTRA[@]+"${EXTRA[@]}"} ;;
   dry)    exec node laliga-run.js ${EXTRA[@]+"${EXTRA[@]}"} ;;
   resume) exec node laliga-run.js --resume ${EXTRA[@]+"${EXTRA[@]}"} ;;
