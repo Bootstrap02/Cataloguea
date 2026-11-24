@@ -7,9 +7,9 @@
 
 function createEventsClient({ url, key, fetchImpl = globalThis.fetch, timeoutMs = 15000 }) {
   const base = String(url).replace(/\/+$/, '');
-  async function request(method, pathName, body) {
+  async function request(method, pathName, body, callTimeoutMs = timeoutMs) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), callTimeoutMs);
     try {
       const response = await fetchImpl(`${base}${pathName}`, {
         method,
@@ -26,6 +26,10 @@ function createEventsClient({ url, key, fetchImpl = globalThis.fetch, timeoutMs 
   }
   return {
     sendWin: (event) => request('POST', '/betking/win', event),
+    sendLowBalance: (event) => request('POST', '/betking/low-balance', event),
+    sendLifecycle: (event) => request('POST', '/betking/lifecycle', event),
+    // wakes a sleeping free-tier server; waits up to 75 seconds because a cold start can take about a minute
+    wake: () => request('GET', '/betking/wake', undefined, 75000),
     getCommand: () => request('GET', '/betking/command'),
     ackCommand: (id) => request('DELETE', `/betking/command?id=${encodeURIComponent(id)}`),
   };
@@ -49,6 +53,12 @@ function buildWinEvents({ round, rows, state, savedVersion = null, saveError = n
   }));
 }
 
+// "email ok, telegram ok" for the log
+function channels(body) {
+  const word = (channel, name) => (!channel ? `${name} -` : channel.skipped ? `${name} not set up` : channel.ok ? `${name} ok` : `${name} FAILED`);
+  return `${word(body.email, 'email')}, ${word(body.telegram, 'telegram')}`;
+}
+
 async function emailWins({ client, events, log = () => {}, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), delaysMs = [0, 3000, 8000, 20000] }) {
   const outcomes = [];
   for (const event of events) {
@@ -59,17 +69,46 @@ async function emailWins({ client, events, log = () => {}, sleep = (ms) => new P
       const response = await client.sendWin(event);
       if (response.status === 200 && response.body?.ok) {
         const b = response.body;
-        log(b.sent ? `  Email sent: ${event.win.code} 6-0 at ${event.win.home} v ${event.win.away}.` : `  Email not needed: ${b.duplicate ? 'already sent before' : b.message || 'filtered'}.`);
+        log(b.sent ? `  Alert sent (${channels(b)}): ${event.win.code} 6-0 at ${event.win.home} v ${event.win.away}.` : `  Alert not needed: ${b.duplicate ? 'already sent before' : b.message || 'filtered'}.`);
         done = true; break;
       }
       last = `${response.status}${response.body?.message ? ` ${response.body.message}` : ''}`;
       if (response.status >= 400 && response.status < 500 && response.status !== 429) break;   // retrying will not help
     }
-    if (!done) log(`  EMAIL NOT SENT for ${event.win.code} (${last}). Check the 6-0 yourself; the state is still saved.`);
+    if (!done) log(`  ALERT NOT SENT for ${event.win.code} (${last}). Check the 6-0 yourself; the state is still saved.`);
     outcomes.push({ eventId: event.eventId, sent: done });
   }
   return outcomes;
 }
+
+// Low balance and started/resumed/ended: the same retry rules as the win alert (the event id never changes between tries).
+async function sendWithRetry({ send, event, okText, failText, log = () => {}, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), delaysMs = [0, 3000, 8000] }) {
+  let last = '';
+  for (const wait of delaysMs) {
+    if (wait) await sleep(wait);
+    const response = await send(event);
+    if (response.status === 200 && response.body?.ok) {
+      log(response.body.sent ? `  ${okText} (${channels(response.body)}).` : `  Not needed: ${response.body.duplicate ? 'already sent' : response.body.message || 'filtered'}.`);
+      return true;
+    }
+    last = `${response.status}${response.body?.message ? ` ${response.body.message}` : ''}`;
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) break;
+  }
+  log(`  ${failText} (${last}).`);
+  return false;
+}
+
+const emailLowBalance = ({ client, event, log }) => sendWithRetry({
+  send: client.sendLowBalance, event, log,
+  okText: `Low-balance alert sent for ${event.account.name} (N${event.balance})`,
+  failText: `LOW-BALANCE ALERT NOT SENT: the balance is N${event.balance}, check it yourself`,
+});
+
+const announceLifecycle = ({ client, event, log }) => sendWithRetry({
+  send: client.sendLifecycle, event, log,
+  okText: `${event.project} "${event.event}" notice sent`,
+  failText: `"${event.event}" notice NOT sent`,
+});
 
 // Watches for a command from the backend and runs it. `actions` = { save: async () => ..., pause: async () => ... }.
 function startCommandPoller({ client, actions, log = () => {}, intervalMs = 10000, setIntervalFn = setInterval, clearIntervalFn = clearInterval }) {
@@ -104,4 +143,4 @@ function startCommandPoller({ client, actions, log = () => {}, intervalMs = 1000
   return { tick, stop: () => clearIntervalFn(timer) };
 }
 
-module.exports = { createEventsClient, buildWinEvents, emailWins, startCommandPoller };
+module.exports = { createEventsClient, buildWinEvents, emailWins, emailLowBalance, announceLifecycle, startCommandPoller };

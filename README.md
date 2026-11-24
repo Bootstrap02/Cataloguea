@@ -1,161 +1,48 @@
-# Getting Started with Create React App
+# Cataloguea RESULTS RECORDER
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Reads the results of the four BetKing virtual leagues, keeps the record book, and turns it into signals (email + Telegram) using the
+rules of engagement. **It never places a bet, never types, never logs in.** It does not take odds: the odds collector (the other
+project) does that and uploads them to the shared database, and this program fetches them.
 
-## Available Scripts
+## Set up once (on your laptop to try it, then on Oracle)
+1. `npm install`   (and `npx playwright install chromium` only if Chrome is not installed)
+2. `npm run laliga:sync-setup`   (the backend address and the sync key: the SAME key the odds collector uses)
+3. The backend needs the odds routes (see the backend folder) and `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+4. **On Oracle:** the Oracle project (`cataloguea-oracle`) builds the server and runs `deploy/oracle/setup-server.sh` for you. See its RUNBOOK.md.
 
-In the project directory, you can run:
+## Run
+- `./launch.sh`                  records until Ctrl-C (starts at once, asks nothing)
+- `bash start-laliga.sh one`     ONE visit to every league, then stops. **Do this first and watch the browser.**
+- `bash start-laliga.sh server`  no browser window (on a laptop; the Oracle service uses a virtual screen instead, see deploy/oracle/run-server.sh)
+- `npm run table`                the PERCENTILE TABLE: every team x every stake option (CSV + a summary of what is closest to triggering)
+- `npm run report`               the charts (a CSV per league of how many seasons each option has missed)
+- `npm run check:betking`        can THIS machine reach BetKing? (run it on the Oracle server first)
+- on Oracle only: `deploy/oracle/watchdog.sh` checks every 10 minutes that the recorder is running AND recording, restarts it if stuck, and tells you by Telegram + email
+- `npm run test:observer`        35 focused recorder tests
 
-### `npm start`
+## What it does
+- Every 25 minutes (Bundesliga 12) it opens each league's Results window and records the rounds it has not recorded. The window keeps
+  only the last 10 rounds = 30 minutes (Bundesliga 15), so a visit that fails is retried after 2 minutes.
+- A season missing any week (a "GAP") is kept, but never counts as a season without a result, so it can never cause a false signal.
+- At start and then every 30 minutes (so also at 12 a.m. every day) it asks the database for the odds the collector completed, and keeps
+  them in its own local odds state. A new cycle replaces the old one.
+- THE PERCENTILE TABLE: for each team and each of the 22 stake options, the percentile = the average of the highest quarter of the team's
+  odds (38 odds -> the 10 biggest, 34 -> the 9 biggest). Bands of 8: 16 and below needs 2 seasons without the option and a stake target
+  of N500, 17-24 needs 3 and N1000, 25-32 needs 4 and N1500, ... The seasons keep growing, the stake stops at N2500. `multiplier` in
+  `automation/observer/rules-of-engagement/rules.json` multiplies the stakes. The table is rebuilt after every new odds cycle and every completed season.
+- When a row is TRIGGERED a signal goes out (email + Telegram) with the team's full name. It is sent once, and again only if it grows
+  (one more season missed) or the stake changes.
+- RETENTION: every day it checks the age of the records. When they span more than 183 days (about 6 months) the OLDEST 30 days are
+  removed, so about once a month. The newest records are never touched.
+- Own browser profile `observer`, never logged in to your betting account.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Where things are
+`automation/artifacts/observer/<epl|laliga|seriea|bundesliga>/`: matches.ndjson, state.json, odds.ndjson, percentile-table.csv/.json,
+charts.csv. `observer.log`. `evidence/` (screenshots and page text when a visit fails: send me these if a league fails).
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-# Betking-Automation
-
-## Local browser automation proof of concept
-
-Install project dependencies with `npm install`, then run `npm run automation:poc`.
-The proof of concept opens the local fixture in a visible Chrome/Chromium browser
-and saves a diagnostic screenshot under the ignored `automation/artifacts/` directory.
-
-## Real BetKing read-only inspection
-
-Run `npm run automation:betking:inspect` to open
-`https://m.betking.com/en-ng/virtuals/scheduled/leagues/kings-league` in a
-visible persistent Chromium profile and inspect the page through the BetKing
-adapter. This command is separate from `automation:poc`, which continues to
-open only the local fixture. It reports the observed rounds, fixtures, markets,
-odds, consent overlays, and access state; it does not select a betting outcome
-or submit a wager.
-
-The profile defaults to `~/.cataloguea/betking-profile`; override it with the
-absolute `AUTOMATION_BETKING_PROFILE_DIR` path if needed. On a visible terminal,
-if sign-in is required, sign in yourself in the browser and press Enter within
-the bounded two-minute wait. Credentials are never entered by automation.
-Profile data can contain authentication state and must remain private; it is
-outside the repository and must not be copied into source control. The
-inspection can pause for a user-controlled sign-in with
-`npm run automation:betking:inspect -- --manual-login`; without that flag it
-uses the existing persistent profile and reports an authentication gate.
-The inspection only dismisses a detected consent overlay when it offers an exact
-visible choice to reject optional cookies or allow necessary cookies only.
-Otherwise, it leaves the overlay unchanged and reports which market tabs could
-not be inspected.
-
-### Local automation configuration
-
-Automation defaults to the `local` environment, visible Chrome, a 15-second
-browser-launch timeout, a 5-second page timeout, and at most three recovery
-attempts. Optional environment overrides are validated by
-`automation/config.js`:
-
-| Variable | Default | Limit |
-| --- | --- | --- |
-| `AUTOMATION_ENVIRONMENT` | `local` | `local` or `test` only |
-| `AUTOMATION_BROWSER_HEADLESS` | `false` | `true` or `false` |
-| `AUTOMATION_BROWSER_CHANNEL` | `chrome` | `chrome` or `chromium` |
-| `AUTOMATION_BROWSER_LAUNCH_TIMEOUT_MS` | `15000` | 1–120000 |
-| `AUTOMATION_PAGE_TIMEOUT_MS` | `5000` | 1–120000 |
-| `AUTOMATION_NAVIGATION_TIMEOUT_MS` | `10000` | 1–120000 |
-| `AUTOMATION_NAVIGATION_WAIT_TIMEOUT_MS` | `500` | 1–120000 |
-| `AUTOMATION_CONDITION_TIMEOUT_MS` | `5000` | 1–120000 |
-| `AUTOMATION_BETKING_MANUAL_LOGIN_TIMEOUT_MS` | `120000` | 1–120000 |
-| `AUTOMATION_ACTION_TIMEOUT_MS` | `1000` | 1–120000 |
-| `AUTOMATION_RECOVERY_MAX_ATTEMPTS` | `3` | 1–10 |
-| `AUTOMATION_RECOVERY_BASE_DELAY_MS` | `100` | 1–120000 |
-| `AUTOMATION_BETKING_PROFILE_DIR` | `~/.cataloguea/betking-profile` | absolute path |
-
-The frontend backend URL already uses `REACT_APP_CATALOGUEA_API_BASE` and
-defaults to the existing Render `/betking` endpoint. CRA environment variables
-are bundled into browser code, so they must never contain secrets. `.env*` files
-are ignored by Git. Automation's live-site feature remains disabled and is not
-configurable through environment variables. Pass `diagnosticScreenshotPath` to
-an automation controller run to opt into a local screenshot on failure.
-
-## Stage 18 final acceptance summary
-
-Status: PASS for local deterministic validation and strategy safety checks.
-
-Architecture:
-- The existing Solo Matrix strategy remains the source of truth for stake and settlement logic.
-- Browser automation is isolated to a local visible Chrome fixture and uses explicit controller/state-machine checkpoints.
-- Recovery and persistence work only on local-run artifacts; no live betting action is created automatically.
-
-Strategy boundary:
-- Stake calculations are not duplicated in automation; strategy-owned instructions are consumed as-is.
-- Settlement remains gated on verified result and persisted state.
-- Duplicate action and duplicate settlement protection remain active.
-
-Backend and browser:
-- Local persistence writes checkpoints and result receipts through the runtime store.
-- Browser lifecycle, selectors, navigation, observation, cleanup, and bounded retries are verified by the automation tests.
-- No live BetKing automation is enabled or bypassed; the real-site path remains read-only and blocked by compliance constraints.
-
-Testing:
-- `npm run build` — passed.
-- `npm run automation:poc` — passed.
-- `npm run automation:test` — passed (97/97 assertions).
-- `git diff --check` — passed.
-
-Real-site status:
-- BetKing accessibility is not treated as automatic or permitted by default.
-- The project deliberately avoids any live-market interaction, CAPTCHA bypass, or automated wagering path.
-- The automation layer is safe to operate only against local fixtures and observed local state until explicit live-site clearance is documented.
+## Tested / not tested
+Tested: the parser, record book (resume, repeats, seasons, gaps), odds cycle, percentile table, rules, signals, retention, the
+collector -> database -> recorder hand-over, and this program in a real browser against a mock page built from your video.
+NOT tested: the real BetKing site (the first `one` run is the test), the Oracle server (run `check:betking` there), and whether the
+Results window opens without a login.
+**Never push `laliga-sync.json` to GitHub: it holds the sync key. It is in `.gitignore`.**

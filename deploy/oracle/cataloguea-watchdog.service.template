@@ -1,0 +1,7 @@
+[Unit]
+Description=Cataloguea recording watchdog
+
+[Service]
+Type=oneshot
+WorkingDirectory=__DIR__
+ExecStart=/bin/bash __DIR__/deploy/oracle/watchdog.sh

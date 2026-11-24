@@ -27,7 +27,10 @@ const { celebrate } = require('./automation/notify');
 const { createSyncClient, createSyncManager } = require('./automation/sync/laLigaSync');
 const { createFileIo, loadSyncConfig, getDeviceId, defaultPaths } = require('./automation/sync/syncFiles');
 const { createControlPanel, keyAction } = require('./automation/control/controlPanel');
-const { createEventsClient, buildWinEvents, emailWins, startCommandPoller } = require('./automation/sync/backendEvents');
+const { createEventsClient, buildWinEvents, emailWins, emailLowBalance, announceLifecycle, startCommandPoller } = require('./automation/sync/backendEvents');
+const { createBalanceMonitor } = require('./automation/sync/balanceMonitor');
+const { createDailyJobs, parseTimes, clockParts } = require('./automation/sync/dailyJobs');
+const { REST_EXIT, computeResumeAt, showTime, writeRest } = require('./automation/sync/restCycle');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -65,6 +68,13 @@ async function main() {
   let syncManager = null;
   // the 6-0 email and the remote save/pause commands go through the same backend address and key
   const eventsClient = syncOn ? createEventsClient({ url: syncConfig.url, key: syncConfig.key }) : null;
+  // Every alert names the project and the account. LALIGA_PROJECT_NAME and LALIGA_ACCOUNT_LABEL change the wording.
+  const projectName = process.env.LALIGA_PROJECT_NAME || 'Cataloguea La Liga';
+  const accountInfo = { name: account || 'main', label: process.env.LALIGA_ACCOUNT_LABEL || null, device: require('os').hostname() };
+  // "started / resumed / ended" notice (email + Telegram). It never holds anything up unless the caller waits for it.
+  const announce = (kind, detail) => (eventsClient
+    ? announceLifecycle({ client: eventsClient, log, event: { eventId: `${projectName}|${accountInfo.name}|${kind}|${Date.now()}`, project: projectName, event: kind, occurredAt: new Date().toISOString(), account: accountInfo, detail } })
+    : Promise.resolve(false));
   if (syncOn) {
     const deviceId = getDeviceId(paths.deviceFile);
     syncManager = createSyncManager({ client: createSyncClient({ url: syncConfig.url, key: syncConfig.key, deviceId }), io: createFileIo(paths), log, deviceId });
@@ -125,7 +135,7 @@ async function main() {
         }
         // a 6-0: the backend emails you the full details (and says whether the state is saved), after the save above
         if (sixNil && eventsClient) {
-          const events = buildWinEvents({ round, rows: evaluation.rows, state, savedVersion, saveError });
+          const events = buildWinEvents({ round, rows: evaluation.rows, state, savedVersion, saveError }).map((event) => ({ ...event, project: projectName, account: accountInfo }));
           await emailWins({ client: eventsClient, events, log });
         }
       },
@@ -138,6 +148,7 @@ async function main() {
       },
       // Continue: the newest state is fetched from the server first (if another device played in between)
       onResumed: async () => {
+        void announce('resumed', { message: 'Continued after a pause.' });   // not waited for: betting is not held up
         if (!syncManager) return;
         const start = await syncManager.startup();
         if (start.status === 'pulled') { store.reload(); log(`  Sync: a newer state was fetched from the server (version ${start.version}). Carrying on from it.`); }
@@ -230,6 +241,79 @@ async function main() {
     log('Remote commands: on (save and pause can be sent from the backend).');
   }
 
+  // ---- LOW BALANCE ALERT ------------------------------------------------------------------------------------------
+  // When the BetKing wallet is under N5,000 you get one email AND one Telegram message naming the account.
+  // LALIGA_LOW_BALANCE changes the N5,000 (0 turns it off).
+  let balanceMonitor = null;
+  const lowLevel = Number(process.env.LALIGA_LOW_BALANCE ?? 5000);
+  if (eventsClient && lowLevel > 0) {
+    balanceMonitor = createBalanceMonitor({
+      readBalance: () => ports.readBalance(), threshold: lowLevel, log,
+      send: ({ balance, threshold, crossingId }) => emailLowBalance({
+        client: eventsClient, log,
+        event: { eventId: `low|${projectName}|${accountInfo.name}|${crossingId}`, project: projectName, occurredAt: new Date().toISOString(), account: accountInfo, balance, threshold },
+      }),
+    });
+    log(`Low-balance alert: on (under N${lowLevel}, account "${accountInfo.name}").`);
+  }
+
+  // ---- DAILY JOBS (Lagos time) ----------------------------------------------------------------------------------------
+  //   23:55 and 07:55  WAKE the server: a call that carries on by itself; betting is NOT held up (it can take a minute to answer)
+  //   23:59            SAVE to the server, like pressing u (new bets wait only until the server answers, which is quick
+  //                    because the 23:55 call has already woken it)
+  // LALIGA_WAKE_TIMES, LALIGA_SAVE_TIMES, LALIGA_TZ change them. LALIGA_WAKE=off / LALIGA_AUTOSAVE=off stop them.
+  // LALIGA_WAKE_URLS="https://other-server/…" wakes other servers at the same wake times.
+  //   DAILY REST (only under laliga-cycle.js, which sets LALIGA_REST=on): at 23:59 the run finishes the round in hand
+  //   (placing, waiting or watching), settles it, saves, and shuts down with exit code 10; the supervisor starts it again
+  //   at 00:00 on the 3rd day (LALIGA_CYCLE_DAYS=3, so every 72 hours).
+  let dailyJobs = null;
+  let restRequested = false;
+  let restDay = null;
+  const restOn = process.env.LALIGA_REST === 'on';
+  {
+    const timeZone = process.env.LALIGA_TZ || 'Africa/Lagos';
+    const jobs = [];
+    if (restOn) {
+      const at = parseTimes(process.env.LALIGA_REST_AT, '23:59')[0] || '23:59';
+      jobs.push({
+        at, name: 'daily rest',
+        run: async () => {
+          restRequested = true;
+          restDay = clockParts(new Date(), timeZone).day;
+          log(`\n  ${at}: the day's work ends. Finishing the round in hand, then saving and shutting down.`);
+          controller.stop();   // the round in hand is finished and settled first; nothing new is started
+          return { ok: true, message: 'finishing the round in hand, then saving and resting' };
+        },
+      });
+    }
+    if (eventsClient && process.env.LALIGA_WAKE !== 'off') {
+      const wakeTimes = parseTimes(process.env.LALIGA_WAKE_TIMES, '23:55,07:55');
+      const extraUrls = String(process.env.LALIGA_WAKE_URLS || '').split(',').map((item) => item.trim()).filter(Boolean);
+      for (const at of wakeTimes) {
+        jobs.push({
+          at, name: 'wake the server',
+          run: async () => {
+            const woken = await eventsClient.wake();
+            return woken.status === 200 ? { ok: true, message: `the server answered (database ${woken.body?.database === 'ok' ? 'ok' : 'not answering yet'})` } : { ok: false, message: `${woken.status} ${woken.body?.message || ''}`.trim() };
+          },
+        });
+        for (const url of extraUrls) {
+          jobs.push({
+            at, name: `wake ${url}`,
+            run: async () => { const response = await fetch(url, { signal: AbortSignal.timeout(75000) }); return { ok: response.status < 500, message: `answered ${response.status}` }; },
+          });
+        }
+      }
+    }
+    if (eventsClient && !restOn && process.env.LALIGA_AUTOSAVE !== 'off') {   // under the daily rest the final save is part of the rest
+      for (const at of parseTimes(process.env.LALIGA_SAVE_TIMES, '23:59')) jobs.push({ at, name: 'save to the server', run: () => actions.push() });
+    }
+    if (jobs.length) {
+      dailyJobs = createDailyJobs({ jobs, timeZone, log });
+      log(`Daily jobs (${timeZone}): ${jobs.map((job) => `${job.at} ${job.name}`).join(', ')}.`);
+    }
+  }
+
   const panelOption = String(process.env.AUTOMATION_PANEL_PORT ?? '4545').toLowerCase();
   let panel = null;
   if (panelOption !== 'off') {
@@ -269,20 +353,39 @@ async function main() {
   }
 
   let exitCode = 0;
+  const endNote = { status: 'STOPPED', code: null, message: '' };
   try {
     await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForSelector('[data-testid="league-round"]', { timeout: 20000 }).catch(() => {});
     await flow.clearOverlays().catch(() => {});
+    void announce(process.argv.includes('--resume') || process.argv.includes('--resume-open') ? 'resumed' : 'started', { message: process.env.LALIGA_AFTER_REST ? 'Back after the rest: playing round after round.' : (forever ? 'Playing round after round.' : 'Playing.') });   // not waited for
     const outcome = await controller.run({ forever, maxRounds, resumeOpen: process.argv.includes('--resume'), resumeIfOpen: process.argv.includes('--resume-open') });
     log(`\nRun finished: ${outcome.status}${outcome.code ? ` (${outcome.code})` : ''}${outcome.reason ? `\n${outcome.reason}` : ''}`);
     if (outcome.status === 'HALTED') exitCode = 2;
+    Object.assign(endNote, { status: outcome.status, code: outcome.code || null, message: outcome.reason || outcome.note || '' });
+    if (restRequested && outcome.status !== 'HALTED') {
+      // the day's last round is settled: one final save, then the rest (a halt is never turned into a rest)
+      const saved = await actions.push();
+      log(`  Final save before the rest: ${saved.message}`);
+      const cycleDays = Number(process.env.LALIGA_CYCLE_DAYS || 3);
+      const resumeAt = computeResumeAt({ restDay, cycleDays, timeZone: process.env.LALIGA_TZ || 'Africa/Lagos' });
+      writeRest(path.join(__dirname, 'automation', 'artifacts'), { restDay, cycleDays, resumeAt: resumeAt.toISOString(), writtenAt: new Date().toISOString() });
+      log(`  Resting now. The next start is ${showTime(resumeAt)}.`);
+      Object.assign(endNote, { status: 'RESTING', code: null, message: `Daily rest. Starts again ${showTime(resumeAt)}. ${saved.ok ? 'Everything is saved to the server.' : 'The final save did NOT go through.'}` });
+      exitCode = REST_EXIT;
+    }
   } catch (error) {
     console.error(`\nSTOPPED by an error: ${error.message}`);
+    Object.assign(endNote, { status: 'ERROR', message: error.message });
     await ports.captureEvidence('error');
     exitCode = 1;
   } finally {
     if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (error) { /* closing anyway */ } }
     if (commandPoller) commandPoller.stop();
+    if (balanceMonitor) balanceMonitor.stop();
+    if (dailyJobs) dailyJobs.stop();
+    // the "ended" notice is the one thing waited for (a few seconds at most) so it is sent before the program exits
+    await announce('ended', { status: endNote.status, code: endNote.code, message: endNote.message }).catch(() => {});
     if (panel) await panel.stop().catch(() => {});
     await context.close();
   }

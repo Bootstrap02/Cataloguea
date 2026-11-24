@@ -26,6 +26,9 @@
     "automation:betking:run": "node automation/betkingRun.js",
     "automation:betking:open": "node automation/betkingOpen.js",
     "automation:betking:markets": "node automation/betkingMarkets.js",
+    "test:observer": "node --test automation/observer/observer.test.js automation/observer/odds-and-rules.test.js",
+    "report": "node observer-report.js",
+    "table": "node observer-table.js",
     "laliga": "bash start-laliga.sh dry",
     "laliga:play": "bash start-laliga.sh play",
     "laliga:one": "bash start-laliga.sh one",
@@ -34,7 +37,8 @@
     "laliga:sync-setup": "node laliga-sync.js setup",
     "laliga:sync-status": "node laliga-sync.js status",
     "laliga:push": "node laliga-sync.js push",
-    "laliga:pull": "node laliga-sync.js pull"
+    "laliga:pull": "node laliga-sync.js pull",
+    "check:betking": "node deploy/oracle/check-betking.js"
   },
   "eslintConfig": {
     "extends": [
