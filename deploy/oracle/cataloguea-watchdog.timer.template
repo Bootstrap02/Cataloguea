@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Cataloguea recording watchdog every 10 minutes
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

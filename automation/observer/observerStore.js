@@ -31,11 +31,20 @@ function createObserverStore({ dir, league, now = () => new Date() }) {
     const events = [];
     const lines = [];
     for (const card of fresh) {
+      const sameSeason = state.season > 0 && card.week > state.lastWeek;
+      if (sameSeason && card.week > state.lastWeek + 1) {
+        // weeks that were never seen (a visit failed and the window moved on): the season has a hole and can no longer
+        // count as "a season without this result"
+        const missing = Array.from({ length: card.week - state.lastWeek - 1 }, (_, i) => state.lastWeek + 1 + i);
+        const open = state.seasons[state.season];
+        open.gaps = [...(open.gaps || []), ...missing];
+        events.push({ type: 'gap', season: state.season, from: missing[0], to: missing[missing.length - 1], weeks: missing.length });
+      }
       if (state.season === 0 || card.week <= state.lastWeek) {
         // the first card ever, or a week number that did not go up: a new season
         if (state.season > 0 && state.seasons[state.season]) state.seasons[state.season].endedAt = now().toISOString();
         state.season += 1;
-        state.seasons[state.season] = { startedAt: now().toISOString(), firstWeek: card.week, partial: card.week > 1, complete: false, weeks: 0 };
+        state.seasons[state.season] = { startedAt: now().toISOString(), firstWeek: card.week, partial: card.week > 1, complete: false, weeks: 0, gaps: [] };
         events.push({ type: 'season-started', season: state.season, firstWeek: card.week, partial: card.week > 1 });
       }
       const season = state.seasons[state.season];

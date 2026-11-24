@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the OBSERVER (records the results of the four BetKing virtual leagues; it never bets).
+# Start the RESULTS RECORDER (records the results of the four BetKing virtual leagues, sends signals; it never bets).
 #   bash start-laliga.sh            records round after round until you press Ctrl-C (starts at once, no question)
 #   bash start-laliga.sh one        one visit to every league, then stops (a quick check)
 #   anything after the mode is passed on, for example:  bash start-laliga.sh play --league epl,laliga
@@ -8,7 +8,6 @@ set -u
 cd "$(dirname "$0")" || exit 1
 MODE="${1:-play}"
 shift || true
-# anything else you type after the mode is passed on, e.g.  bash start-laliga.sh play --no-sync   or   --account second
 EXTRA=("$@")
 
 if ! command -v node >/dev/null 2>&1; then echo "Node.js is not installed or not on the PATH."; exit 1; fi
@@ -18,7 +17,9 @@ echo "Checking the installation..."
 node check-install.js | tail -1
 
 case "$MODE" in
-  play)   echo; echo "Starting the OBSERVER: it records the results, it never bets. Leave the browser window alone."; exec node observer-run.js ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  play)   echo; echo "Starting the RESULTS RECORDER: it records results and sends signals, it never bets."; exec node observer-run.js ${EXTRA[@]+"${EXTRA[@]}"} ;;
   one)    exec node observer-run.js --once ${EXTRA[@]+"${EXTRA[@]}"} ;;
-  *)      echo "Unknown mode '$MODE'. Use: play | one"; exit 1 ;;
+  server) exec node observer-run.js --headless ${EXTRA[@]+"${EXTRA[@]}"} ;;   # no browser window (for the Oracle server)
+  probe)  exec node observer-run.js --odds-probe ${EXTRA[@]+"${EXTRA[@]}"} ;;
+  *)      echo "Unknown mode '$MODE'. Use: play | one | server"; exit 1 ;;
 esac

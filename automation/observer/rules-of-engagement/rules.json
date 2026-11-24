@@ -1,0 +1,24 @@
+{
+  "_about": "RULES OF ENGAGEMENT. When a team has MISSED a stake option for enough completed seasons, and the option's percentile (the average of the highest quarter of the team's 38 odds, 34 in the Bundesliga) falls in a band, an alert is sent with a stake target. Change a number here and the next check uses it. Nothing else needs touching.",
+
+  "multiplier": 1,
+  "_multiplier": "Every stake target is multiplied by this. 1 = the normal stakes. Set 2 and 500 becomes 1000, and so on up the whole ladder.",
+
+  "firstBandUpTo": 16,
+  "_firstBandUpTo": "Band 0 is a percentile of 16 and below.",
+
+  "bandWidth": 8,
+  "_bandWidth": "Each next band is 8 wider: 17-24 is band 1, 25-32 is band 2, 33-40 is band 3, and so on.",
+
+  "firstBandSeasons": 2,
+  "extraSeasonsPerBand": 1,
+  "_seasons": "Completed seasons in a row without the option: 2 in band 0, 3 in band 1, 4 in band 2, ... (firstBandSeasons + band x extraSeasonsPerBand). The seasons can keep growing.",
+
+  "baseStake": 500,
+  "stakeStep": 500,
+  "stakeCap": 2500,
+  "_stake": "The stake target is baseStake + band x stakeStep (500, 1000, 1500, 2000, 2500) and never goes above stakeCap: the seasons keep growing but the money stops at 2500.",
+
+  "capAppliesTo": "base",
+  "_capAppliesTo": "base = the 2500 cap applies to the ladder and the multiplier is applied after it (2500 x 2 = 5000). final = the 2500 cap applies AFTER the multiplier (the target never goes above 2500 at all)."
+}
