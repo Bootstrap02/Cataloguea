@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Cataloguea automatic backup once daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=cataloguea-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Cataloguea automatic backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=__DIR__
+ExecStart=/bin/bash __DIR__/scripts/backup.sh
+# Capture backup output to the journal for failure visibility.
+StandardOutput=journal
+StandardError=journal
